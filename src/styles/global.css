@@ -37,9 +37,9 @@
   --border: #E1E8ED;
   --border-dark: #CBD5E0;
 
-  /* 棋盘色 */
-  --board-light: #F0D9B5;
-  --board-dark: #B58863;
+  /* 棋盘色 - 经典木纹配色 */
+  --board-light: #E8CFA0;
+  --board-dark: #A07A4A;
   --board-selected: #F7DC6F;
   --board-legal: #FFEB3B;
   --board-capture: #EF5350;
@@ -631,6 +631,7 @@ ul {
   height: 500px;
   min-width: 400px;
   min-height: 400px;
+  aspect-ratio: 1 / 1;
 }
 
 .demo-legend {
@@ -1031,13 +1032,13 @@ ul {
   aspect-ratio: 1 / 1;
   border-radius: 12px;
   overflow: hidden;
-  background: radial-gradient(ellipse at center, #e8f5e9 0%, #d4e8d6 70%, #c8dcc8 100%);
+  background: radial-gradient(ellipse at center, #f5ead8 0%, #e0d0b0 70%, #c8b898 100%);
   box-shadow: 0 8px 32px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.3);
 }
 
 .threejs-chess-board {
-  width: 100% !important;
-  height: 100% !important;
+  width: 100%;
+  height: 100%;
 }
 
 .threejs-chess-board canvas {
