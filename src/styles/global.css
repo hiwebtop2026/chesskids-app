@@ -37,15 +37,15 @@
   --border: #E1E8ED;
   --border-dark: #CBD5E0;
 
-  /* 棋盘色 - 经典木纹配色 */
-  --board-light: #E8CFA0;
-  --board-dark: #A07A4A;
-  --board-selected: #F7DC6F;
-  --board-legal: #FFEB3B;
+  /* 棋盘色 - 标准黑白格 */
+  --board-light: #EDEDED;
+  --board-dark: #5A5A5A;
+  --board-selected: #4CAF50;
+  --board-legal: #2196F3;
   --board-capture: #EF5350;
-  --board-last-move: #A8D8EA;
-  --board-check: #FF6B6B;
-  --board-hint: #FFD54F;
+  --board-last-move: #FF9800;
+  --board-check: #F44336;
+  --board-hint: #9C27B0;
 
   /* 阴影 */
   --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
@@ -1032,7 +1032,7 @@ ul {
   aspect-ratio: 1 / 1;
   border-radius: 12px;
   overflow: hidden;
-  background: radial-gradient(ellipse at center, #f5ead8 0%, #e0d0b0 70%, #c8b898 100%);
+  background: radial-gradient(ellipse at center, #d8d8d8 0%, #c0c0c0 70%, #a8a8a8 100%);
   box-shadow: 0 8px 32px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.3);
 }
 

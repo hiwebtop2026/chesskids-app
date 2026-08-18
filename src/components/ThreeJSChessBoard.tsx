@@ -15,18 +15,17 @@ const BORDER_WIDTH = 0.6;
 const BOARD_HEIGHT = 0.15;
 const PIECE_BASE_Y = BOARD_HEIGHT / 2 + 0.04; // 棋子放在格子表面之上
 
-// 经典木纹棋盘配色：暖色调格子 + 深木色边框
-// 使用国际象棋经典棕米配色，与棋子形成良好对比度
-const SQUARE_WHITE = 0xE8CFA0;   // 暖蜜色白格（经典棋盘色）
-const SQUARE_BLACK = 0xA07A4A;   // 中度胡桃木棕格
-const BORDER_DARK = 0x3B2817;     // 深咖啡木色边框
-const BORDER_LIGHT = 0x8B6914;   // 黄铜色装饰线
-// 棋子高端质感配色：Staunton 风格天然材质
-// 白棋使用亮象牙色，与暖蜜色白格形成明显对比
-const WHITE_PIECE = 0xF5EBD8;  // 亮象牙白（明显比白格更亮）
-const BLACK_PIECE = 0x2B2B2B;  // 富炭灰黑（比棕格更深，对比清晰）
-const WHITE_DARK_ACCENT = 0x9A8870; // 白棋深色装饰环（暖灰棕）
-const BLACK_LIGHT_ACCENT = 0x6A6A6A; // 黑棋高光装饰环（中灰）
+// 标准黑白格棋盘配色：经典对比 + 深色边框
+// 深格用中灰而非纯黑，确保黑棋可见；浅格用柔白减少刺眼
+const SQUARE_WHITE = 0xEDEDED;   // 柔和白格（非纯白，减少视觉疲劳）
+const SQUARE_BLACK = 0x5A5A5A;   // 中深灰黑格（非纯黑，黑棋仍可辨）
+const BORDER_DARK = 0x2A2A2A;    // 深灰边框
+const BORDER_LIGHT = 0x707070;  // 浅灰装饰线
+// 棋子配色：白棋暖象牙与冷灰白格形成色温对比，黑棋近黑与中灰黑格形成明度对比
+const WHITE_PIECE = 0xF2E6CC;  // 暖象牙白（色温偏暖，与冷灰白格区分）
+const BLACK_PIECE = 0x1C1C1C;  // 近炭黑（明度远低于中灰黑格）
+const WHITE_DARK_ACCENT = 0x9A8868; // 白棋暖灰棕装饰环
+const BLACK_LIGHT_ACCENT = 0x5A5A5A; // 黑棋中灰装饰环
 
 // ============ 工具函数 ============
 const pieceTypeFromChar = (char: string): PieceType | null => {
@@ -79,10 +78,10 @@ const createPieceMesh = (
     // 反射率：白棋最高反射，黑棋适中
     reflectivity: isWhite ? 0.85 : 0.6,
     sheen: isWhite ? 0.65 : 0.3,
-    sheenColor: new THREE.Color(isWhite ? 0xfff5e0 : 0x605848),
+    sheenColor: new THREE.Color(isWhite ? 0xfff8e8 : 0x586070),
     sheenRoughness: isWhite ? 0.20 : 0.40,
-    emissive: new THREE.Color(isWhite ? 0x3a3528 : 0x0a0a08),
-    emissiveIntensity: isWhite ? 0.22 : 0.05,
+    emissive: new THREE.Color(isWhite ? 0x2a2520 : 0x050508),
+    emissiveIntensity: isWhite ? 0.18 : 0.05,
     // 环境反射强度：白棋最高，黑棋适中
     envMapIntensity: isWhite ? 1.8 : 1.3,
   });
@@ -406,7 +405,7 @@ const createPieceMesh = (
     // --- 鬃毛：沿颈背流动的浓密发束 ---
     // 马的鬃毛沿颈背流动，从耳后延伸到颈底
     const maneMat = new P.MeshPhysicalMaterial({
-      color: isWhite ? 0xe0d4bc : 0x2B2B2B,
+      color: isWhite ? 0xe0d4bc : 0x1C1C1C,
       roughness: isWhite ? 0.30 : 0.08,
       clearcoat: isWhite ? 0.7 : 0.9,
       clearcoatRoughness: isWhite ? 0.25 : 0.08,
@@ -832,26 +831,45 @@ const createHighlightMesh = (
   const [x, z] = squareToWorld(row, col);
   const group = new THREE.Group();
   const BasicMat = (THREE as any).MeshBasicMaterial;
+  const LineBasicMat = (THREE as any).LineBasicMaterial;
 
+  // legal 类型：蓝色圆点提示（类似 lichess/chess.com 风格）
+  if (type === 'legal') {
+    const dotGeo = new (THREE as any).CircleGeometry(0.16, 32);
+    const dotMat = new BasicMat({
+      color: 0x2196F3,
+      transparent: true,
+      opacity: 0.75,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      depthTest: false,
+    });
+    const dot = new THREE.Mesh(dotGeo, dotMat);
+    dot.position.set(x, BOARD_HEIGHT / 2 + 0.052, z);
+    dot.rotation.x = -Math.PI / 2;
+    dot.userData = { isHighlight: true, type, row, col };
+    group.add(dot);
+    return group.children;
+  }
+
+  // 其他类型配色
   const colors = {
-    selected: { color: 0x4caf50, opacity: 0 },       // 选中：无填充
-    legal: { color: 0xffeb3b, opacity: 0.6 },
+    selected: { color: 0x4caf50, opacity: 0 },
     lastMove: { color: 0xff9800, opacity: 0.25 },
     check: { color: 0xf44336, opacity: 0.45 },
     hint: { color: 0x9c27b0, opacity: 0.35 },
-  };
+  } as Record<string, { color: number; opacity: number }>;
   const borderColor = {
-    selected: 0x00e676,   // 选中：亮绿色边框
-    legal: 0xf57f17,
+    selected: 0x00e676,
     lastMove: 0xff6f00,
     check: 0xd32f2f,
     hint: 0x6a1b9a,
-  };
+  } as Record<string, number>;
 
   const config = colors[type];
   const bColor = borderColor[type];
 
-  // 边框线（使用LineSegments绘制精致边框）
+  // 边框线
   const halfSize = type === 'selected' ? SQUARE_SIZE * 0.45 : SQUARE_SIZE * 0.42;
   const corners = [
     [-halfSize, -halfSize],
@@ -868,7 +886,6 @@ const createHighlightMesh = (
   }
   const lineGeo = new THREE.BufferGeometry() as any;
   lineGeo.setAttribute('position', new (THREE as any).Float32BufferAttribute(linePoints, 3));
-  const LineBasicMat = (THREE as any).LineBasicMaterial;
   const lineMat = new LineBasicMat({
     color: bColor,
     transparent: true,
@@ -880,8 +897,8 @@ const createHighlightMesh = (
   lines.userData = { isHighlight: true, type, row, col };
   group.add(lines);
 
-  // 填充层（selected类型不添加填充）
-  if (config.opacity > 0) {
+  // 填充层（selected 类型无填充）
+  if (config && config.opacity > 0) {
     const geo = new THREE.PlaneGeometry(SQUARE_SIZE * 0.80, SQUARE_SIZE * 0.80);
     const mat = new BasicMat({
       color: config.color,
@@ -898,7 +915,7 @@ const createHighlightMesh = (
     group.add(mesh);
   }
 
-  // 选中效果：添加角标装饰（四个小L形标记）
+  // 选中效果：四角L形标记
   if (type === 'selected') {
     const cornerSize = 0.08;
     const cornerOffset = halfSize - cornerSize * 0.5;
@@ -933,7 +950,7 @@ const createHighlightMesh = (
     }
   }
 
-  // 非selected类型：添加外环边框
+  // 非selected类型：外环边框
   if (type !== 'selected') {
     const borderGeo = new THREE.PlaneGeometry(SQUARE_SIZE * 0.92, SQUARE_SIZE * 0.92);
     const borderMat = new BasicMat({
@@ -1000,8 +1017,8 @@ export const ThreeJSChessBoard: React.FC<ThreeJSChessBoardProps> = ({
 
     // 创建场景
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xE8DCC8);
-    scene.fog = new THREE.Fog(0xE8DCC8, 18, 35);
+    scene.background = new THREE.Color(0xC8C8C8);
+    scene.fog = new THREE.Fog(0xC8C8C8, 18, 35);
 
     // 创建相机（白方视角：白棋在下靠近观察者，黑棋在上远离观察者）
     // 具体初始位置由下方 updateCameraFromSpherical 根据球面坐标确定
@@ -1031,12 +1048,12 @@ export const ThreeJSChessBoard: React.FC<ThreeJSChessBoardProps> = ({
     envCanvas.height = 256;
     const envCtx = envCanvas.getContext('2d')!;
     const gradient = envCtx.createLinearGradient(0, 0, 0, 256);
-    gradient.addColorStop(0, '#fff8e8');
-    gradient.addColorStop(0.2, '#fff0d8');
-    gradient.addColorStop(0.4, '#f0dcb8');
-    gradient.addColorStop(0.6, '#d4c098');
-    gradient.addColorStop(0.8, '#a89070');
-    gradient.addColorStop(1.0, '#5a4838');
+    gradient.addColorStop(0, '#ffffff');
+    gradient.addColorStop(0.2, '#f0f0f0');
+    gradient.addColorStop(0.4, '#d8d8d8');
+    gradient.addColorStop(0.6, '#a0a0a0');
+    gradient.addColorStop(0.8, '#707070');
+    gradient.addColorStop(1.0, '#3a3a3a');
     envCtx.fillStyle = gradient;
     envCtx.fillRect(0, 0, 512, 256);
     const envTexture = new (THREE as any).CanvasTexture(envCanvas);
@@ -1084,7 +1101,7 @@ export const ThreeJSChessBoard: React.FC<ThreeJSChessBoardProps> = ({
     scene.add(rimLight);
 
     // 底光 Ground Bounce：棋盘反射，模拟棋盘地面的反光
-    const bounceLight = new THREE.PointLight(0xd4b890, 0.35, 12, 2.0);
+    const bounceLight = new THREE.PointLight(0xc0c0c0, 0.35, 12, 2.0);
     bounceLight.position.set(0, 0.2, 0);
     scene.add(bounceLight);
 
@@ -1127,7 +1144,7 @@ export const ThreeJSChessBoard: React.FC<ThreeJSChessBoardProps> = ({
     // --- 地面平面（接收阴影） ---
     const groundGeo = new THREE.PlaneGeometry(30, 30);
     const groundMat = new THREE.MeshStandardMaterial({
-      color: 0xD4C4A8,
+      color: 0xB8B8B8,
       roughness: 0.9,
       metalness: 0.0,
     });
@@ -1542,7 +1559,7 @@ export const ThreeJSChessBoard: React.FC<ThreeJSChessBoardProps> = ({
         width: '100%',
         height: '100%',
         position: 'relative',
-        background: 'radial-gradient(ellipse at center, #f5ead8 0%, #e0d0b0 70%, #c8b898 100%)',
+        background: 'radial-gradient(ellipse at center, #d8d8d8 0%, #c0c0c0 70%, #a8a8a8 100%)',
         borderRadius: '12px',
         overflow: 'hidden',
         boxShadow: '0 8px 32px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.3)',
