@@ -3,7 +3,7 @@
  * 与AI对手进行完整对局
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { MoveHistory, GameControls } from '../components';
 import { ThreeJSChessBoard } from '../components/ThreeJSChessBoard';
 import { useGameStore } from '../store/gameStore';
@@ -33,8 +33,8 @@ export const GamePlay: React.FC = () => {
   const { recordGame } = useProgressStore();
   const gameRecorded = React.useRef(false);
 
-  /** 检查当前方是否被将军 */
-  const checkSquare = (() => {
+  /** 检查当前方是否被将军（useMemo 缓存，避免每次渲染都重算） */
+  const checkSquare = useMemo(() => {
     if (status === 'playing' || status === 'check') {
       const kingPos = findKing(board, turn === 'w');
       if (kingPos && isInCheck(board, turn === 'w')) {
@@ -42,7 +42,7 @@ export const GamePlay: React.FC = () => {
       }
     }
     return null;
-  })();
+  }, [board, status, turn]);
 
   /** 游戏结束时记录结果 */
   useEffect(() => {

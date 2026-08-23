@@ -55,6 +55,10 @@ const squareToWorld = (row: number, col: number): [number, number] => {
 // ============ 3D 棋子创建 ============
 // 使用 LatheGeometry（车削几何体）重构，实现更光滑的 Staunton 风格轮廓
 // 参考真实棋子照片：https://images.unsplash.com/photo-staunton-chess
+
+// 棋子网格缓存：按 `${type}-${color}` 缓存克隆用的模板，避免每次 board 变化都重建几何体/材质
+const pieceMeshCache = new Map<string, THREE.Group>();
+
 const createPieceMesh = (
   type: PieceType,
   color: PieceColor
@@ -685,6 +689,33 @@ const createPieceMesh = (
   return group;
 };
 
+/** 从缓存获取棋子网格（克隆模板，共享几何体和材质，避免重复创建） */
+const getCachedPieceMesh = (type: PieceType, color: PieceColor): THREE.Group => {
+  const key = `${type}-${color}`;
+  if (!pieceMeshCache.has(key)) {
+    pieceMeshCache.set(key, createPieceMesh(type, color));
+  }
+  return (pieceMeshCache.get(key) as any).clone(true);
+};
+
+/** 释放棋子缓存（组件卸载时调用） */
+const disposePieceCache = () => {
+  for (const group of pieceMeshCache.values()) {
+    const disposed = new Set<any>();
+    group.traverse((c: any) => {
+      if (c.geometry && !disposed.has(c.geometry)) { disposed.add(c.geometry); c.geometry.dispose(); }
+      if (c.material) {
+        const mats = Array.isArray(c.material) ? c.material : [c.material];
+        for (const m of mats) {
+          if (!disposed.has(m)) { disposed.add(m); m.dispose(); }
+          if (m.map) { m.map.dispose(); }
+        }
+      }
+    });
+  }
+  pieceMeshCache.clear();
+};
+
 // ============ 棋盘创建 ============
 const createBoardMesh = (): THREE.Group => {
   const group = new THREE.Group();
@@ -1006,6 +1037,7 @@ export const ThreeJSChessBoard: React.FC<ThreeJSChessBoardProps> = ({
   const animationFrameRef = useRef<number | null>(null);
   const raycasterRef = useRef<THREE.Raycaster | null>(null);
   const mouseRef = useRef<THREE.Vector2 | null>(null);
+  const needsRenderRef = useRef(true); // 按需渲染标志
 
   // --- 初始化 Three.js 场景 ---
   useEffect(() => {
@@ -1077,8 +1109,8 @@ export const ThreeJSChessBoard: React.FC<ThreeJSChessBoardProps> = ({
     const mainLight = new THREE.DirectionalLight(0xfff1dd, 1.8);
     mainLight.position.set(6, 14, -7);
     mainLight.castShadow = true;
-    mainLight.shadow.mapSize.width = 4096;
-    mainLight.shadow.mapSize.height = 4096;
+    mainLight.shadow.mapSize.width = 2048;
+    mainLight.shadow.mapSize.height = 2048;
     mainLight.shadow.camera.near = 0.5;
     mainLight.shadow.camera.far = 40;
     mainLight.shadow.camera.left = -10;
@@ -1112,22 +1144,6 @@ export const ThreeJSChessBoard: React.FC<ThreeJSChessBoardProps> = ({
     spotLight.castShadow = false;
     scene.add(spotLight);
     scene.add(spotLight.target);
-
-    // 白棋高光增强灯：暖白色聚光，从正面强照射白方区域
-    const whiteHighlight = new THREE.SpotLight(0xfff8e8, 0.8, 20, Math.PI / 4, 0.4, 1.0);
-    whiteHighlight.position.set(3, 9, 6);
-    whiteHighlight.target.position.set(0, 0, 3);
-    whiteHighlight.castShadow = false;
-    scene.add(whiteHighlight);
-    scene.add(whiteHighlight.target);
-
-    // 黑棋轮廓增强灯：冷蓝色背光，勾勒黑棋边缘轮廓
-    const blackRimLight = new THREE.SpotLight(0x607090, 0.4, 20, Math.PI / 4, 0.5, 1.0);
-    blackRimLight.position.set(-3, 7, -5);
-    blackRimLight.target.position.set(0, 0, -3);
-    blackRimLight.castShadow = false;
-    scene.add(blackRimLight);
-    scene.add(blackRimLight.target);
 
     // --- 棋盘 ---
     const boardGroup = createBoardMesh();
@@ -1193,6 +1209,7 @@ export const ThreeJSChessBoard: React.FC<ThreeJSChessBoardProps> = ({
       camera.position.y = cameraTargetY + r * Math.cos(cameraAngleY);
       camera.position.z = cameraTargetZ + r * sinY * Math.cos(cameraAngleX);
       camera.lookAt(cameraTargetX, cameraTargetY, cameraTargetZ);
+      needsRenderRef.current = true;
     };
     updateCameraFromSpherical();
 
@@ -1332,6 +1349,7 @@ export const ThreeJSChessBoard: React.FC<ThreeJSChessBoardProps> = ({
       cameraRef.current.aspect = w / h;
       cameraRef.current.updateProjectionMatrix();
       rendererRef.current.setSize(w, h);
+      needsRenderRef.current = true;
     };
     // 监听容器尺寸变化（模块切换、布局调整等）
     const resizeObserver = new ResizeObserver(() => {
@@ -1341,7 +1359,7 @@ export const ThreeJSChessBoard: React.FC<ThreeJSChessBoardProps> = ({
     // 同时保留 window resize 监听
     window.addEventListener('resize', handleResize);
 
-    // --- 渲染循环（含可选的测试自动旋转）---
+    // --- 渲染循环（按需渲染：仅在场景变化时渲染，降低GPU占用）---
     let autoRotateSpeed = 0;       // 调试用：每帧绕Y轴角度增量（弧度）
     let autoRotateTarget = 0;      // 调试用：自动旋转到指定角度（角度制），-1 表示持续自由旋转
     const animate = () => {
@@ -1349,7 +1367,6 @@ export const ThreeJSChessBoard: React.FC<ThreeJSChessBoardProps> = ({
       // ===== 调试自动旋转控制 =====
       if (autoRotateSpeed !== 0) {
         if (autoRotateTarget === -1) {
-          // 自由持续旋转
           cameraAngleX += autoRotateSpeed;
         } else {
           const targetRad = autoRotateTarget * Math.PI / 180;
@@ -1364,8 +1381,13 @@ export const ThreeJSChessBoard: React.FC<ThreeJSChessBoardProps> = ({
           }
         }
         updateCameraFromSpherical();
+        needsRenderRef.current = true;
       }
-      rendererRef.current.render(sceneRef.current, cameraRef.current);
+      // 仅在需要时渲染
+      if (needsRenderRef.current) {
+        rendererRef.current.render(sceneRef.current, cameraRef.current);
+        needsRenderRef.current = false;
+      }
       animationFrameRef.current = requestAnimationFrame(animate);
     };
     animate();
@@ -1454,37 +1476,18 @@ export const ThreeJSChessBoard: React.FC<ThreeJSChessBoardProps> = ({
 
       container.removeChild(renderer.domElement);
       renderer.dispose();
+      disposePieceCache();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flipped, readOnly]);
 
-  // --- 更新棋子 ---
+  // --- 更新棋子（使用缓存克隆，避免重建几何体/材质） ---
   useEffect(() => {
     if (!piecesGroupRef.current) return;
-    // 清除旧棋子
-    while (piecesGroupRef.current.children.length > 0) {
-      const child = piecesGroupRef.current.children[0];
-      piecesGroupRef.current.remove(child);
-      // 释放资源（使用 Set 避免共享材质/几何体重复 dispose）
-      const disposed = new Set<any>();
-      child.traverse((c: any) => {
-        if (c.geometry && !disposed.has(c.geometry)) {
-          disposed.add(c.geometry);
-          c.geometry.dispose();
-        }
-        if (c.material) {
-          const mats = Array.isArray(c.material) ? c.material : [c.material];
-          for (const m of mats) {
-            if (!disposed.has(m)) {
-              disposed.add(m);
-              m.dispose();
-            }
-          }
-        }
-      });
-    }
+    // 清除旧棋子（无需 dispose，几何体/材质由缓存管理）
+    (piecesGroupRef.current as any).clear();
 
-    // 添加新棋子
+    // 添加新棋子（从缓存克隆，共享几何体和材质）
     for (let row = 0; row < 8; row++) {
       for (let col = 0; col < 8; col++) {
         const char = board[row][col];
@@ -1492,12 +1495,13 @@ export const ThreeJSChessBoard: React.FC<ThreeJSChessBoardProps> = ({
         const type = pieceTypeFromChar(char);
         if (!type) continue;
         const color = pieceColorFromChar(char);
-        const pieceMesh = createPieceMesh(type, color);
+        const pieceMesh = getCachedPieceMesh(type, color);
         const [x, z] = squareToWorld(row, col);
         pieceMesh.position.set(x, PIECE_BASE_Y, z);
         piecesGroupRef.current.add(pieceMesh);
       }
     }
+    if (needsRenderRef.current !== undefined) needsRenderRef.current = true;
   }, [board]);
 
   // --- 更新高亮 ---
@@ -1549,6 +1553,7 @@ export const ThreeJSChessBoard: React.FC<ThreeJSChessBoardProps> = ({
       addHighlight(hint.from[0], hint.from[1], 'hint');
       addHighlight(hint.to[0], hint.to[1], 'hint');
     }
+    needsRenderRef.current = true;
   }, [selectedSquare, legalTargets, lastMove, checkSquare, hint]);
 
   return (

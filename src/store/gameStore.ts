@@ -245,9 +245,10 @@ export const useGameStore = create<GameState>((set, get) => ({
     });
   },
 
-  /** 重置游戏 */
+  /** 重置游戏（保留当前难度设置） */
   resetGame: () => {
-    set({ ...getInitialState() });
+    const currentDifficulty = get().difficulty;
+    set({ ...getInitialState(), difficulty: currentDifficulty });
   },
 
   /** 设置难度 */
