@@ -4,17 +4,18 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { PieceLearning, RulesLearning, TacticsTraining, GamePlay, ProgressSystem, OnlineGame } from './modules';
+import { PieceLearning, RulesLearning, TacticsTraining, GamePlay, LocalGame, ProgressSystem, OnlineGame } from './modules';
 import { UserProfile } from './components';
 import { useProgressStore } from './store';
 
-type TabKey = 'learn' | 'rules' | 'tactics' | 'game' | 'online' | 'progress';
+type TabKey = 'learn' | 'rules' | 'tactics' | 'game' | 'local' | 'online' | 'progress';
 
 const TABS: { key: TabKey; label: string; icon: string }[] = [
   { key: 'learn', label: '棋子学习', icon: '♟️' },
   { key: 'rules', label: '规则学习', icon: '📖' },
   { key: 'tactics', label: '战术训练', icon: '🧩' },
   { key: 'game', label: '人机对局', icon: '🤖' },
+  { key: 'local', label: '双人对局', icon: '👥' },
   { key: 'online', label: '联机对战', icon: '🌐' },
   { key: 'progress', label: '我的进度', icon: '🏆' },
 ];
@@ -85,6 +86,7 @@ const App: React.FC = () => {
         {activeTab === 'rules' && <RulesLearning />}
         {activeTab === 'tactics' && <TacticsTraining />}
         {activeTab === 'game' && <GamePlay />}
+        {activeTab === 'local' && <LocalGame />}
         {activeTab === 'online' && <OnlineGame />}
         {activeTab === 'progress' && <ProgressSystem />}
       </main>

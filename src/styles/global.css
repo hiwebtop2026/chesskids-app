@@ -134,7 +134,7 @@ ul {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  max-width: 1200px;
+  max-width: 1500px;
   margin: 0 auto;
 }
 
@@ -241,7 +241,7 @@ ul {
   left: 50%;
   transform: translateX(-50%);
   width: 100%;
-  max-width: 1200px;
+  max-width: 1500px;
   background: var(--bg-card);
   box-shadow: 0 -2px 10px rgba(0,0,0,0.06);
   z-index: 100;
@@ -1027,7 +1027,7 @@ ul {
 
 .game-board-section {
   position: relative;
-  width: min(720px, 80vw);
+  width: min(800px, 85vw);
   min-width: 360px;
   aspect-ratio: 1 / 1;
   border-radius: 12px;
@@ -1627,6 +1627,76 @@ ul {
   color: var(--text-white);
 }
 
+/* ===== 双人对局模块 ===== */
+.player-info-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) 0;
+}
+
+.player-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  border: 2px solid transparent;
+  transition: var(--transition);
+  flex: 1;
+}
+
+.player-chip.active {
+  border-color: var(--primary);
+  background: rgba(74, 144, 217, 0.08);
+}
+
+.player-color {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.player-name {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.your-turn {
+  margin-left: auto;
+  font-size: 0.72rem;
+  color: var(--primary);
+  font-weight: 600;
+  animation: pulse 1.5s infinite;
+}
+
+.vs-divider {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.flip-controls {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.flip-controls .control-btn {
+  flex: 1;
+}
+
+.flip-controls .control-btn.active {
+  background: var(--primary);
+  color: var(--text-white);
+  border-color: var(--primary);
+}
+
+/* 棋盘窗口最大化优化 */
+.game-side-panel {
+  max-width: 380px;
+}
+
 /* ===== 联网对战模块 ===== */
 .online-game {
   max-width: 900px;
@@ -1973,6 +2043,10 @@ ul {
   .app {
     max-width: 1500px;
   }
+
+  .game-side-panel {
+    max-width: 380px;
+  }
 }
 
 /* iPad 横屏及中型平板 (1024px - 1199px) */
@@ -1987,11 +2061,11 @@ ul {
   }
 
   .game-board-section {
-    width: min(650px, 70vw);
+    width: min(720px, 75vw);
   }
 
   .game-side-panel {
-    max-width: 340px;
+    max-width: 360px;
   }
 }
 
@@ -2030,7 +2104,7 @@ ul {
   }
 
   .game-board-section {
-    width: min(600px, 85vw);
+    width: min(650px, 90vw);
   }
 
   .game-side-panel {
@@ -2063,7 +2137,7 @@ ul {
   }
 
   .game-board-section {
-    width: min(520px, 90vw);
+    width: min(560px, 92vw);
   }
 
   .game-side-panel {
@@ -2110,7 +2184,7 @@ ul {
   .game-board-section {
     width: calc(100vw - 48px);
     min-width: 280px;
-    max-width: 460px;
+    max-width: 480px;
   }
 
   .game-side-panel {
@@ -2160,11 +2234,11 @@ ul {
   }
 
   .game-board-section {
-    width: min(600px, 65vh);
+    width: min(680px, 70vh);
   }
 
   .game-side-panel {
-    max-width: 320px;
+    max-width: 340px;
   }
 }
 
@@ -2175,7 +2249,7 @@ ul {
   }
 
   .game-board-section {
-    width: min(580px, 80vw);
+    width: min(620px, 85vw);
   }
 }
 
@@ -2186,7 +2260,7 @@ ul {
 }
 
 .app-fullscreen .game-board-section {
-  width: min(720px, 75vh);
+  width: min(820px, 80vh);
 }
 
 @media (max-width: 1023px) {
@@ -2196,7 +2270,7 @@ ul {
   }
 
   .app-fullscreen .game-board-section {
-    width: min(600px, 85vw);
+    width: min(680px, 90vw);
   }
 
   .app-fullscreen .game-side-panel {

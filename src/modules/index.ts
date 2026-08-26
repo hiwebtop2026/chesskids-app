@@ -6,5 +6,6 @@ export { PieceLearning } from './PieceLearning';
 export { RulesLearning } from './RulesLearning';
 export { TacticsTraining } from './TacticsTraining';
 export { GamePlay } from './GamePlay';
+export { LocalGame } from './LocalGame';
 export { ProgressSystem } from './ProgressSystem';
 export { OnlineGame } from './OnlineGame';
