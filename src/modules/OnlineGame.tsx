@@ -38,6 +38,7 @@ export const OnlineGame: React.FC = () => {
 
   const [joinInput, setJoinInput] = useState('');
   const [chatInput, setChatInput] = useState('');
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const chatListRef = useRef<HTMLDivElement>(null);
 
   /** 聊天列表自动滚动到底部 */
@@ -292,7 +293,7 @@ export const OnlineGame: React.FC = () => {
               >
                 重开游戏
               </button>
-              <button className="control-btn reset-btn" onClick={leaveRoom}>
+              <button className="control-btn reset-btn" onClick={() => setShowLeaveConfirm(true)}>
                 离开房间
               </button>
             </div>
@@ -370,6 +371,34 @@ export const OnlineGame: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* 离开房间确认弹窗 */}
+      {showLeaveConfirm && (
+        <div className="game-result-modal" onClick={() => setShowLeaveConfirm(false)}>
+          <div className="result-content" onClick={(e) => e.stopPropagation()}>
+            <button className="result-close-btn" onClick={() => setShowLeaveConfirm(false)}>
+              ✕
+            </button>
+            <div className="result-icon">🚪</div>
+            <h3 className="result-title">确认离开房间？</h3>
+            <p className="result-detail">离开后当前对局将中断，确认离开吗？</p>
+            <div className="confirm-buttons">
+              <button className="control-btn cancel-btn" onClick={() => setShowLeaveConfirm(false)}>
+                取消
+              </button>
+              <button
+                className="control-btn confirm-reset-btn"
+                onClick={() => {
+                  leaveRoom();
+                  setShowLeaveConfirm(false);
+                }}
+              >
+                确认离开
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

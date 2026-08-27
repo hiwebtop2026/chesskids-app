@@ -4,6 +4,7 @@
 
 import React from 'react';
 import type { Difficulty, GameStatus } from '../types/chess';
+import { isGameOver } from '../types/chess';
 
 export interface GameControlsProps {
   status: GameStatus;
@@ -55,7 +56,7 @@ export const GameControls: React.FC<GameControlsProps> = ({
     }
   })();
 
-  const gameOver = status === 'checkmate' || status === 'stalemate' || status === 'draw';
+  const gameOver = isGameOver(status);
 
   return (
     <div className="game-controls">

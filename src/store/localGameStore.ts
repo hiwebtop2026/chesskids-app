@@ -5,6 +5,7 @@
 
 import { create } from 'zustand';
 import type { Board, Turn, GameStatus, Move, MoveHistoryEntry } from '../types/chess';
+import { isGameOver } from '../types/chess';
 import {
   INITIAL_BOARD,
   cloneBoard,
@@ -60,6 +61,7 @@ export const useLocalGameStore = create<LocalGameState>((set, get) => ({
 
   selectSquare: (row, col) => {
     const state = get();
+    if (isGameOver(state.status)) return;
     const piece = state.board[row][col];
 
     if (state.selection) {

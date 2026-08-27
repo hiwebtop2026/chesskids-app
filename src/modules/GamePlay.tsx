@@ -3,12 +3,13 @@
  * 与AI对手进行完整对局
  */
 
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { MoveHistory, GameControls } from '../components';
 import { ThreeJSChessBoard } from '../components/ThreeJSChessBoard';
 import { useGameStore } from '../store/gameStore';
 import { useProgressStore } from '../store/progressStore';
 import { findKing, isInCheck } from '../engine';
+import { isGameOver } from '../types/chess';
 import type { Difficulty } from '../types/chess';
 
 export const GamePlay: React.FC = () => {
@@ -32,6 +33,7 @@ export const GamePlay: React.FC = () => {
 
   const { recordGame } = useProgressStore();
   const gameRecorded = React.useRef(false);
+  const [showResultModal, setShowResultModal] = useState(false);
 
   /** 检查当前方是否被将军（useMemo 缓存，避免每次渲染都重算） */
   const checkSquare = useMemo(() => {
@@ -47,7 +49,7 @@ export const GamePlay: React.FC = () => {
   /** 游戏结束时记录结果 */
   useEffect(() => {
     if (gameRecorded.current) return;
-    if (status === 'checkmate' || status === 'stalemate' || status === 'draw') {
+    if (isGameOver(status)) {
       let outcome: 'win' | 'loss' | 'draw' = 'draw';
       if (status === 'checkmate') {
         outcome = turn === 'w' ? 'loss' : 'win';
@@ -60,12 +62,14 @@ export const GamePlay: React.FC = () => {
         date: new Date().toISOString(),
       });
       gameRecorded.current = true;
+      setShowResultModal(true);
     }
   }, [status, turn, difficulty, moves.length, recordGame]);
 
   /** 重置游戏 */
   const handleReset = () => {
     gameRecorded.current = false;
+    setShowResultModal(false);
     resetGame();
   };
 
@@ -124,9 +128,12 @@ export const GamePlay: React.FC = () => {
           <MoveHistory history={history} />
 
           {/* 游戏结束弹窗 */}
-          {(status === 'checkmate' || status === 'stalemate' || status === 'draw') && (
+          {isGameOver(status) && showResultModal && (
             <div className="game-result-modal">
               <div className="result-content">
+                <button className="result-close-btn" onClick={() => setShowResultModal(false)}>
+                  ✕
+                </button>
                 <div className="result-icon">
                   {status === 'checkmate' && (turn === 'w' ? '😢' : '🎉')}
                   {status === 'stalemate' && '🤝'}

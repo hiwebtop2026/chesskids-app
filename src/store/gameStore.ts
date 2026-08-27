@@ -5,6 +5,7 @@
 
 import { create } from 'zustand';
 import type { Board, Turn, GameStatus, Difficulty, Move, MoveHistoryEntry } from '../types/chess';
+import { isGameOver } from '../types/chess';
 import {
   INITIAL_BOARD,
   cloneBoard,
@@ -77,6 +78,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   /** 选中一个格子，显示合法走法 */
   selectSquare: (row, col) => {
     const state = get();
+    if (isGameOver(state.status) || state.isAIThinking) return;
     const piece = state.board[row][col];
 
     // 如果已有选中棋子，且点击的是合法目标，则走棋
@@ -214,7 +216,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   /** 悔棋（撤销上一步玩家和AI的走法） */
   undoMove: () => {
     const state = get();
-    if (state.moves.length < 2) return;
+    if (state.moves.length === 0) return;
+    if (state.isAIThinking) return;
 
     // 撤销最后两步（AI的一步和玩家的一步）
     const undoCount = state.moves.length >= 2 ? 2 : 1;

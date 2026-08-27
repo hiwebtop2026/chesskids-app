@@ -404,7 +404,7 @@ ul {
   justify-content: center;
   font-size: 2.2rem;
   position: relative;
-  transition: all 0.2s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
   cursor: pointer;
   transform-style: preserve-3d;
 }
@@ -1118,6 +1118,11 @@ ul {
   background: rgba(239, 83, 80, 0.1);
 }
 
+.status-display.status-stalemate,
+.status-display.status-draw {
+  background: rgba(255, 152, 0, 0.1);
+}
+
 .status-icon {
   font-size: 1.5rem;
 }
@@ -1236,6 +1241,8 @@ ul {
 }
 
 .col-move { color: var(--text-muted); }
+.col-white { color: var(--text); font-weight: 500; }
+.col-black { color: var(--text-secondary); font-weight: 500; }
 
 /* 游戏结果弹窗 */
 .game-result-modal {
@@ -1288,6 +1295,56 @@ ul {
 
 .play-again-btn:hover {
   background: var(--primary-dark);
+}
+
+.result-close-btn {
+  position: absolute;
+  top: var(--space-sm);
+  right: var(--space-sm);
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  transition: var(--transition);
+}
+
+.result-close-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.result-content {
+  position: relative;
+}
+
+.confirm-buttons {
+  display: flex;
+  gap: var(--space-sm);
+  justify-content: center;
+  margin-top: var(--space-md);
+}
+
+.confirm-buttons .control-btn {
+  min-width: 100px;
+}
+
+.cancel-btn {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.confirm-reset-btn {
+  background: #e53935;
+  color: var(--text-white);
+  border: none;
+}
+
+.confirm-reset-btn:hover {
+  background: #c62828;
 }
 
 /* ===== 用户档案样式 ===== */
@@ -1655,6 +1712,15 @@ ul {
 .player-color {
   font-size: 1.1rem;
   line-height: 1;
+}
+
+.player-color.color-w {
+  color: #f0f0f0;
+  text-shadow: 0 0 2px rgba(0,0,0,0.3);
+}
+
+.player-color.color-b {
+  color: #1a1a1a;
 }
 
 .player-name {

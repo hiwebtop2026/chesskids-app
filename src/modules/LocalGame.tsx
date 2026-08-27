@@ -3,12 +3,13 @@
  * 两位玩家在同一设备上轮流走棋
  */
 
-import React, { useMemo, useEffect, useRef } from 'react';
+import React, { useMemo, useEffect, useRef, useState } from 'react';
 import { MoveHistory } from '../components';
 import { ThreeJSChessBoard } from '../components/ThreeJSChessBoard';
 import { useLocalGameStore } from '../store/localGameStore';
 import { useProgressStore } from '../store/progressStore';
 import { findKing, isInCheck } from '../engine';
+import { isGameOver } from '../types/chess';
 import type { GameStatus } from '../types/chess';
 
 const PLAYER_NAMES = {
@@ -44,6 +45,7 @@ export const LocalGame: React.FC = () => {
 
   const { recordGame } = useProgressStore();
   const gameRecorded = useRef(false);
+  const [showResultModal, setShowResultModal] = useState(false);
 
   const checkSquare = useMemo(() => {
     if (status === 'playing' || status === 'check') {
@@ -57,9 +59,11 @@ export const LocalGame: React.FC = () => {
 
   useEffect(() => {
     if (gameRecorded.current) return;
-    if (status === 'checkmate' || status === 'stalemate' || status === 'draw') {
+    if (isGameOver(status)) {
       const outcome: 'win' | 'loss' | 'draw' =
-        status === 'checkmate' ? 'win' : status === 'draw' ? 'draw' : 'draw';
+        status === 'checkmate'
+          ? (turn === 'b' ? 'win' : 'loss')
+          : 'draw';
       recordGame({
         outcome,
         difficulty: 1,
@@ -68,16 +72,18 @@ export const LocalGame: React.FC = () => {
         date: new Date().toISOString(),
       });
       gameRecorded.current = true;
+      setShowResultModal(true);
     }
-  }, [status, moves.length, recordGame]);
+  }, [status, turn, moves.length, recordGame]);
 
   const handleReset = () => {
     gameRecorded.current = false;
+    setShowResultModal(false);
     resetGame();
   };
 
   const legalTargets = selection?.legalTargets || [];
-  const gameOver = status === 'checkmate' || status === 'stalemate' || status === 'draw';
+  const gameOver = isGameOver(status);
   const statusText = STATUS_TEXT[status](turn);
 
   return (
@@ -167,9 +173,12 @@ export const LocalGame: React.FC = () => {
 
           <MoveHistory history={history} />
 
-          {gameOver && (
+          {gameOver && showResultModal && (
             <div className="game-result-modal">
               <div className="result-content">
+                <button className="result-close-btn" onClick={() => setShowResultModal(false)}>
+                  ✕
+                </button>
                 <div className="result-icon">
                   {status === 'checkmate' && '🎉'}
                   {status === 'stalemate' && '🤝'}

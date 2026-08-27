@@ -3,7 +3,7 @@
  * 展示用户的学习进度、成就徽章和历史记录
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { UserProfile } from '../components';
 import { useProgressStore } from '../store';
 import { getBadgesByCategory } from '../data';
@@ -29,6 +29,7 @@ const CATEGORIES: { key: Badge['category']; label: string; icon: string }[] = [
 
 export const ProgressSystem: React.FC = () => {
   const { progress, gameHistory, resetProgress } = useProgressStore();
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const unlockedCount = progress.badges.filter(b => b.unlocked).length;
   const totalCount = progress.badges.length;
@@ -134,10 +135,40 @@ export const ProgressSystem: React.FC = () => {
 
       {/* 重置按钮 */}
       <div className="danger-zone">
-        <button className="reset-progress-btn" onClick={resetProgress}>
+        <button className="reset-progress-btn" onClick={() => setShowResetConfirm(true)}>
           ⚠️ 重置所有进度
         </button>
       </div>
+
+      {/* 重置确认弹窗 */}
+      {showResetConfirm && (
+        <div className="game-result-modal" onClick={() => setShowResetConfirm(false)}>
+          <div className="result-content" onClick={(e) => e.stopPropagation()}>
+            <button className="result-close-btn" onClick={() => setShowResetConfirm(false)}>
+              ✕
+            </button>
+            <div className="result-icon">⚠️</div>
+            <h3 className="result-title">确认重置所有进度？</h3>
+            <p className="result-detail">
+              这将清空你的经验值、徽章和对局历史，且无法恢复。
+            </p>
+            <div className="confirm-buttons">
+              <button className="control-btn cancel-btn" onClick={() => setShowResetConfirm(false)}>
+                取消
+              </button>
+              <button
+                className="control-btn confirm-reset-btn"
+                onClick={() => {
+                  resetProgress();
+                  setShowResetConfirm(false);
+                }}
+              >
+                确认重置
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

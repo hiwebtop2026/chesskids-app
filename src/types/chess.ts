@@ -39,6 +39,10 @@ export interface LegalMove {
 /** 游戏状态 */
 export type GameStatus = 'playing' | 'check' | 'checkmate' | 'stalemate' | 'draw';
 
+/** 判断游戏是否已结束 */
+export const isGameOver = (status: GameStatus): boolean =>
+  status === 'checkmate' || status === 'stalemate' || status === 'draw';
+
 /** 当前回合颜色 */
 export type Turn = PieceColor;
 
