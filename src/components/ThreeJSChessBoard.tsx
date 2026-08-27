@@ -1278,14 +1278,10 @@ export const ThreeJSChessBoard: React.FC<ThreeJSChessBoardProps> = ({
       if (intersects.length > 0) {
         const hit = intersects[0];
         const obj = hit.object;
-        let row = obj.userData.row;
-        let col = obj.userData.col;
-        // 翻转时反转坐标
-        if (flipped) {
-          row = 7 - row;
-          col = 7 - col;
-        }
-        onSquareClick(row, col);
+        // 棋盘翻转时，boardGroup 整体旋转了 180°，
+        // 但方块 mesh 的 userData.row/col 仍是正确的逻辑坐标，
+        // raycaster 击中的就是实际逻辑格子，无需额外转换
+        onSquareClick(obj.userData.row, obj.userData.col);
       }
     };
 
