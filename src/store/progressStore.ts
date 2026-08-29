@@ -39,6 +39,8 @@ function getInitialProgress(): UserProgress {
     currentStreak: 0,
     longestStreak: 0,
     badges: BADGES.map(b => ({ ...b })),
+    completedLessonIds: [],
+    completedPuzzleIds: [],
   };
 }
 
@@ -80,14 +82,17 @@ export const useProgressStore = create<ProgressState>()(
       },
 
       /** 完成课程 */
-      completeLesson: (_lessonId, stars) => {
+      completeLesson: (lessonId, stars) => {
         const { progress } = get();
+        if (progress.completedLessonIds.includes(lessonId)) return;
+
         const newLessonsCompleted = progress.lessonsCompleted + 1;
 
         set({
           progress: {
             ...progress,
             lessonsCompleted: newLessonsCompleted,
+            completedLessonIds: [...progress.completedLessonIds, lessonId],
           },
         });
 
@@ -107,14 +112,17 @@ export const useProgressStore = create<ProgressState>()(
       },
 
       /** 解开谜题 */
-      solvePuzzle: (_puzzleId, fastSolve = false) => {
+      solvePuzzle: (puzzleId, fastSolve = false) => {
         const { progress } = get();
+        if (progress.completedPuzzleIds.includes(puzzleId)) return;
+
         const newPuzzlesSolved = progress.puzzlesSolved + 1;
 
         set({
           progress: {
             ...progress,
             puzzlesSolved: newPuzzlesSolved,
+            completedPuzzleIds: [...progress.completedPuzzleIds, puzzleId],
           },
         });
 

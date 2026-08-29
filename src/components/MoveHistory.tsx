@@ -2,7 +2,7 @@
  * ChessKids - 走棋历史面板
  */
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import type { MoveHistoryEntry } from '../types/chess';
 
 export interface MoveHistoryProps {
@@ -12,6 +12,14 @@ export interface MoveHistoryProps {
 
 /** 走棋历史 */
 export const MoveHistory: React.FC<MoveHistoryProps> = ({ history, currentMove }) => {
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (listRef.current && history.length > 0) {
+      listRef.current.scrollTop = listRef.current.scrollHeight;
+    }
+  }, [history.length]);
+
   if (history.length === 0) {
     return (
       <div className="move-history">
@@ -24,7 +32,7 @@ export const MoveHistory: React.FC<MoveHistoryProps> = ({ history, currentMove }
   return (
     <div className="move-history">
       <h3>走棋记录</h3>
-      <div className="history-list">
+      <div className="history-list" ref={listRef}>
         <div className="history-header">
           <span className="col-move">#</span>
           <span className="col-white">白方</span>

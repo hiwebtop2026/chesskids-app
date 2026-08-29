@@ -112,7 +112,9 @@ export const OnlineGame: React.FC = () => {
           {notification && (
             <div className="notification-banner" onClick={clearNotification}>
               <span>{notification}</span>
-              <span className="notification-close">x</span>
+              <button className="notification-close" aria-label="关闭通知" title="关闭通知">
+                ✕
+              </button>
             </div>
           )}
 
@@ -151,10 +153,13 @@ export const OnlineGame: React.FC = () => {
                   <input
                     type="text"
                     className="lobby-input"
-                    placeholder="输入房间号"
+                    placeholder="6位字母数字"
                     maxLength={6}
                     value={joinInput}
-                    onChange={(e) => setJoinInput(e.target.value.toUpperCase())}
+                    onChange={(e) => {
+                      const val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                      setJoinInput(val);
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') handleJoin();
                     }}
@@ -162,7 +167,7 @@ export const OnlineGame: React.FC = () => {
                   <button
                     className="lobby-primary-btn"
                     onClick={handleJoin}
-                    disabled={!joinInput.trim()}
+                    disabled={joinInput.length !== 6}
                   >
                     加入
                   </button>

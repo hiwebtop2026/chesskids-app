@@ -1347,6 +1347,21 @@ ul {
   background: #c62828;
 }
 
+.error-boundary-fallback {
+  text-align: center;
+  padding: var(--space-xl);
+}
+
+.error-boundary-fallback .error-detail {
+  margin-top: var(--space-md);
+}
+
+.error-boundary-fallback .error-message {
+  color: var(--text-secondary);
+  margin-bottom: var(--space-md);
+  font-size: 0.9rem;
+}
+
 /* ===== 用户档案样式 ===== */
 .user-profile {
   display: flex;
@@ -1914,6 +1929,16 @@ ul {
   color: var(--text-muted);
   flex-shrink: 0;
   line-height: 1;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0 4px;
+  transition: var(--transition);
+}
+
+.notification-close:hover {
+  opacity: 1;
+  color: var(--text);
 }
 
 /* 对局中：玩家信息栏 */

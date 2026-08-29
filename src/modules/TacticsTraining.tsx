@@ -14,9 +14,10 @@ export const TacticsTraining: React.FC = () => {
   const [selectedFrom, setSelectedFrom] = useState<[number, number] | null>(null);
   const [showHint, setShowHint] = useState(false);
   const [feedback, setFeedback] = useState<'none' | 'correct' | 'wrong'>('none');
-  const [solvedPuzzles, setSolvedPuzzles] = useState<Set<string>>(new Set());
   const [startTime, setStartTime] = useState<number>(Date.now());
-  const { solvePuzzle } = useProgressStore();
+  const { progress, solvePuzzle } = useProgressStore();
+
+  const solvedPuzzles = new Set(progress.completedPuzzleIds);
 
   const puzzles = getPuzzlesByDifficulty(difficulty);
   const currentPuzzle = puzzles[currentIndex];
@@ -51,7 +52,6 @@ export const TacticsTraining: React.FC = () => {
     ) {
       // 答对了！
       setFeedback('correct');
-      setSolvedPuzzles(prev => new Set(prev).add(currentPuzzle.id));
       const elapsed = (Date.now() - startTime) / 1000;
       solvePuzzle(currentPuzzle.id, elapsed < 30);
     } else {
@@ -156,15 +156,26 @@ export const TacticsTraining: React.FC = () => {
             <button
               className="next-btn"
               onClick={handleNext}
-              disabled={feedback !== 'correct' || currentIndex >= puzzles.length - 1 && difficulty >= 3}
+              disabled={feedback !== 'correct' || (currentIndex >= puzzles.length - 1 && difficulty >= 3)}
             >
               下一题 →
             </button>
             <button
               className="skip-btn"
-              onClick={handleNext}
+              onClick={() => {
+                if (feedback !== 'correct') {
+                  setFeedback('wrong');
+                  setTimeout(() => {
+                    setFeedback('none');
+                    handleNext();
+                  }, 1000);
+                } else {
+                  handleNext();
+                }
+              }}
+              disabled={currentIndex >= puzzles.length - 1 && difficulty >= 3}
             >
-              跳过
+              {feedback === 'correct' ? '下一题 →' : '跳过 →'}
             </button>
           </div>
 

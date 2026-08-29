@@ -11,8 +11,13 @@ import { useProgressStore } from '../store';
 export const PieceLearning: React.FC = () => {
   const [selectedPiece, setSelectedPiece] = useState<PieceInfo>(PIECES_DATA[0]);
   const [showTips, setShowTips] = useState(false);
-  const [completedPieces, setCompletedPieces] = useState<Set<string>>(new Set());
-  const { completeLesson } = useProgressStore();
+  const { progress, completeLesson } = useProgressStore();
+
+  const completedPieces = new Set(
+    PIECES_DATA
+      .filter(p => progress.completedLessonIds.includes(`lesson-piece-${p.type}`))
+      .map(p => p.type)
+  );
 
   /** 选择一个棋子 */
   const handleSelectPiece = (piece: PieceInfo) => {
@@ -22,7 +27,6 @@ export const PieceLearning: React.FC = () => {
 
   /** 标记完成 */
   const handleComplete = () => {
-    setCompletedPieces(prev => new Set(prev).add(selectedPiece.type));
     completeLesson(`lesson-piece-${selectedPiece.type}`, 3);
   };
 

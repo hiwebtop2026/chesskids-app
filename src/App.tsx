@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { PieceLearning, RulesLearning, TacticsTraining, GamePlay, LocalGame, ProgressSystem, OnlineGame } from './modules';
-import { UserProfile } from './components';
+import { UserProfile, ErrorBoundary } from './components';
 import { useProgressStore } from './store';
 
 type TabKey = 'learn' | 'rules' | 'tactics' | 'game' | 'local' | 'online' | 'progress';
@@ -82,13 +82,15 @@ const App: React.FC = () => {
 
       {/* 主内容区 */}
       <main className="app-main">
-        {activeTab === 'learn' && <PieceLearning />}
-        {activeTab === 'rules' && <RulesLearning />}
-        {activeTab === 'tactics' && <TacticsTraining />}
-        {activeTab === 'game' && <GamePlay />}
-        {activeTab === 'local' && <LocalGame />}
-        {activeTab === 'online' && <OnlineGame />}
-        {activeTab === 'progress' && <ProgressSystem />}
+        <ErrorBoundary key={activeTab}>
+          {activeTab === 'learn' && <PieceLearning />}
+          {activeTab === 'rules' && <RulesLearning />}
+          {activeTab === 'tactics' && <TacticsTraining />}
+          {activeTab === 'game' && <GamePlay />}
+          {activeTab === 'local' && <LocalGame />}
+          {activeTab === 'online' && <OnlineGame />}
+          {activeTab === 'progress' && <ProgressSystem />}
+        </ErrorBoundary>
       </main>
 
       {/* 底部导航栏 */}

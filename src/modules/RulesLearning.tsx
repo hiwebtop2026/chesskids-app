@@ -13,8 +13,13 @@ export const RulesLearning: React.FC = () => {
   const [selectedRule, setSelectedRule] = useState<RuleDemo>(RULE_DEMOS[0]);
   const [currentStep, setCurrentStep] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [completedRules, setCompletedRules] = useState<Set<string>>(new Set());
-  const { completeLesson } = useProgressStore();
+  const { progress, completeLesson } = useProgressStore();
+
+  const completedRules = new Set(
+    RULE_DEMOS
+      .filter(r => progress.completedLessonIds.includes(`lesson-rule-${r.key}`))
+      .map(r => r.key)
+  );
 
   /** 自动播放步骤 */
   useEffect(() => {
@@ -38,7 +43,6 @@ export const RulesLearning: React.FC = () => {
 
   /** 完成规则学习 */
   const handleComplete = () => {
-    setCompletedRules(prev => new Set(prev).add(selectedRule.key));
     completeLesson(`lesson-rule-${selectedRule.key}`, 3);
   };
 

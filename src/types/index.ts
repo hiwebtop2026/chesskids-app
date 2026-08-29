@@ -86,6 +86,8 @@ export interface UserProgress {
   currentStreak: number;
   longestStreak: number;
   badges: Badge[];
+  completedLessonIds: string[];
+  completedPuzzleIds: string[];
 }
 
 /** 对局结果 */
