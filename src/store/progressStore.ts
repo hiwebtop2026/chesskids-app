@@ -238,6 +238,20 @@ export const useProgressStore = create<ProgressState>()(
         progress: state.progress,
         gameHistory: state.gameHistory,
       }),
+      merge: (persisted, current) => {
+        const p = typeof persisted === 'string' ? JSON.parse(persisted) : persisted;
+        if (!p) return current;
+        return {
+          ...current,
+          ...p,
+          progress: {
+            ...current.progress,
+            ...p.progress,
+            completedLessonIds: p.progress?.completedLessonIds ?? [],
+            completedPuzzleIds: p.progress?.completedPuzzleIds ?? [],
+          },
+        };
+      },
     }
   )
 );

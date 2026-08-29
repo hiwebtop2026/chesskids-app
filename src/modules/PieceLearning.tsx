@@ -15,7 +15,7 @@ export const PieceLearning: React.FC = () => {
 
   const completedPieces = new Set(
     PIECES_DATA
-      .filter(p => progress.completedLessonIds.includes(`lesson-piece-${p.type}`))
+      .filter(p => (progress.completedLessonIds ?? []).includes(`lesson-piece-${p.type}`))
       .map(p => p.type)
   );
 

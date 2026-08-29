@@ -900,6 +900,13 @@ ul {
   position: relative;
 }
 
+.puzzle-board .threejs-chess-board {
+  width: 100%;
+  height: 500px;
+  min-height: 400px;
+  aspect-ratio: 1 / 1;
+}
+
 .feedback {
   margin-top: var(--space-sm);
   padding: var(--space-sm) var(--space-md);
@@ -2188,6 +2195,11 @@ ul {
     min-height: unset;
   }
 
+  .puzzle-board .threejs-chess-board {
+    height: 400px;
+    min-height: unset;
+  }
+
   /* 人机对局：棋盘居中，侧面板在下方 */
   .game-layout {
     grid-template-columns: 1fr;
@@ -2314,6 +2326,11 @@ ul {
     width: 100%;
     height: 350px;
     min-width: unset;
+    min-height: unset;
+  }
+
+  .puzzle-board .threejs-chess-board {
+    height: 300px;
     min-height: unset;
   }
 }

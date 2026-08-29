@@ -17,7 +17,7 @@ export const TacticsTraining: React.FC = () => {
   const [startTime, setStartTime] = useState<number>(Date.now());
   const { progress, solvePuzzle } = useProgressStore();
 
-  const solvedPuzzles = new Set(progress.completedPuzzleIds);
+  const solvedPuzzles = new Set(progress.completedPuzzleIds ?? []);
 
   const puzzles = getPuzzlesByDifficulty(difficulty);
   const currentPuzzle = puzzles[currentIndex];

@@ -17,7 +17,7 @@ export const RulesLearning: React.FC = () => {
 
   const completedRules = new Set(
     RULE_DEMOS
-      .filter(r => progress.completedLessonIds.includes(`lesson-rule-${r.key}`))
+      .filter(r => (progress.completedLessonIds ?? []).includes(`lesson-rule-${r.key}`))
       .map(r => r.key)
   );
 
