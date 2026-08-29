@@ -127,18 +127,25 @@ function minimax(
 }
 
 /** Level 4+: 评估每个走法并选择最优 */
-function bestMove(legal: LegalMove[], board: Board, depth: number): LegalMove {
+function bestMove(legal: LegalMove[], board: Board, depth: number, aiIsWhite: boolean): LegalMove {
   let best = legal[0];
-  let bestScore = Infinity; // AI 是黑方，寻找最小分
+  let bestScore = aiIsWhite ? -Infinity : Infinity;
 
   for (const m of legal) {
     const nb = cloneBoard(board);
     nb[m.to[0]][m.to[1]] = nb[m.from[0]][m.from[1]];
     nb[m.from[0]][m.from[1]] = '';
-    const score = minimax(nb, depth - 1, -Infinity, Infinity, true);
-    if (score < bestScore || (score === bestScore && Math.random() < 0.3)) {
-      bestScore = score;
-      best = m;
+    const score = minimax(nb, depth - 1, -Infinity, Infinity, !aiIsWhite);
+    if (aiIsWhite) {
+      if (score > bestScore || (score === bestScore && Math.random() < 0.3)) {
+        bestScore = score;
+        best = m;
+      }
+    } else {
+      if (score < bestScore || (score === bestScore && Math.random() < 0.3)) {
+        bestScore = score;
+        best = m;
+      }
     }
   }
 
@@ -146,25 +153,25 @@ function bestMove(legal: LegalMove[], board: Board, depth: number): LegalMove {
 }
 
 /** 获取能解除将军的走法（用于低难度AI防御） */
-function getCheckEscapingMoves(board: Board, legal: LegalMove[]): LegalMove[] {
+function getCheckEscapingMoves(board: Board, legal: LegalMove[], aiIsWhite: boolean): LegalMove[] {
   return legal.filter((m) => {
     const nb = cloneBoard(board);
     nb[m.to[0]][m.to[1]] = nb[m.from[0]][m.from[1]];
     nb[m.from[0]][m.from[1]] = '';
-    return !isInCheck(nb, false); // 模拟走法后黑方不再被将军
+    return !isInCheck(nb, aiIsWhite);
   });
 }
 
 /** AI 选择走法主入口 */
-export function aiMove(board: Board, difficulty: Difficulty): LegalMove | null {
-  let legal = getAllLegalMoves(board, false); // AI 执黑
+export function aiMove(board: Board, difficulty: Difficulty, aiIsWhite = false): LegalMove | null {
+  let legal = getAllLegalMoves(board, aiIsWhite);
   if (legal.length === 0) return null;
 
   // 低难度AI（Level 1-3）被将军时，优先选择能解除将军的走法
-  if (difficulty <= 3 && isInCheck(board, false)) {
-    const escapeMoves = getCheckEscapingMoves(board, legal);
+  if (difficulty <= 3 && isInCheck(board, aiIsWhite)) {
+    const escapeMoves = getCheckEscapingMoves(board, legal, aiIsWhite);
     if (escapeMoves.length > 0) {
-      legal = escapeMoves; // 只考虑能解除将军的走法
+      legal = escapeMoves;
     }
   }
 
@@ -176,30 +183,37 @@ export function aiMove(board: Board, difficulty: Difficulty): LegalMove | null {
     case 3:
       return bestCapture(legal, board);
     case 4:
-      return bestMove(legal, board, 2);
+      return bestMove(legal, board, 2, aiIsWhite);
     case 5:
-      return bestMove(legal, board, 3);
+      return bestMove(legal, board, 3, aiIsWhite);
     default:
       return randomMove(legal);
   }
 }
 
-/** 为用户生成走法提示（Level 4算法，执白方） */
-export function getHint(board: Board): LegalMove | null {
-  const legal = getAllLegalMoves(board, true);
+/** 为用户生成走法提示（Level 4算法） */
+export function getHint(board: Board, playerIsWhite = true): LegalMove | null {
+  const legal = getAllLegalMoves(board, playerIsWhite);
   if (legal.length === 0) return null;
 
   let best = legal[0];
-  let bestScore = -Infinity;
+  let bestScore = playerIsWhite ? -Infinity : Infinity;
 
   for (const m of legal) {
     const nb = cloneBoard(board);
     nb[m.to[0]][m.to[1]] = nb[m.from[0]][m.from[1]];
     nb[m.from[0]][m.from[1]] = '';
-    const score = minimax(nb, 1, -Infinity, Infinity, false);
-    if (score > bestScore) {
-      bestScore = score;
-      best = m;
+    const score = minimax(nb, 1, -Infinity, Infinity, !playerIsWhite);
+    if (playerIsWhite) {
+      if (score > bestScore) {
+        bestScore = score;
+        best = m;
+      }
+    } else {
+      if (score < bestScore) {
+        bestScore = score;
+        best = m;
+      }
     }
   }
 

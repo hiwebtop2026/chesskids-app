@@ -165,7 +165,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       // 使用setTimeout避免阻塞UI
       setTimeout(() => {
         const currentBoard = get().board;
-        const aiResult = aiMove(currentBoard, get().difficulty);
+        const aiIsWhite = aiColor === 'w';
+        const aiResult = aiMove(currentBoard, get().difficulty, aiIsWhite);
 
         if (aiResult) {
           const aiPiece = currentBoard[aiResult.from[0]][aiResult.from[1]];
@@ -220,7 +221,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     const state = get();
     if (state.turn !== state.playerColor || state.status !== 'playing') return;
 
-    const hint = getHint(state.board);
+    const hint = getHint(state.board, state.playerColor === 'w');
     if (hint) {
       set({ hint: { from: hint.from, to: hint.to } });
     }
@@ -267,7 +268,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       set({ isAIThinking: true });
       setTimeout(() => {
         const currentBoard = get().board;
-        const aiResult = aiMove(currentBoard, get().difficulty);
+        const aiIsWhite2 = aiColor === 'w';
+        const aiResult = aiMove(currentBoard, get().difficulty, aiIsWhite2);
 
         if (aiResult) {
           const aiPiece = currentBoard[aiResult.from[0]][aiResult.from[1]];
@@ -320,7 +322,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       set({ isAIThinking: true });
       setTimeout(() => {
         const currentBoard = get().board;
-        const aiResult = aiMove(currentBoard, get().difficulty);
+        const aiResult = aiMove(currentBoard, get().difficulty, true);
 
         if (aiResult) {
           const aiPiece = currentBoard[aiResult.from[0]][aiResult.from[1]];
@@ -366,7 +368,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       set({ isAIThinking: true });
       setTimeout(() => {
         const currentBoard = get().board;
-        const aiResult = aiMove(currentBoard, get().difficulty);
+        const aiResult = aiMove(currentBoard, get().difficulty, true);
 
         if (aiResult) {
           const aiPiece = currentBoard[aiResult.from[0]][aiResult.from[1]];
