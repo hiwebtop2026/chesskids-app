@@ -1038,6 +1038,12 @@ export const ThreeJSChessBoard: React.FC<ThreeJSChessBoardProps> = ({
   const raycasterRef = useRef<THREE.Raycaster | null>(null);
   const mouseRef = useRef<THREE.Vector2 | null>(null);
   const needsRenderRef = useRef(true); // 按需渲染标志
+  const onSquareClickRef = useRef(onSquareClick);
+
+  // 始终保持 ref 指向最新的 onSquareClick，避免 stale closure
+  useEffect(() => {
+    onSquareClickRef.current = onSquareClick;
+  });
 
   // --- 初始化 Three.js 场景 ---
   useEffect(() => {
@@ -1281,7 +1287,7 @@ export const ThreeJSChessBoard: React.FC<ThreeJSChessBoardProps> = ({
         // 棋盘翻转时，boardGroup 整体旋转了 180°，
         // 但方块 mesh 的 userData.row/col 仍是正确的逻辑坐标，
         // raycaster 击中的就是实际逻辑格子，无需额外转换
-        onSquareClick(obj.userData.row, obj.userData.col);
+        onSquareClickRef.current(obj.userData.row, obj.userData.col);
       }
     };
 

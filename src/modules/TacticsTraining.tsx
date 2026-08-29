@@ -40,6 +40,12 @@ export const TacticsTraining: React.FC = () => {
       return;
     }
 
+    // 点击同一个格子：取消选择
+    if (selectedFrom[0] === row && selectedFrom[1] === col) {
+      setSelectedFrom(null);
+      return;
+    }
+
     // 第二次点击：检查答案
     const selectedTo: [number, number] = [row, col];
     const answer = currentPuzzle.answer;
