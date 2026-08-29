@@ -31,6 +31,7 @@ interface GameState {
   turn: Turn;
   status: GameStatus;
   difficulty: Difficulty;
+  playerColor: 'w' | 'b';
 
   // 走法历史
   history: MoveHistoryEntry[];
@@ -49,6 +50,7 @@ interface GameState {
   requestHint: () => void;
   undoMove: () => void;
   resetGame: () => void;
+  startGame: (color: 'w' | 'b') => void;
   setDifficulty: (d: Difficulty) => void;
   clearSelection: () => void;
   clearHint: () => void;
@@ -62,6 +64,7 @@ function getInitialState() {
     turn: 'w' as Turn,
     status: 'playing' as GameStatus,
     difficulty: 1 as Difficulty,
+    playerColor: 'w' as 'w' | 'b',
     history: [] as MoveHistoryEntry[],
     moves: [] as Move[],
     lastMove: null,
@@ -79,6 +82,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   selectSquare: (row, col) => {
     const state = get();
     if (isGameOver(state.status) || state.isAIThinking) return;
+    if (state.turn !== state.playerColor) return;
     const piece = state.board[row][col];
 
     // 如果已有选中棋子，且点击的是合法目标，则走棋
@@ -154,8 +158,9 @@ export const useGameStore = create<GameState>((set, get) => ({
       hint: null,
     });
 
-    // 如果轮到AI（黑方）且游戏未结束，触发AI走棋（包括被将军时）
-    if ((newStatus === 'playing' || newStatus === 'check') && newTurn === 'b') {
+    // 如果轮到AI且游戏未结束，触发AI走棋
+    const aiColor: Turn = get().playerColor === 'w' ? 'b' : 'w';
+    if ((newStatus === 'playing' || newStatus === 'check') && newTurn === aiColor) {
       set({ isAIThinking: true });
       // 使用setTimeout避免阻塞UI
       setTimeout(() => {
@@ -170,7 +175,8 @@ export const useGameStore = create<GameState>((set, get) => ({
             aiResult.to
           );
           const aiBoard = applyMove(currentBoard, aiResult.from, aiResult.to);
-          const aiTurn: Turn = 'w';
+          const playerColor = get().playerColor;
+          const aiTurn: Turn = playerColor;
           const aiStatus = getGameStatus(aiBoard, aiTurn);
 
           const aiMoves = [...get().moves, {
@@ -182,8 +188,15 @@ export const useGameStore = create<GameState>((set, get) => ({
           }];
 
           const aiHistory = [...get().history];
-          if (aiHistory.length > 0) {
-            aiHistory[aiHistory.length - 1].black = aiNotation;
+          const moveNum2 = Math.ceil(aiMoves.length / 2);
+          if (aiColor === 'b') {
+            // AI is Black, update black's move in the last row
+            if (aiHistory.length > 0) {
+              aiHistory[aiHistory.length - 1].black = aiNotation;
+            }
+          } else {
+            // AI is White, push new row
+            aiHistory.push({ moveNumber: moveNum2, white: aiNotation, black: '' });
           }
 
           set({
@@ -205,7 +218,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   /** 请求提示 */
   requestHint: () => {
     const state = get();
-    if (state.turn !== 'w' || state.status !== 'playing') return;
+    if (state.turn !== state.playerColor || state.status !== 'playing') return;
 
     const hint = getHint(state.board);
     if (hint) {
@@ -219,7 +232,8 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (state.moves.length === 0) return;
     if (state.isAIThinking) return;
 
-    // 撤销最后两步（AI的一步和玩家的一步）
+    const playerColor = state.playerColor;
+    // 撤销最后两步（AI的一步和玩家的一步），如果只剩AI先手的第一步则撤销一步
     const undoCount = state.moves.length >= 2 ? 2 : 1;
     const movesToKeep = state.moves.slice(0, -undoCount);
 
@@ -231,7 +245,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     const newTurn: Turn = movesToKeep.length % 2 === 0 ? 'w' : 'b';
     const newStatus = getGameStatus(board, newTurn);
-    const newHistory = state.history.slice(0, Math.floor(movesToKeep.length / 2));
+    const newHistory = state.history.slice(0, Math.ceil(movesToKeep.length / 2));
 
     set({
       board,
@@ -246,12 +260,145 @@ export const useGameStore = create<GameState>((set, get) => ({
       hint: null,
       isAIThinking: false,
     });
+
+    // 撤销后如果轮到AI，重新触发AI走棋
+    const aiColor: Turn = playerColor === 'w' ? 'b' : 'w';
+    if ((newStatus === 'playing' || newStatus === 'check') && newTurn === aiColor) {
+      set({ isAIThinking: true });
+      setTimeout(() => {
+        const currentBoard = get().board;
+        const aiResult = aiMove(currentBoard, get().difficulty);
+
+        if (aiResult) {
+          const aiPiece = currentBoard[aiResult.from[0]][aiResult.from[1]];
+          const aiNotation = moveToNotation(currentBoard, aiResult.from, aiResult.to);
+          const aiBoard = applyMove(currentBoard, aiResult.from, aiResult.to);
+          const afterTurn: Turn = playerColor;
+          const afterStatus = getGameStatus(aiBoard, afterTurn);
+
+          const aiMoves = [...get().moves, {
+            from: aiResult.from,
+            to: aiResult.to,
+            piece: aiPiece,
+            captured: currentBoard[aiResult.to[0]][aiResult.to[1]] || undefined,
+            notation: aiNotation,
+          }];
+
+          const aiHistory = [...get().history];
+          const moveNum3 = Math.ceil(aiMoves.length / 2);
+          if (aiColor === 'b') {
+            if (aiHistory.length > 0) {
+              aiHistory[aiHistory.length - 1].black = aiNotation;
+            }
+          } else {
+            aiHistory.push({ moveNumber: moveNum3, white: aiNotation, black: '' });
+          }
+
+          set({
+            board: aiBoard,
+            turn: afterTurn,
+            status: afterStatus,
+            moves: aiMoves,
+            history: aiHistory,
+            lastMove: { from: aiResult.from, to: aiResult.to },
+            isAIThinking: false,
+          });
+        } else {
+          set({ isAIThinking: false });
+        }
+      }, 300);
+    }
   },
 
-  /** 重置游戏（保留当前难度设置） */
+  /** 开始新游戏（指定玩家颜色） */
+  startGame: (color) => {
+    const currentDifficulty = get().difficulty;
+    set({ ...getInitialState(), difficulty: currentDifficulty, playerColor: color });
+
+    // 如果玩家选黑方，AI（白方）先走
+    if (color === 'b') {
+      set({ isAIThinking: true });
+      setTimeout(() => {
+        const currentBoard = get().board;
+        const aiResult = aiMove(currentBoard, get().difficulty);
+
+        if (aiResult) {
+          const aiPiece = currentBoard[aiResult.from[0]][aiResult.from[1]];
+          const aiNotation = moveToNotation(currentBoard, aiResult.from, aiResult.to);
+          const aiBoard = applyMove(currentBoard, aiResult.from, aiResult.to);
+          const afterTurn: Turn = 'b';
+          const afterStatus = getGameStatus(aiBoard, afterTurn);
+
+          const aiMoves = [{
+            from: aiResult.from,
+            to: aiResult.to,
+            piece: aiPiece,
+            captured: currentBoard[aiResult.to[0]][aiResult.to[1]] || undefined,
+            notation: aiNotation,
+          }];
+
+          const aiHistory = [{ moveNumber: 1, white: aiNotation, black: '' }];
+
+          set({
+            board: aiBoard,
+            turn: afterTurn,
+            status: afterStatus,
+            moves: aiMoves,
+            history: aiHistory,
+            lastMove: { from: aiResult.from, to: aiResult.to },
+            isAIThinking: false,
+          });
+        } else {
+          set({ isAIThinking: false });
+        }
+      }, 500);
+    }
+  },
+
+  /** 重置游戏（保留当前难度和颜色设置） */
   resetGame: () => {
     const currentDifficulty = get().difficulty;
-    set({ ...getInitialState(), difficulty: currentDifficulty });
+    const currentColor = get().playerColor;
+    set({ ...getInitialState(), difficulty: currentDifficulty, playerColor: currentColor });
+
+    // 如果玩家是黑方，AI先走
+    if (currentColor === 'b') {
+      set({ isAIThinking: true });
+      setTimeout(() => {
+        const currentBoard = get().board;
+        const aiResult = aiMove(currentBoard, get().difficulty);
+
+        if (aiResult) {
+          const aiPiece = currentBoard[aiResult.from[0]][aiResult.from[1]];
+          const aiNotation = moveToNotation(currentBoard, aiResult.from, aiResult.to);
+          const aiBoard = applyMove(currentBoard, aiResult.from, aiResult.to);
+          const afterTurn: Turn = 'b';
+          const afterStatus = getGameStatus(aiBoard, afterTurn);
+
+          const aiMoves = [{
+            from: aiResult.from,
+            to: aiResult.to,
+            piece: aiPiece,
+            captured: currentBoard[aiResult.to[0]][aiResult.to[1]] || undefined,
+            notation: aiNotation,
+          }];
+
+          const aiHistory = [{ moveNumber: 1, white: aiNotation, black: '' }];
+
+          set({
+            board: aiBoard,
+            turn: afterTurn,
+            status: afterStatus,
+            moves: aiMoves,
+            history: aiHistory,
+            lastMove: { from: aiResult.from, to: aiResult.to },
+            isAIThinking: false,
+          });
+        } else {
+          set({ isAIThinking: false });
+        }
+      }, 500);
+    }
   },
 
   /** 设置难度 */

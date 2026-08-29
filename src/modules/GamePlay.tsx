@@ -18,6 +18,7 @@ export const GamePlay: React.FC = () => {
     turn,
     status,
     difficulty,
+    playerColor,
     history,
     moves,
     lastMove,
@@ -25,6 +26,7 @@ export const GamePlay: React.FC = () => {
     hint,
     isAIThinking,
     selectSquare,
+    startGame,
     resetGame,
     undoMove,
     requestHint,
@@ -34,8 +36,10 @@ export const GamePlay: React.FC = () => {
   const { recordGame } = useProgressStore();
   const gameRecorded = React.useRef(false);
   const [showResultModal, setShowResultModal] = useState(false);
+  const [gameStarted, setGameStarted] = useState(false);
+  const [selectedColor, setSelectedColor] = useState<'w' | 'b'>('w');
 
-  /** 检查当前方是否被将军（useMemo 缓存，避免每次渲染都重算） */
+  /** 检查当前方是否被将军 */
   const checkSquare = useMemo(() => {
     if (status === 'playing' || status === 'check') {
       const kingPos = findKing(board, turn === 'w');
@@ -52,7 +56,9 @@ export const GamePlay: React.FC = () => {
     if (isGameOver(status)) {
       let outcome: 'win' | 'loss' | 'draw' = 'draw';
       if (status === 'checkmate') {
-        outcome = turn === 'w' ? 'loss' : 'win';
+        // 将杀方是当前回合的对方，即被将杀的是当前回合方
+        // turn 是被将杀方，如果 turn === playerColor 则玩家输了
+        outcome = turn === playerColor ? 'loss' : 'win';
       }
       recordGame({
         outcome,
@@ -64,7 +70,15 @@ export const GamePlay: React.FC = () => {
       gameRecorded.current = true;
       setShowResultModal(true);
     }
-  }, [status, turn, difficulty, moves.length, recordGame]);
+  }, [status, turn, playerColor, difficulty, moves.length, recordGame]);
+
+  /** 开始游戏 */
+  const handleStartGame = () => {
+    setGameStarted(true);
+    gameRecorded.current = false;
+    setShowResultModal(false);
+    startGame(selectedColor);
+  };
 
   /** 重置游戏 */
   const handleReset = () => {
@@ -73,14 +87,82 @@ export const GamePlay: React.FC = () => {
     resetGame();
   };
 
+  /** 切换难度 */
+  const handleDifficultyChange = (d: Difficulty) => {
+    setDifficulty(d);
+    if (gameStarted) {
+      handleReset();
+    }
+  };
+
   /** 获取选中棋子的合法目标 */
   const legalTargets = selection?.legalTargets || [];
 
+  // 游戏未开始：显示颜色选择界面
+  if (!gameStarted) {
+    return (
+      <div className="module game-play">
+        <div className="module-header">
+          <h2>🤖 人机对局</h2>
+          <p>选择你的阵营，开始一场国际象棋对局！</p>
+        </div>
+
+        <div className="color-setup-area">
+          <div className="color-selection">
+            <h3>选择你的阵营</h3>
+            <div className="color-options">
+              <button
+                className={`color-option ${selectedColor === 'w' ? 'active' : ''}`}
+                onClick={() => setSelectedColor('w')}
+              >
+                <span className="color-piece white-king">♔</span>
+                <span className="color-label">白方</span>
+                <span className="color-desc">先手 · 先行</span>
+              </button>
+              <button
+                className={`color-option ${selectedColor === 'b' ? 'active' : ''}`}
+                onClick={() => setSelectedColor('b')}
+              >
+                <span className="color-piece black-king">♚</span>
+                <span className="color-label">黑方</span>
+                <span className="color-desc">后手 · AI先行</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="difficulty-setup">
+            <h3>选择难度</h3>
+            <div className="difficulty-options">
+              {([1, 2, 3, 4, 5] as const).map((d) => (
+                <button
+                  key={d}
+                  className={`difficulty-option ${difficulty === d ? 'active' : ''}`}
+                  onClick={() => setDifficulty(d)}
+                >
+                  {d} {d === 1 ? '⭐' : d === 2 ? '⭐⭐' : d === 3 ? '⭐⭐⭐' : d === 4 ? '⭐⭐⭐⭐' : '⭐⭐⭐⭐⭐'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <button className="start-game-btn" onClick={handleStartGame}>
+            🎮 开始对局
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // 游戏中：显示棋盘和控制面板
   return (
     <div className="module game-play">
       <div className="module-header">
         <h2>🤖 人机对局</h2>
-        <p>与AI对手来一场国际象棋对局吧！</p>
+        <p>
+          你执{playerColor === 'w' ? '白方' : '黑方'} · 
+          {playerColor === 'w' ? ' 先手' : ' 后手'} · 
+          难度 {difficulty}
+        </p>
       </div>
 
       <div className="game-layout">
@@ -94,7 +176,7 @@ export const GamePlay: React.FC = () => {
             checkSquare={checkSquare}
             hint={hint}
             onSquareClick={selectSquare}
-            flipped={false}
+            flipped={playerColor === 'b'}
           />
           {isAIThinking && (
             <div className="ai-thinking-overlay">
@@ -119,10 +201,7 @@ export const GamePlay: React.FC = () => {
             onReset={handleReset}
             onUndo={undoMove}
             onHint={requestHint}
-            onDifficultyChange={(d) => {
-              setDifficulty(d);
-              handleReset();
-            }}
+            onDifficultyChange={handleDifficultyChange}
           />
 
           <MoveHistory history={history} />
@@ -135,18 +214,18 @@ export const GamePlay: React.FC = () => {
                   ✕
                 </button>
                 <div className="result-icon">
-                  {status === 'checkmate' && (turn === 'w' ? '😢' : '🎉')}
+                  {status === 'checkmate' && (turn === playerColor ? '😢' : '🎉')}
                   {status === 'stalemate' && '🤝'}
                   {status === 'draw' && '🤝'}
                 </div>
                 <h3 className="result-title">
-                  {status === 'checkmate' && (turn === 'w' ? '你输了' : '你赢了！')}
+                  {status === 'checkmate' && (turn === playerColor ? '你输了' : '你赢了！')}
                   {status === 'stalemate' && '逼和（平局）'}
                   {status === 'draw' && '和棋'}
                 </h3>
                 <p className="result-detail">
                   共走了 {moves.length} 步
-                  {status === 'checkmate' && turn === 'b' && ` (+${difficulty >= 4 ? 60 : 30} XP)`}
+                  {status === 'checkmate' && turn !== playerColor && ` (+${difficulty >= 4 ? 60 : 30} XP)`}
                 </p>
                 <button className="play-again-btn" onClick={handleReset}>
                   再来一局
