@@ -1,6 +1,6 @@
 /**
  * ChessKids - 联网对战状态管理
- * 基于 Zustand，管理 WebSocket 连接、房间、在线对局棋盘状态
+ * 基于 PeerJS (WebRTC P2P)，无需后端服务器，通过房间号/分享链接连接好友
  */
 
 import { create } from 'zustand';
@@ -21,6 +21,8 @@ import {
   isMoveLegal,
   moveToNotation,
 } from '../engine';
+// @ts-ignore - PeerJS loaded via CDN importmap
+import Peer from 'peerjs';
 
 /** 连接状态 */
 type ConnectionStatus = 'disconnected' | 'connecting' | 'connected';
@@ -46,16 +48,13 @@ interface OpponentInfo {
 
 /** 联网对战 Store 接口 */
 interface MultiplayerState {
-  // 连接状态
   connectionStatus: ConnectionStatus;
-
-  // 房间信息
   roomCode: string | null;
   color: PieceColor | null;
   opponent: OpponentInfo | null;
   inGame: boolean;
+  peerId: string | null;
 
-  // 在线对局棋盘状态
   board: Board;
   turn: Turn;
   status: GameStatus;
@@ -63,18 +62,10 @@ interface MultiplayerState {
   moves: Move[];
   lastMove: { from: [number, number]; to: [number, number] } | null;
 
-  // 交互状态
   selection: Selection | null;
-
-  // 聊天
   chatMessages: ChatMessage[];
-
-  // 提示通知
   notification: string | null;
 
-  // ===== 方法 =====
-  connect: () => void;
-  disconnect: () => void;
   createRoom: () => void;
   joinRoom: (roomCode: string) => void;
   sendMove: (from: [number, number], to: [number, number]) => void;
@@ -86,22 +77,13 @@ interface MultiplayerState {
   clearSelection: () => void;
 }
 
-// ===== 模块级变量（不进入 React 状态，避免不必要的重渲染）=====
+// ===== 模块级变量 =====
 
-/** WebSocket 实例 */
-let ws: WebSocket | null = null;
+/** PeerJS 实例 */
+let peer: any = null;
 
-/** 心跳定时器 */
-let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
-
-/** 上一次收到 pong 的时间戳 */
-let lastPongTime = 0;
-
-/** 心跳间隔（毫秒） */
-const HEARTBEAT_INTERVAL = 25000;
-
-/** 心跳超时（毫秒），超过该时间未收到 pong 则认为连接断开 */
-const HEARTBEAT_TIMEOUT = 10000;
+/** 与对手的连接 */
+let conn: any = null;
 
 // ===== 辅助函数 =====
 
@@ -110,6 +92,16 @@ function isOwnPiece(piece: string, color: PieceColor): boolean {
   if (!piece) return false;
   const isWhitePiece = piece === piece.toUpperCase();
   return (color === 'w' && isWhitePiece) || (color === 'b' && !isWhitePiece);
+}
+
+/** 生成 6 位房间号 */
+function generateRoomCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
 }
 
 /** 获取初始棋盘状态 */
@@ -128,30 +120,17 @@ function getInitialBoardState() {
 // ===== Store 创建 =====
 
 export const useMultiplayerStore = create<MultiplayerState>((set, get) => {
-  /**
-   * 在当前棋盘上应用一步走法，更新棋盘/回合/状态/历史。
-   * 供本地走棋和接收远程走棋共用。
-   */
+  /** 在当前棋盘上应用一步走法 */
   function applyMoveToState(from: [number, number], to: [number, number]) {
     const state = get();
     const piece = state.board[from[0]][from[1]];
-
     const notation = moveToNotation(state.board, from, to);
     const newBoard = applyMove(state.board, from, to);
-
-    const move: Move = {
-      from,
-      to,
-      piece,
-      captured: state.board[to[0]][to[1]] || undefined,
-      notation,
-    };
-
+    const move: Move = { from, to, piece, captured: state.board[to[0]][to[1]] || undefined, notation };
     const newMoves = [...state.moves, move];
     const newTurn: Turn = state.turn === 'w' ? 'b' : 'w';
     const newStatus = getGameStatus(newBoard, newTurn);
 
-    // 更新走棋历史
     const moveNum = Math.ceil(newMoves.length / 2);
     const newHistory = [...state.history];
     if (state.turn === 'w') {
@@ -162,137 +141,61 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => {
       }
     }
 
-    set({
-      board: newBoard,
-      turn: newTurn,
-      status: newStatus,
-      moves: newMoves,
-      history: newHistory,
-      lastMove: { from, to },
-      selection: null,
-    });
+    set({ board: newBoard, turn: newTurn, status: newStatus, moves: newMoves, history: newHistory, lastMove: { from, to }, selection: null });
   }
 
-  /** 添加一条聊天消息 */
+  /** 添加聊天消息 */
   function addChatMessage(from: PieceColor | 'system', message: string) {
-    set((state) => ({
-      chatMessages: [
-        ...state.chatMessages,
-        { from, message, timestamp: Date.now() },
-      ],
-    }));
+    set((state) => ({ chatMessages: [...state.chatMessages, { from, message, timestamp: Date.now() }] }));
   }
 
-  /** 处理服务器消息 */
-  function handleMessage(data: string) {
-    let msg: { type: string; [key: string]: unknown };
-    try {
-      msg = JSON.parse(data);
-    } catch {
-      return;
+  /** 发送消息给对手 */
+  function sendMessage(data: Record<string, unknown>) {
+    if (conn && conn.open) {
+      conn.send(data);
     }
+  }
 
-    switch (msg.type) {
-      // ===== 房间创建成功 =====
-      case 'ROOM_CREATED': {
-        set({
-          roomCode: msg.roomCode as string,
-          color: msg.color as PieceColor,
-          inGame: true,
-          ...getInitialBoardState(),
-          chatMessages: [],
-          notification: `房间已创建，房间号：${msg.roomCode as string}，等待对手加入...`,
-        });
+  /** 处理对手发来的消息 */
+  function handleMessage(data: any) {
+    if (!data || !data.type) return;
+
+    switch (data.type) {
+      case 'HELLO': {
+        // 房主收到对手的 hello 消息，回复自己的信息并开始游戏
+        const opponentColor: PieceColor = 'b';
+        set({ opponent: { name: data.name || '对手', color: opponentColor } });
+        addChatMessage('system', `对手 ${data.name || '对手'} 已加入，对局开始！`);
+        // 回复房主信息
+        sendMessage({ type: 'HELLO_REPLY', name: '房主', color: 'w' });
         break;
       }
 
-      // ===== 加入房间成功 =====
-      case 'JOIN_SUCCESS': {
-        set({
-          roomCode: msg.roomCode as string,
-          color: msg.color as PieceColor,
-          inGame: true,
-          ...getInitialBoardState(),
-          chatMessages: [],
-          notification: `已加入房间 ${msg.roomCode as string}`,
-        });
+      case 'HELLO_REPLY': {
+        // 加入方收到房主回复
+        set({ opponent: { name: data.name || '房主', color: data.color as PieceColor } });
+        addChatMessage('system', '对局开始！');
         break;
       }
 
-      // ===== 加入房间失败 =====
-      case 'JOIN_ERROR': {
-        set({ notification: msg.message as string });
-        break;
-      }
-
-      // ===== 对手加入 =====
-      case 'OPPONENT_JOINED': {
-        const opponent = msg.opponent as OpponentInfo;
-        set({
-          opponent,
-          ...getInitialBoardState(),
-          notification: `对手 ${opponent.name} 已加入，对局开始！`,
-        });
-        addChatMessage('system', `对手 ${opponent.name} 已加入，对局开始！`);
-        break;
-      }
-
-      // ===== 走棋同步 =====
       case 'MOVE': {
-        const from = msg.from as [number, number];
-        const to = msg.to as [number, number];
-        const by = msg.by as PieceColor;
-        const state = get();
-
-        // 如果是自己走的棋（回声），则忽略——本地已经更新过
-        if (state.color && by === state.color) {
-          break;
-        }
+        const from = data.from as [number, number];
+        const to = data.to as [number, number];
         applyMoveToState(from, to);
         break;
       }
 
-      // ===== 游戏重置 =====
       case 'GAME_RESET': {
-        set({
-          ...getInitialBoardState(),
-          notification: '对手发起了重开，游戏已重置',
-        });
+        set({ ...getInitialBoardState(), notification: '对手发起了重开，游戏已重置' });
         addChatMessage('system', '游戏已重置');
         break;
       }
 
-      // ===== 对手离开 =====
-      case 'OPPONENT_LEFT': {
-        set({
-          opponent: null,
-          notification: '对手已离开房间',
-        });
-        addChatMessage('system', '对手已离开房间');
-        break;
-      }
-
-      // ===== 聊天 =====
       case 'CHAT': {
-        const from = msg.from as PieceColor;
-        const message = msg.message as string;
-        // 只接收对方的聊天消息（自己的消息在发送时已加入）
-        const state = get();
-        if (state.color && from !== state.color) {
-          addChatMessage(from, message);
+        const opponentColor = get().opponent?.color;
+        if (opponentColor) {
+          addChatMessage(opponentColor, data.message);
         }
-        break;
-      }
-
-      // ===== 心跳响应 =====
-      case 'PONG': {
-        lastPongTime = Date.now();
-        break;
-      }
-
-      // ===== 服务器错误 =====
-      case 'ERROR': {
-        set({ notification: msg.message as string });
         break;
       }
 
@@ -301,31 +204,133 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => {
     }
   }
 
-  /** 启动客户端心跳 */
-  function startHeartbeat() {
-    stopHeartbeat();
-    lastPongTime = Date.now();
-    heartbeatTimer = setInterval(() => {
-      if (!ws || ws.readyState !== WebSocket.OPEN) {
-        return;
+  /** 初始化 Peer 实例 */
+  function initPeer(roomCode: string, isHost: boolean): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (peer) {
+        peer.destroy();
+        peer = null;
       }
-      // 检查是否超时未收到 pong
-      if (Date.now() - lastPongTime > HEARTBEAT_INTERVAL + HEARTBEAT_TIMEOUT) {
-        // 连接可能已断开，主动关闭
-        console.warn('[multiplayer] 心跳超时，断开连接');
-        ws.close();
-        return;
+
+      set({ connectionStatus: 'connecting' });
+
+      // 使用 PeerJS 公共信令服务器
+      peer = new Peer(roomCode, {
+        host: '0.peerjs.com',
+        port: 443,
+        path: '/',
+        secure: true,
+        debug: 0,
+        config: {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
+          ],
+        },
+      });
+
+      peer.on('open', (id: string) => {
+        set({ peerId: id, roomCode, connectionStatus: 'connected' });
+        resolve();
+      });
+
+      peer.on('error', (err: any) => {
+        console.warn('[multiplayer] Peer error:', err);
+        if (err.type === 'unavailable-id' && isHost) {
+          // 房间号已被占用，生成新的
+          const newCode = generateRoomCode();
+          peer.destroy();
+          peer = null;
+          initPeer(newCode, true).then(resolve).catch(reject);
+        } else if (err.type === 'peer-unavailable') {
+          set({ notification: '房间不存在，请确认房间号是否正确' });
+          set({ connectionStatus: 'disconnected' });
+          reject(err);
+        } else {
+          set({ notification: `连接失败：${err.message || err.type}` });
+          set({ connectionStatus: 'disconnected' });
+          reject(err);
+        }
+      });
+
+      peer.on('close', () => {
+        handleDisconnect();
+      });
+
+      peer.on('disconnected', () => {
+        handleDisconnect();
+      });
+
+      // 房主：监听对手连接
+      if (isHost) {
+        peer.on('connection', (connection: any) => {
+          // 如果已有连接，拒绝新连接
+          if (conn && conn.open) {
+            connection.close();
+            return;
+          }
+          setupConnection(connection);
+        });
       }
-      ws.send(JSON.stringify({ type: 'PING' }));
-    }, HEARTBEAT_INTERVAL);
+    });
   }
 
-  /** 停止心跳 */
-  function stopHeartbeat() {
-    if (heartbeatTimer) {
-      clearInterval(heartbeatTimer);
-      heartbeatTimer = null;
-    }
+  /** 设置数据连接 */
+  function setupConnection(connection: any) {
+    conn = connection;
+
+    conn.on('open', () => {
+      const state = get();
+      const myColor = state.color;
+      const opponentColor: PieceColor = myColor === 'w' ? 'b' : 'w';
+
+      set({
+        inGame: true,
+        opponent: { name: '对手', color: opponentColor },
+        ...getInitialBoardState(),
+        chatMessages: [],
+        notification: '对手已连接，对局开始！',
+      });
+      addChatMessage('system', '对手已连接，对局开始！');
+
+      // 发送自己的信息
+      sendMessage({ type: 'HELLO', name: '玩家', color: myColor });
+    });
+
+    conn.on('data', (data: any) => {
+      handleMessage(data);
+    });
+
+    conn.on('close', () => {
+      handleOpponentLeft();
+    });
+
+    conn.on('error', () => {
+      handleOpponentLeft();
+    });
+  }
+
+  /** 对手离开 */
+  function handleOpponentLeft() {
+    set({ opponent: null, notification: '对手已断开连接' });
+    addChatMessage('system', '对手已断开连接');
+  }
+
+  /** 断开连接处理 */
+  function handleDisconnect() {
+    set({
+      connectionStatus: 'disconnected',
+      inGame: false,
+      roomCode: null,
+      color: null,
+      opponent: null,
+      peerId: null,
+      ...getInitialBoardState(),
+      chatMessages: [],
+    });
+    conn = null;
+    peer = null;
   }
 
   return {
@@ -335,64 +340,80 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => {
     color: null,
     opponent: null,
     inGame: false,
+    peerId: null,
     ...getInitialBoardState(),
     chatMessages: [],
     notification: null,
 
-    // ===== 连接管理 =====
+    // ===== 房间管理 =====
 
-    /** 连接 WebSocket 服务器 */
-    connect: () => {
-      // 如果已经连接或正在连接，则不重复连接
-      if (
-        ws &&
-        (ws.readyState === WebSocket.OPEN ||
-          ws.readyState === WebSocket.CONNECTING)
-      ) {
+    /** 创建房间（房主） */
+    createRoom: () => {
+      const roomCode = generateRoomCode();
+
+      initPeer(roomCode, true)
+        .then(() => {
+          set({
+            color: 'w',
+            inGame: true,
+            ...getInitialBoardState(),
+            chatMessages: [],
+            notification: `房间已创建，房间号：${roomCode}，等待对手加入...`,
+          });
+        })
+        .catch(() => {
+          // 错误已在 initPeer 中处理
+        });
+    },
+
+    /** 加入房间 */
+    joinRoom: (roomCode) => {
+      const code = roomCode.trim().toUpperCase();
+      if (!code || code.length !== 6) {
+        set({ notification: '请输入6位房间号' });
         return;
       }
 
-      set({ connectionStatus: 'connecting' });
+      // 加入方：生成自己的 peer id（随机），然后连接房主
+      const myPeerId = 'ck_' + Math.random().toString(36).substring(2, 10);
 
-      const url = `ws://${window.location.hostname}:3001`;
-      ws = new WebSocket(url);
+      initPeer(myPeerId, false)
+        .then(() => {
+          // 连接房主
+          const connection = peer.connect(code, { reliable: true });
 
-      ws.onopen = () => {
-        set({ connectionStatus: 'connected', notification: null });
-        startHeartbeat();
-      };
+          connection.on('open', () => {
+            set({
+              color: 'b',
+              inGame: true,
+              roomCode: code,
+              ...getInitialBoardState(),
+              chatMessages: [],
+              notification: `已加入房间 ${code}`,
+            });
+            addChatMessage('system', `已加入房间 ${code}`);
+            setupConnection(connection);
+            // 房主在 setupConnection 的 onOpen 中会发 HELLO
+          });
 
-      ws.onclose = () => {
-        set({
-          connectionStatus: 'disconnected',
-          inGame: false,
-          roomCode: null,
-          color: null,
-          opponent: null,
-          notification: '与服务器的连接已断开',
+          connection.on('error', (err: any) => {
+            set({ notification: '加入房间失败：' + (err.message || '未知错误') });
+          });
+        })
+        .catch(() => {
+          // 错误已处理
         });
-        stopHeartbeat();
-        ws = null;
-      };
-
-      ws.onerror = () => {
-        set({
-          connectionStatus: 'disconnected',
-          notification: '连接服务器失败，请确认服务器已启动',
-        });
-      };
-
-      ws.onmessage = (event: MessageEvent) => {
-        handleMessage(typeof event.data === 'string' ? event.data : '');
-      };
     },
 
-    /** 断开 WebSocket 连接 */
-    disconnect: () => {
-      stopHeartbeat();
-      if (ws) {
-        ws.close();
-        ws = null;
+    /** 离开房间 */
+    leaveRoom: () => {
+      if (conn) {
+        try { conn.close(); } catch {}
+        conn = null;
+      }
+      if (peer) {
+        try { peer.destroy(); } catch {}
+        peer = null;
       }
       set({
         connectionStatus: 'disconnected',
@@ -400,47 +421,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => {
         roomCode: null,
         color: null,
         opponent: null,
-        ...getInitialBoardState(),
-        chatMessages: [],
-        notification: null,
-      });
-    },
-
-    // ===== 房间管理 =====
-
-    /** 创建房间 */
-    createRoom: () => {
-      if (!ws || ws.readyState !== WebSocket.OPEN) {
-        set({ notification: '未连接服务器，请先连接' });
-        return;
-      }
-      ws.send(JSON.stringify({ type: 'CREATE_ROOM' }));
-    },
-
-    /** 加入房间 */
-    joinRoom: (roomCode: string) => {
-      if (!ws || ws.readyState !== WebSocket.OPEN) {
-        set({ notification: '未连接服务器，请先连接' });
-        return;
-      }
-      const code = roomCode.trim().toUpperCase();
-      if (!code) {
-        set({ notification: '请输入房间号' });
-        return;
-      }
-      ws.send(JSON.stringify({ type: 'JOIN_ROOM', roomCode: code }));
-    },
-
-    /** 离开房间 */
-    leaveRoom: () => {
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'LEAVE_ROOM' }));
-      }
-      set({
-        inGame: false,
-        roomCode: null,
-        color: null,
-        opponent: null,
+        peerId: null,
         ...getInitialBoardState(),
         chatMessages: [],
         notification: null,
@@ -449,48 +430,35 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => {
 
     // ===== 走棋 =====
 
-    /** 发送走棋并更新本地棋盘 */
     sendMove: (from, to) => {
       const state = get();
-      if (!ws || ws.readyState !== WebSocket.OPEN) return;
       if (!state.color) return;
-      // 只有轮到自己时才能走棋
       if (state.turn !== state.color) return;
-      // 游戏已结束
       if (
         state.status === 'checkmate' ||
         state.status === 'stalemate' ||
         state.status === 'draw'
-      ) {
-        return;
-      }
-      // 验证走法合法性
+      ) return;
       if (!isMoveLegal(state.board, from, to, state.color === 'w')) return;
 
       // 本地应用走法
       applyMoveToState(from, to);
-
-      // 发送给服务器（服务器会广播给对手）
-      ws.send(JSON.stringify({ type: 'MAKE_MOVE', from, to }));
+      // 发送给对手
+      sendMessage({ type: 'MOVE', from, to, by: state.color });
     },
 
-    /** 选中棋盘格子（处理点击交互） */
     selectSquare: (row, col) => {
       const state = get();
-      if (!state.color) return;
-      // 只有轮到自己且游戏进行中才能操作
+      if (!state.color || !state.opponent) return;
       if (state.turn !== state.color) return;
       if (
         state.status === 'checkmate' ||
         state.status === 'stalemate' ||
         state.status === 'draw'
-      ) {
-        return;
-      }
+      ) return;
 
       const piece = state.board[row][col];
 
-      // 如果已有选中棋子，且点击的是合法目标，则走棋
       if (state.selection) {
         const isTarget = state.selection.legalTargets.some(
           ([r, c]) => r === row && c === col
@@ -501,61 +469,36 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => {
         }
       }
 
-      // 如果点击的是自己的棋子，选中它
       if (piece && isOwnPiece(piece, state.color)) {
         const allLegal = getAllLegalMoves(state.board, state.color === 'w');
         const legalTargets = allLegal
           .filter((m) => m.from[0] === row && m.from[1] === col)
           .map((m) => m.to as [number, number]);
-
         set({ selection: { from: [row, col], legalTargets } });
       } else {
-        // 点击空格或对方棋子，取消选中
         set({ selection: null });
       }
     },
 
     // ===== 重开游戏 =====
-
-    /** 请求重开游戏 */
     requestReset: () => {
-      if (!ws || ws.readyState !== WebSocket.OPEN) return;
-      ws.send(JSON.stringify({ type: 'RESET_GAME' }));
-      set({
-        ...getInitialBoardState(),
-        notification: '已发起重开请求',
-      });
+      set({ ...getInitialBoardState(), notification: '已发起重开' });
       addChatMessage('system', '已重开游戏');
+      sendMessage({ type: 'GAME_RESET' });
     },
 
     // ===== 聊天 =====
-
-    /** 发送聊天消息 */
-    sendChat: (message: string) => {
+    sendChat: (message) => {
       const state = get();
-      if (!ws || ws.readyState !== WebSocket.OPEN) return;
       if (!state.color) return;
       const text = message.trim();
       if (!text) return;
-
-      ws.send(
-        JSON.stringify({ type: 'CHAT', message: text })
-      );
-
-      // 本地立即显示自己的消息
+      sendMessage({ type: 'CHAT', message: text });
       addChatMessage(state.color, text);
     },
 
     // ===== 辅助方法 =====
-
-    /** 清除通知 */
-    clearNotification: () => {
-      set({ notification: null });
-    },
-
-    /** 清除选中 */
-    clearSelection: () => {
-      set({ selection: null });
-    },
+    clearNotification: () => set({ notification: null }),
+    clearSelection: () => set({ selection: null }),
   };
 });

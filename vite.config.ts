@@ -40,11 +40,11 @@ export default defineConfig({
     open: false,
   },
   optimizeDeps: {
-    exclude: ['three'],
+    exclude: ['three', 'peerjs'],
   },
   build: {
     rollupOptions: {
-      external: ['three'],
+      external: ['three', 'peerjs'],
     },
   },
 });

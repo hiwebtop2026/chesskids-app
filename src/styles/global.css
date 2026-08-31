@@ -2253,6 +2253,180 @@ ul {
   box-shadow: 0 6px 16px rgba(0,0,0,0.2);
 }
 
+/* ===== 联网对战大厅 ===== */
+.online-lobby {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.lobby-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-xl);
+  text-align: center;
+}
+
+.lobby-icon {
+  font-size: 2.5rem;
+  margin-bottom: var(--space-sm);
+}
+
+.lobby-card h3 {
+  margin-bottom: var(--space-sm);
+  font-size: 1.2rem;
+}
+
+.lobby-desc {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin-bottom: var(--space-md);
+  line-height: 1.5;
+}
+
+.lobby-primary-btn {
+  width: 100%;
+  padding: var(--space-md);
+  background: var(--primary);
+  color: var(--text-white);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.lobby-primary-btn:hover:not(:disabled) {
+  background: var(--primary-dark);
+}
+
+.lobby-primary-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.lobby-input-group {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.lobby-input {
+  flex: 1;
+  padding: var(--space-sm) var(--space-md);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-align: center;
+  text-transform: uppercase;
+  background: var(--bg);
+  color: var(--text);
+  font-family: inherit;
+}
+
+.lobby-input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.lobby-tips {
+  background: var(--primary-bg);
+  border: 1px solid var(--primary-light);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.8;
+}
+
+.lobby-tips strong {
+  color: var(--text);
+}
+
+/* ===== 分享链接卡片 ===== */
+.share-link-card {
+  background: var(--primary-bg);
+  border: 1px solid var(--primary-light);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.share-link-card h3 {
+  font-size: 1rem;
+  margin-bottom: var(--space-xs);
+}
+
+.share-desc {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: var(--space-sm);
+}
+
+.share-link-group {
+  display: flex;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-sm);
+}
+
+.share-link-input {
+  flex: 1;
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  background: var(--bg);
+  color: var(--text-muted);
+  font-family: monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.share-copy-btn {
+  padding: var(--space-xs) var(--space-md);
+  background: var(--primary);
+  color: var(--text-white);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+  white-space: nowrap;
+}
+
+.share-copy-btn:hover {
+  background: var(--primary-dark);
+}
+
+.share-room-code {
+  font-size: 0.85rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.share-room-code strong {
+  color: var(--primary);
+  font-size: 1.1rem;
+  letter-spacing: 3px;
+}
+
+.room-code-inline {
+  color: var(--primary);
+  letter-spacing: 2px;
+}
+
+.header-opponent {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
 /* ===== 响应式 ===== */
 
 /* 大屏桌面 (1200px+) */

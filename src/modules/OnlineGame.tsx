@@ -1,5 +1,6 @@
 /**
  * ChessKids - 联网对战模块
+ * 基于 PeerJS P2P，通过房间号/分享链接与好友对弈
  * 两种界面状态：大厅（创建/加入房间）和对局中（棋盘+聊天）
  */
 
@@ -25,8 +26,6 @@ export const OnlineGame: React.FC = () => {
     selection,
     chatMessages,
     notification,
-    connect,
-    disconnect,
     createRoom,
     joinRoom,
     selectSquare,
@@ -39,7 +38,17 @@ export const OnlineGame: React.FC = () => {
   const [joinInput, setJoinInput] = useState('');
   const [chatInput, setChatInput] = useState('');
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [copied, setCopied] = useState(false);
   const chatListRef = useRef<HTMLDivElement>(null);
+
+  /** 页面加载时检查 URL 是否有房间号参数，有则自动加入 */
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const room = params.get('room');
+    if (room && room.length === 6) {
+      setJoinInput(room.toUpperCase());
+    }
+  }, []);
 
   /** 聊天列表自动滚动到底部 */
   useEffect(() => {
@@ -65,13 +74,38 @@ export const OnlineGame: React.FC = () => {
     status === 'checkmate' || status === 'stalemate' || status === 'draw';
   const boardReadOnly = !opponent || !isMyTurn || isGameOver;
 
+  /** 生成分享链接 */
+  const shareLink = roomCode
+    ? `${window.location.origin}${window.location.pathname}?room=${roomCode}`
+    : '';
+
+  /** 复制分享链接 */
+  const copyShareLink = async () => {
+    try {
+      await navigator.clipboard.writeText(shareLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // 降级：用 select + execCommand
+      const input = document.createElement('input');
+      input.value = shareLink;
+      document.body.appendChild(input);
+      input.select();
+      try {
+        document.execCommand('copy');
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch {}
+      document.body.removeChild(input);
+    }
+  };
+
   /** 加入房间 */
   const handleJoin = () => {
     joinRoom(joinInput);
-    setJoinInput('');
   };
 
-/** 发送聊天消息 */
+  /** 发送聊天消息 */
   const handleSendChat = () => {
     sendChat(chatInput);
     setChatInput('');
@@ -94,19 +128,17 @@ export const OnlineGame: React.FC = () => {
       <div className="module online-game">
         <div className="module-header">
           <h2>🌐 联网对战</h2>
-          <p>与好友在线对弈，一决高下！</p>
+          <p>创建房间，将链接分享给好友，即可在线对弈！</p>
         </div>
 
         <div className="online-lobby">
           {/* 连接状态指示 */}
-          <div className={`lobby-status lobby-status-${connectionStatus}`}>
-            <span className="status-dot" />
-            <span className="status-text">
-              {connectionStatus === 'connected' && '已连接服务器'}
-              {connectionStatus === 'connecting' && '正在连接服务器...'}
-              {connectionStatus === 'disconnected' && '未连接服务器'}
-            </span>
-          </div>
+          {connectionStatus === 'connecting' && (
+            <div className="lobby-status lobby-status-connecting">
+              <span className="status-dot" />
+              <span className="status-text">正在连接...</span>
+            </div>
+          )}
 
           {/* 通知提示 */}
           {notification && (
@@ -118,67 +150,57 @@ export const OnlineGame: React.FC = () => {
             </div>
           )}
 
-          {connectionStatus !== 'connected' ? (
-            /* 未连接：显示连接按钮 */
-            <div className="lobby-card">
-              <h3>第一步：连接服务器</h3>
-              <p className="lobby-desc">
-                请先连接到对战服务器，然后即可创建或加入房间开始在线对局。
-              </p>
+          {/* 创建房间卡片 */}
+          <div className="lobby-card">
+            <div className="lobby-icon">🎮</div>
+            <h3>创建房间</h3>
+            <p className="lobby-desc">
+              创建一个新房间，将分享链接发给好友，等待对方加入即可开始对战。
+            </p>
+            <button
+              className="lobby-primary-btn"
+              onClick={createRoom}
+              disabled={connectionStatus === 'connecting'}
+            >
+              {connectionStatus === 'connecting' ? '连接中...' : '创建房间'}
+            </button>
+          </div>
+
+          {/* 加入房间卡片 */}
+          <div className="lobby-card">
+            <div className="lobby-icon">🔗</div>
+            <h3>加入房间</h3>
+            <p className="lobby-desc">输入好友分享的 6 位房间号，加入对战。</p>
+            <div className="lobby-input-group">
+              <input
+                type="text"
+                className="lobby-input"
+                placeholder="6位字母数字"
+                maxLength={6}
+                value={joinInput}
+                onChange={(e) => {
+                  const val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                  setJoinInput(val);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && joinInput.length === 6) handleJoin();
+                }}
+              />
               <button
                 className="lobby-primary-btn"
-                onClick={connect}
-                disabled={connectionStatus === 'connecting'}
+                onClick={handleJoin}
+                disabled={joinInput.length !== 6 || connectionStatus === 'connecting'}
               >
-                {connectionStatus === 'connecting' ? '连接中...' : '连接服务器'}
+                加入
               </button>
             </div>
-          ) : (
-            /* 已连接：显示创建/加入房间 */
-            <>
-              <div className="lobby-card">
-                <h3>创建房间</h3>
-                <p className="lobby-desc">
-                  创建一个新房间，将房间号分享给好友，等待对方加入即可开始对战。
-                </p>
-                <button className="lobby-primary-btn" onClick={createRoom}>
-                  创建房间
-                </button>
-              </div>
+          </div>
 
-              <div className="lobby-card">
-                <h3>加入房间</h3>
-                <p className="lobby-desc">输入好友分享的 6 位房间号，加入对战。</p>
-                <div className="lobby-input-group">
-                  <input
-                    type="text"
-                    className="lobby-input"
-                    placeholder="6位字母数字"
-                    maxLength={6}
-                    value={joinInput}
-                    onChange={(e) => {
-                      const val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-                      setJoinInput(val);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleJoin();
-                    }}
-                  />
-                  <button
-                    className="lobby-primary-btn"
-                    onClick={handleJoin}
-                    disabled={joinInput.length !== 6}
-                  >
-                    加入
-                  </button>
-                </div>
-              </div>
-
-              <button className="lobby-secondary-btn" onClick={disconnect}>
-                断开连接
-              </button>
-            </>
-          )}
+          {/* 说明 */}
+          <div className="lobby-tips">
+            <p>💡 <strong>小提示：</strong>无需注册，无需安装，直接在浏览器中与好友对弈。</p>
+            <p>📡 采用 P2P 直连技术，走棋数据仅在你和好友之间传输。</p>
+          </div>
         </div>
       </div>
     );
@@ -191,14 +213,19 @@ export const OnlineGame: React.FC = () => {
     <div className="module online-game">
       <div className="module-header">
         <h2>🌐 联网对战</h2>
-        <p>房间号：{roomCode}</p>
+        <p>
+          房间号：<strong className="room-code-inline">{roomCode}</strong>
+          {opponent && <span className="header-opponent"> · 对手：{opponent.name}</span>}
+        </p>
       </div>
 
       {/* 通知提示 */}
       {notification && (
         <div className="notification-banner" onClick={clearNotification}>
           <span>{notification}</span>
-          <span className="notification-close">x</span>
+          <button className="notification-close" aria-label="关闭通知" title="关闭通知">
+            ✕
+          </button>
         </div>
       )}
 
@@ -263,6 +290,28 @@ export const OnlineGame: React.FC = () => {
 
         {/* 右侧：信息面板 */}
         <div className="game-side-panel">
+          {/* 分享链接（仅房主且对手未加入时显示） */}
+          {color === 'w' && !opponent && (
+            <div className="share-link-card">
+              <h3>📤 分享给好友</h3>
+              <p className="share-desc">将下方链接或房间号发给好友，对方加入后即可开始对战。</p>
+              <div className="share-link-group">
+                <input
+                  type="text"
+                  className="share-link-input"
+                  value={shareLink}
+                  readOnly
+                />
+                <button className="share-copy-btn" onClick={copyShareLink}>
+                  {copied ? '✓ 已复制' : '复制链接'}
+                </button>
+              </div>
+              <div className="share-room-code">
+                房间号：<strong>{roomCode}</strong>
+              </div>
+            </div>
+          )}
+
           {/* 对局信息与控制 */}
           <div className="game-controls">
             <div className="online-game-info">
@@ -344,7 +393,7 @@ export const OnlineGame: React.FC = () => {
               <button
                 className="chat-send-btn"
                 onClick={handleSendChat}
-                disabled={!chatInput.trim()}
+                disabled={!chatInput.trim() || !opponent}
               >
                 发送
               </button>
