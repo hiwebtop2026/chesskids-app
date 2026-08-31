@@ -21,8 +21,19 @@ import {
   isMoveLegal,
   moveToNotation,
 } from '../engine';
-// @ts-ignore - PeerJS loaded via CDN importmap
-import Peer from 'peerjs';
+
+/** 动态加载 PeerJS（首次使用时加载，失败不影响其他模块） */
+let peerjsPromise: Promise<any> | null = null;
+async function loadPeerJS(): Promise<any> {
+  if (peerjsPromise) return peerjsPromise;
+  peerjsPromise = import('peerjs')
+    .then((mod) => mod.default || mod.Peer || mod)
+    .catch((err) => {
+      peerjsPromise = null;
+      throw err;
+    });
+  return peerjsPromise;
+}
 
 /** 连接状态 */
 type ConnectionStatus = 'disconnected' | 'connecting' | 'connected';
@@ -206,7 +217,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => {
 
   /** 初始化 Peer 实例 */
   function initPeer(roomCode: string, isHost: boolean): Promise<void> {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       if (peer) {
         peer.destroy();
         peer = null;
@@ -214,64 +225,72 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => {
 
       set({ connectionStatus: 'connecting' });
 
-      // 使用 PeerJS 公共信令服务器
-      peer = new Peer(roomCode, {
-        host: '0.peerjs.com',
-        port: 443,
-        path: '/',
-        secure: true,
-        debug: 0,
-        config: {
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' },
-          ],
-        },
-      });
+      try {
+        const Peer = await loadPeerJS();
 
-      peer.on('open', (id: string) => {
-        set({ peerId: id, roomCode, connectionStatus: 'connected' });
-        resolve();
-      });
-
-      peer.on('error', (err: any) => {
-        console.warn('[multiplayer] Peer error:', err);
-        if (err.type === 'unavailable-id' && isHost) {
-          // 房间号已被占用，生成新的
-          const newCode = generateRoomCode();
-          peer.destroy();
-          peer = null;
-          initPeer(newCode, true).then(resolve).catch(reject);
-        } else if (err.type === 'peer-unavailable') {
-          set({ notification: '房间不存在，请确认房间号是否正确' });
-          set({ connectionStatus: 'disconnected' });
-          reject(err);
-        } else {
-          set({ notification: `连接失败：${err.message || err.type}` });
-          set({ connectionStatus: 'disconnected' });
-          reject(err);
-        }
-      });
-
-      peer.on('close', () => {
-        handleDisconnect();
-      });
-
-      peer.on('disconnected', () => {
-        handleDisconnect();
-      });
-
-      // 房主：监听对手连接
-      if (isHost) {
-        peer.on('connection', (connection: any) => {
-          // 如果已有连接，拒绝新连接
-          if (conn && conn.open) {
-            connection.close();
-            return;
-          }
-          setupConnection(connection);
+        // 使用 PeerJS 公共信令服务器
+        peer = new Peer(roomCode, {
+          host: '0.peerjs.com',
+          port: 443,
+          path: '/',
+          secure: true,
+          debug: 0,
+          config: {
+            iceServers: [
+              { urls: 'stun:stun.l.google.com:19302' },
+              { urls: 'stun:stun1.l.google.com:19302' },
+              { urls: 'stun:stun2.l.google.com:19302' },
+            ],
+          },
         });
+
+        peer.on('open', (id: string) => {
+          set({ peerId: id, roomCode, connectionStatus: 'connected' });
+          resolve();
+        });
+
+        peer.on('error', (err: any) => {
+          console.warn('[multiplayer] Peer error:', err);
+          if (err.type === 'unavailable-id' && isHost) {
+            const newCode = generateRoomCode();
+            peer.destroy();
+            peer = null;
+            initPeer(newCode, true).then(resolve).catch(reject);
+          } else if (err.type === 'peer-unavailable') {
+            set({ notification: '房间不存在，请确认房间号是否正确' });
+            set({ connectionStatus: 'disconnected' });
+            reject(err);
+          } else {
+            set({ notification: `连接失败：${err.message || err.type}` });
+            set({ connectionStatus: 'disconnected' });
+            reject(err);
+          }
+        });
+
+        peer.on('close', () => {
+          handleDisconnect();
+        });
+
+        peer.on('disconnected', () => {
+          handleDisconnect();
+        });
+
+        // 房主：监听对手连接
+        if (isHost) {
+          peer.on('connection', (connection: any) => {
+            if (conn && conn.open) {
+              connection.close();
+              return;
+            }
+            setupConnection(connection);
+          });
+        }
+      } catch (err: any) {
+        set({
+          notification: `PeerJS 加载失败：${err.message || '网络错误'}`,
+          connectionStatus: 'disconnected',
+        });
+        reject(err);
       }
     });
   }

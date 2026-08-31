@@ -2,19 +2,27 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
-// Vite plugin: serve 'three' as a virtual module that re-exports from CDN URL
+// Vite plugin: serve CDN modules as virtual modules that re-export from CDN URL
 // Vite passes http(s) URL imports through to the browser, which resolves them via importmap
-const threeCdnPlugin = () => ({
-  name: 'three-cdn',
+const cdnPlugin = () => ({
+  name: 'cdn-modules',
   resolveId(source: string) {
-    if (source === 'three') {
-      return '\0three-cdn';
-    }
+    if (source === 'three') return '\0three-cdn';
+    if (source === 'peerjs') return '\0peerjs-cdn';
     return null;
   },
   load(id: string) {
     if (id === '\0three-cdn') {
       return `export * from 'https://registry.npmmirror.com/three/0.160.0/files/build/three.module.js';`;
+    }
+    if (id === '\0peerjs-cdn') {
+      // Use esm.sh which auto-wraps npm packages as proper ESM modules
+      // Fallback chain: esm.sh -> jsdelivr +esm
+      return `
+import Peer from 'https://esm.sh/peerjs@1.5.4';
+export default Peer;
+export { Peer };
+`;
     }
     return null;
   },
@@ -22,7 +30,7 @@ const threeCdnPlugin = () => ({
 
 export default defineConfig({
   base: './',
-  plugins: [react(), threeCdnPlugin()],
+  plugins: [react(), cdnPlugin()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
