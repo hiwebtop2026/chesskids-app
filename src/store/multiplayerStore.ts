@@ -256,8 +256,10 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => {
               { urls: 'turn:eu-0.turn.peerjs.com:3478', username: 'peerjs', credential: 'peerjsp' },
               { urls: 'turn:eu-0.turn.peerjs.com:3478?transport=tcp', username: 'peerjs', credential: 'peerjsp' },
               { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+              { urls: 'turn:openrelay.metered.ca:80?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
               { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
               { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+              { urls: 'turns:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
             ],
           },
         });
@@ -279,7 +281,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => {
             reject(err);
           } else if (err.type === 'negotiation-failed' || err.type === 'ice-connection-failed') {
             set({
-              notification: 'WebRTC连接失败，可能是网络环境（对称NAT/防火墙）阻止了P2P连接，请尝试更换网络',
+              notification: '连接协商失败，请尝试：1）切换手机热点重试 2）关闭VPN/代理 3）更换网络环境',
               connectionStatus: 'disconnected',
             });
             reject(err);
