@@ -103,6 +103,9 @@ let conn: any = null;
 /** 连接超时计时器 */
 let connectTimeout: ReturnType<typeof setTimeout> | null = null;
 
+/** 标记是否正在重试（防止 destroy 触发 handleDisconnect 清空重试状态） */
+let isRetrying = false;
+
 // ===== 辅助函数 =====
 
 /** 判断棋子是否属于指定颜色 */
@@ -230,10 +233,10 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => {
   }
 
   /** 初始化 Peer 实例 */
-  function initPeer(peerId: string, roomCode: string, isHost: boolean): Promise<void> {
+  function initPeer(peerId: string, roomCode: string, isHost: boolean, relayOnly: boolean = false): Promise<void> {
     return new Promise(async (resolve, reject) => {
       if (peer) {
-        peer.destroy();
+        try { peer.destroy(); } catch {}
         peer = null;
       }
 
@@ -247,22 +250,35 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => {
           port: 443,
           path: '/',
           secure: true,
-          debug: 1,
+          debug: 2,
           config: {
+            // 校园网/企业网优化：TLS TURN on 443 最优先（伪装为 HTTPS 流量），
+            // 其次 TCP TURN on 443，最后才是 UDP TURN 和 STUN
             iceServers: [
+              // TLS TURN on 443 — 校园网防火墙最可能放行的路径
+              { urls: 'turns:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+              // TCP TURN on 443 — 备选 HTTPS 端口
+              { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+              // UDP TURN on 443
+              { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+              // PeerJS public TURN（端口 3478，校园网可能封禁）
+              { urls: 'turn:eu-0.turn.peerjs.com:3478', username: 'peerjs', credential: 'peerjsp' },
+              { urls: 'turn:eu-0.turn.peerjs.com:3478?transport=tcp', username: 'peerjs', credential: 'peerjsp' },
+              // OpenRelay on port 80（非标端口，补充）
+              { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+              { urls: 'turn:openrelay.metered.ca:80?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+              // STUN（对称 NAT 下无效，但用于非受限网络环境）
               { urls: 'stun:stun.l.google.com:19302' },
               { urls: 'stun:stun1.l.google.com:19302' },
               { urls: 'stun:stun2.l.google.com:19302' },
-              { urls: 'turn:eu-0.turn.peerjs.com:3478', username: 'peerjs', credential: 'peerjsp' },
-              { urls: 'turn:eu-0.turn.peerjs.com:3478?transport=tcp', username: 'peerjs', credential: 'peerjsp' },
-              { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-              { urls: 'turn:openrelay.metered.ca:80?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
-              { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-              { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
-              { urls: 'turns:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+              { urls: 'stun:openrelay.metered.ca:80' },
             ],
+            iceTransportPolicy: relayOnly ? 'relay' : 'all',
+            iceCandidatePoolSize: 10,
+            bundlePolicy: 'max-bundle',
           },
         });
+        console.log(`[multiplayer] Peer created, relayOnly=${relayOnly}, isHost=${isHost}`);
 
         peer.on('open', (id: string) => {
           set({ peerId: id, roomCode, connectionStatus: 'connected' });
@@ -280,10 +296,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => {
             set({ notification: '房间不存在或对方已离开，请确认房间号是否正确', connectionStatus: 'disconnected' });
             reject(err);
           } else if (err.type === 'negotiation-failed' || err.type === 'ice-connection-failed') {
-            set({
-              notification: '连接协商失败，请尝试：1）切换手机热点重试 2）关闭VPN/代理 3）更换网络环境',
-              connectionStatus: 'disconnected',
-            });
+            // 连接级 error handler 已处理重试和通知，peer 级仅 reject
             reject(err);
           } else if (err.type === 'network' || err.type === 'server-error' || err.type === 'socket-error') {
             set({
@@ -298,15 +311,24 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => {
         });
 
         peer.on('close', () => {
+          if (isRetrying) return;
           handleDisconnect();
         });
 
         peer.on('disconnected', () => {
-          handleDisconnect();
+          // Try reconnecting to signaling server; only disconnect on failure
+          if (peer && !peer.destroyed) {
+            try {
+              peer.reconnect();
+            } catch {
+              handleDisconnect();
+            }
+          }
         });
 
         if (isHost) {
           peer.on('connection', (connection: any) => {
+            console.log('[multiplayer] Incoming connection from peer');
             if (conn && conn.open) {
               connection.close();
               return;
@@ -361,7 +383,15 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => {
       handleOpponentLeft();
     });
 
-    conn.on('error', () => {
+    conn.on('error', (err: any) => {
+      const errType = err?.type || '';
+      if (errType === 'negotiation-failed' || errType === 'ice-connection-failed') {
+        set({
+          notification: '连接中断，对方可能正在尝试重连，请稍候...',
+          connectionStatus: 'disconnected',
+        });
+      }
+      conn = null;
       handleOpponentLeft();
     });
   }
@@ -378,6 +408,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => {
       clearTimeout(connectTimeout);
       connectTimeout = null;
     }
+    isRetrying = false;
     set({
       connectionStatus: 'disconnected',
       inGame: false,
@@ -430,52 +461,100 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => {
         return;
       }
 
-      const myPeerId = 'ck_' + Math.random().toString(36).substring(2, 10);
+      let retryAttempted = false;
 
-      initPeer(myPeerId, code, false)
-        .then(() => {
-          set({ color: 'b' });
+      function attemptConnection(relayOnly: boolean) {
+        isRetrying = false;
+        const myPeerId = 'ck_' + Math.random().toString(36).substring(2, 10);
 
-          const connection = peer.connect(code, { reliable: true });
+        initPeer(myPeerId, code, false, relayOnly)
+          .then(() => {
+            set({ color: 'b' });
 
-          if (connectTimeout) clearTimeout(connectTimeout);
-          connectTimeout = setTimeout(() => {
-            if (!conn || !conn.open) {
+            const connection = peer.connect(code, { reliable: true });
+            console.log(`[multiplayer] Connecting to room ${code}, relayOnly=${relayOnly}`);
+
+            if (connectTimeout) clearTimeout(connectTimeout);
+            // 首次 15s 超时（校园网场景直连大概率失败，快速回退到中继）
+            // 重试时 25s 超时（TURN 中继需要更多时间）
+            const timeoutMs = relayOnly ? 25000 : 15000;
+            connectTimeout = setTimeout(() => {
+              if (!conn || !conn.open) {
+                if (!retryAttempted) {
+                  retryAttempted = true;
+                  set({ notification: '直连超时，正在尝试中继连接...' });
+                  isRetrying = true;
+                  if (peer) { try { peer.destroy(); } catch {} peer = null; }
+                  setTimeout(() => attemptConnection(true), 800);
+                  return;
+                }
+                set({
+                  notification: '连接超时，对方可能在校园网/企业网内，建议双方都切换手机热点后重试',
+                  connectionStatus: 'disconnected',
+                });
+              }
+            }, timeoutMs);
+
+            connection.on('open', () => {
+              console.log(`[multiplayer] Connection opened to ${code}`);
+              if (connectTimeout) {
+                clearTimeout(connectTimeout);
+                connectTimeout = null;
+              }
               set({
-                notification: '连接超时，请确认：1）房间号是否正确 2）对方是否在线 3）网络是否允许WebRTC连接',
-                connectionStatus: 'disconnected',
+                inGame: true,
+                roomCode: code,
+                ...getInitialBoardState(),
+                chatMessages: [],
+                notification: `已加入房间 ${code}`,
               });
-            }
-          }, 20000);
-
-          connection.on('open', () => {
-            if (connectTimeout) {
-              clearTimeout(connectTimeout);
-              connectTimeout = null;
-            }
-            set({
-              inGame: true,
-              roomCode: code,
-              ...getInitialBoardState(),
-              chatMessages: [],
-              notification: `已加入房间 ${code}`,
+              addChatMessage('system', `已加入房间 ${code}`);
+              setupConnection(connection);
             });
-            addChatMessage('system', `已加入房间 ${code}`);
-            setupConnection(connection);
-          });
 
-          connection.on('error', (err: any) => {
-            if (connectTimeout) {
-              clearTimeout(connectTimeout);
-              connectTimeout = null;
-            }
-            set({
-              notification: '加入房间失败：' + (err.message || '未知错误'),
-              connectionStatus: 'disconnected',
+            connection.on('error', (err: any) => {
+              console.warn('[multiplayer] Connection error:', err);
+              if (connectTimeout) {
+                clearTimeout(connectTimeout);
+                connectTimeout = null;
+              }
+              const errType = err.type || '';
+
+              // If already in game, let setupConnection's handler deal with it
+              if (get().inGame) return;
+
+              // Retry with relay-only on negotiation failure
+              if ((errType === 'negotiation-failed' || errType === 'ice-connection-failed') && !retryAttempted) {
+                retryAttempted = true;
+                set({ notification: '直连失败，正在尝试中继连接...' });
+                isRetrying = true;
+                if (peer) { try { peer.destroy(); } catch {} peer = null; }
+                setTimeout(() => attemptConnection(true), 800);
+                return;
+              }
+
+              if (errType === 'negotiation-failed' || errType === 'ice-connection-failed') {
+                set({
+                  notification: '中继连接也失败了，对方可能在限制严格的校园网内。建议：1）让对方切换手机热点重试 2）双方都关闭VPN/代理 3）换一个网络环境',
+                  connectionStatus: 'disconnected',
+                });
+              } else if (errType === 'peer-unavailable') {
+                set({
+                  notification: '房间不存在或对方已离开，请确认房间号是否正确',
+                  connectionStatus: 'disconnected',
+                });
+              } else {
+                set({
+                  notification: '加入房间失败：' + (err.message || '未知错误'),
+                  connectionStatus: 'disconnected',
+                });
+              }
             });
-          });
-        })
-        .catch(() => {});
+          })
+          .catch(() => {});
+      }
+
+      attemptConnection(false);
     },
 
     /** 离开房间 */
@@ -484,6 +563,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => {
         clearTimeout(connectTimeout);
         connectTimeout = null;
       }
+      isRetrying = false;
       if (conn) {
         try { conn.close(); } catch {}
         conn = null;
