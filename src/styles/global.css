@@ -3120,6 +3120,66 @@ ul {
   cursor: not-allowed;
 }
 
+/* ===== 表情包面板 ===== */
+
+.emoji-picker-panel {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 2px;
+  padding: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.emoji-item {
+  width: 100%;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  padding: 0;
+}
+
+.emoji-item:hover {
+  background: rgba(74, 144, 217, 0.12);
+}
+
+/* 表情按钮 */
+.chat-emoji-btn {
+  width: 36px;
+  height: 36px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  font-size: 1.1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: var(--transition);
+}
+
+.chat-emoji-btn:hover:not(:disabled) {
+  border-color: var(--primary);
+  background: rgba(74, 144, 217, 0.08);
+}
+
+.chat-emoji-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* ===== 浮动模式响应式 ===== */
 
 @media (max-width: 768px) {

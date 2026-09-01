@@ -10,6 +10,15 @@ import { MoveHistory } from '../components';
 import { useMultiplayerStore } from '../store/multiplayerStore';
 import { findKing, isInCheck } from '../engine';
 
+/** 少儿友好表情包 */
+const EMOJI_LIST = [
+  '😀','😎','🤗','😋','😍','🤔','😱','😂','🥳','😴','🤩','😅','😆','😉','🥰','😜',
+  '🐱','🐶','🐰','🦊','🐼','🦁','🐸','🐵','🐨','🐯','🐻','🐮','🐷','🐔','🐧','🦄',
+  '👋','👍','👏','🙌','🤝','✌️','🤞','🙏','💪','🫡','🤙','👌','✊','🤚','🙋','🤟',
+  '❤️','🔥','⭐','🎉','🎊','💯','✨','🌈','🌟','💎','🏆','🎁','🎈','🌸','☀️','🎶',
+  '♔','♕','♖','♗','♘','♙','♚','♛','♜','♝','♞','♟','♟️','🎯','🎮','🧩',
+];
+
 /** 格式化时间戳为 HH:MM */
 function formatTime(ts: number): string {
   const d = new Date(ts);
@@ -105,12 +114,16 @@ export const OnlineGame: React.FC = () => {
   // 语音录制状态
   const [isRecording, setIsRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
+  const recordSecondsRef = useRef(0);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioChunksRef = useRef<Float32Array[]>([]);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const processorNodeRef = useRef<ScriptProcessorNode | null>(null);
   const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // 表情包面板
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   // 语音播放
   const audioPlayRef = useRef<HTMLAudioElement | null>(null);
@@ -146,7 +159,7 @@ export const OnlineGame: React.FC = () => {
   useEffect(() => {
     return () => {
       if (recordTimerRef.current) clearInterval(recordTimerRef.current);
-      if (processorNodeRef.current) { try { processorNodeRef.current.disconnect(); } catch {} }
+      if (processorNodeRef.current) { try { processorNodeRef.current.onaudioprocess = null; processorNodeRef.current.disconnect(); } catch {} }
       if (sourceNodeRef.current) { try { sourceNodeRef.current.disconnect(); } catch {} }
       if (audioContextRef.current) { try { audioContextRef.current.close(); } catch {} }
       if (mediaStreamRef.current) { mediaStreamRef.current.getTracks().forEach((t) => t.stop()); }
@@ -210,9 +223,16 @@ export const OnlineGame: React.FC = () => {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
 
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      const audioContext = new AudioCtx({ sampleRate: 8000 });
-      audioContextRef.current = audioContext;
+      // 复用 AudioContext（避免多次创建导致浏览器限制）
+      let audioContext = audioContextRef.current;
+      if (!audioContext || audioContext.state === 'closed') {
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        audioContext = new AudioCtx({ sampleRate: 8000 });
+        audioContextRef.current = audioContext;
+      }
+      if (audioContext.state === 'suspended') {
+        await audioContext.resume();
+      }
 
       const source = audioContext.createMediaStreamSource(stream);
       sourceNodeRef.current = source;
@@ -232,8 +252,13 @@ export const OnlineGame: React.FC = () => {
 
       setIsRecording(true);
       setRecordSeconds(0);
+      recordSecondsRef.current = 0;
       recordTimerRef.current = setInterval(() => {
-        setRecordSeconds((s) => s + 1);
+        setRecordSeconds((s) => {
+          const next = s + 1;
+          recordSecondsRef.current = next;
+          return next;
+        });
       }, 1000);
     } catch (err) {
       console.warn('[voice] 录音启动失败:', err);
@@ -247,22 +272,29 @@ export const OnlineGame: React.FC = () => {
       recordTimerRef.current = null;
     }
 
-    // 断开音频节点
-    if (processorNodeRef.current) { try { processorNodeRef.current.disconnect(); } catch {} processorNodeRef.current = null; }
-    if (sourceNodeRef.current) { try { sourceNodeRef.current.disconnect(); } catch {} sourceNodeRef.current = null; }
+    // 先停止处理回调，再断开节点
+    if (processorNodeRef.current) {
+      processorNodeRef.current.onaudioprocess = null;
+      try { processorNodeRef.current.disconnect(); } catch {}
+      processorNodeRef.current = null;
+    }
+    if (sourceNodeRef.current) {
+      try { sourceNodeRef.current.disconnect(); } catch {}
+      sourceNodeRef.current = null;
+    }
 
     // 编码 WAV 并发送
     const audioContext = audioContextRef.current;
     if (audioContext && audioChunksRef.current.length > 0) {
       const wavBase64 = encodeWAVBase64(audioChunksRef.current, audioContext.sampleRate);
-      const secs = recordSeconds;
+      const secs = recordSecondsRef.current;
       if (wavBase64.length < 150000) {
         sendVoiceMessage(wavBase64, secs);
       } else {
         console.warn('[voice] WAV too large:', wavBase64.length, 'bytes');
       }
-      try { audioContext.close(); } catch {}
-      audioContextRef.current = null;
+      // 挂起 AudioContext 而非关闭，允许复用
+      try { audioContext.suspend(); } catch {}
     }
 
     // 停止麦克风
@@ -273,7 +305,7 @@ export const OnlineGame: React.FC = () => {
 
     audioChunksRef.current = [];
     setIsRecording(false);
-  }, [sendVoiceMessage, recordSeconds]);
+  }, [sendVoiceMessage]);
 
   /** 取消录音 */
   const cancelRecording = useCallback(() => {
@@ -281,13 +313,18 @@ export const OnlineGame: React.FC = () => {
       clearInterval(recordTimerRef.current);
       recordTimerRef.current = null;
     }
-    if (processorNodeRef.current) { try { processorNodeRef.current.disconnect(); } catch {} processorNodeRef.current = null; }
+    if (processorNodeRef.current) {
+      processorNodeRef.current.onaudioprocess = null;
+      try { processorNodeRef.current.disconnect(); } catch {}
+      processorNodeRef.current = null;
+    }
     if (sourceNodeRef.current) { try { sourceNodeRef.current.disconnect(); } catch {} sourceNodeRef.current = null; }
-    if (audioContextRef.current) { try { audioContextRef.current.close(); } catch {} audioContextRef.current = null; }
+    if (audioContextRef.current) { try { audioContextRef.current.suspend(); } catch {} }
     if (mediaStreamRef.current) { mediaStreamRef.current.getTracks().forEach((t) => t.stop()); mediaStreamRef.current = null; }
     audioChunksRef.current = [];
     setIsRecording(false);
     setRecordSeconds(0);
+    recordSecondsRef.current = 0;
   }, []);
 
   /** 播放/暂停语音消息 */
@@ -673,35 +710,62 @@ export const OnlineGame: React.FC = () => {
                 </button>
               </div>
             ) : (
-              <div className="chat-input-group">
-                <button
-                  className="chat-voice-btn"
-                  onClick={startRecording}
-                  disabled={!opponent}
-                  title="发送语音消息"
-                  aria-label="发送语音消息"
-                >
-                  🎙
-                </button>
-                <input
-                  type="text"
-                  className="chat-input"
-                  placeholder="输入消息..."
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleSendChat();
-                  }}
-                  maxLength={200}
-                />
-                <button
-                  className="chat-send-btn"
-                  onClick={handleSendChat}
-                  disabled={!chatInput.trim() || !opponent}
-                >
-                  发送
-                </button>
-              </div>
+              <React.Fragment>
+                {/* 表情包面板 */}
+                {showEmojiPicker && (
+                  <div className="emoji-picker-panel">
+                    {EMOJI_LIST.map((emoji, idx) => (
+                      <button
+                        key={idx}
+                        className="emoji-item"
+                        onClick={() => {
+                          setChatInput((prev) => (prev + emoji).slice(0, 200));
+                        }}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="chat-input-group">
+                  <button
+                    className="chat-emoji-btn"
+                    onClick={() => setShowEmojiPicker((v) => !v)}
+                    disabled={!opponent}
+                    title="表情"
+                    aria-label="表情"
+                  >
+                    😊
+                  </button>
+                  <button
+                    className="chat-voice-btn"
+                    onClick={startRecording}
+                    disabled={!opponent}
+                    title="发送语音消息"
+                    aria-label="发送语音消息"
+                  >
+                    🎙
+                  </button>
+                  <input
+                    type="text"
+                    className="chat-input"
+                    placeholder="输入消息..."
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSendChat();
+                    }}
+                    maxLength={200}
+                  />
+                  <button
+                    className="chat-send-btn"
+                    onClick={handleSendChat}
+                    disabled={!chatInput.trim() || !opponent}
+                  >
+                    发送
+                  </button>
+                </div>
+              </React.Fragment>
             )}
           </div>
 
