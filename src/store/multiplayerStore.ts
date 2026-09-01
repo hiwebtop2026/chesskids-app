@@ -173,7 +173,11 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => {
   /** 发送消息给对手 */
   function sendMessage(data: Record<string, unknown>) {
     if (conn && conn.open) {
+      const dataSize = JSON.stringify(data).length;
+      console.log(`[multiplayer] Sending ${data.type} message, ~${dataSize} bytes`);
       conn.send(data);
+    } else {
+      console.warn(`[multiplayer] sendMessage failed: conn not open, type=${data.type}`);
     }
   }
 
@@ -211,6 +215,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => {
       }
 
       case 'VOICE': {
+        console.log(`[multiplayer] Received voice message, size: ~${data.audioData?.length || 0} chars`);
         const opponentColor = get().opponent?.color;
         if (opponentColor) {
           set((state) => ({

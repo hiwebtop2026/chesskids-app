@@ -23,6 +23,49 @@ function formatDuration(sec: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+/** 将 Float32 PCM 音频块编码为 WAV base64 data URL（所有浏览器通用播放） */
+function encodeWAVBase64(chunks: Float32Array[], sampleRate: number): string {
+  const numChannels = 1;
+  const bitsPerSample = 16;
+  const bytesPerSample = bitsPerSample / 8;
+  const totalSamples = chunks.reduce((acc, c) => acc + c.length, 0);
+  const dataLength = totalSamples * bytesPerSample;
+  const buffer = new ArrayBuffer(44 + dataLength);
+  const view = new DataView(buffer);
+
+  const writeStr = (offset: number, str: string) => {
+    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+  };
+
+  writeStr(0, 'RIFF');
+  view.setUint32(4, 36 + dataLength, true);
+  writeStr(8, 'WAVE');
+  writeStr(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * numChannels * bytesPerSample, true);
+  view.setUint16(32, numChannels * bytesPerSample, true);
+  view.setUint16(34, bitsPerSample, true);
+  writeStr(36, 'data');
+  view.setUint32(40, dataLength, true);
+
+  let offset = 44;
+  for (const chunk of chunks) {
+    for (let i = 0; i < chunk.length; i++) {
+      const s = Math.max(-1, Math.min(1, chunk[i]));
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+      offset += 2;
+    }
+  }
+
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return 'data:audio/wav;base64,' + btoa(binary);
+}
+
 export const OnlineGame: React.FC = () => {
   const {
     connectionStatus,
@@ -62,8 +105,11 @@ export const OnlineGame: React.FC = () => {
   // 语音录制状态
   const [isRecording, setIsRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioChunksRef = useRef<Float32Array[]>([]);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const processorNodeRef = useRef<ScriptProcessorNode | null>(null);
   const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // 语音播放
@@ -100,9 +146,10 @@ export const OnlineGame: React.FC = () => {
   useEffect(() => {
     return () => {
       if (recordTimerRef.current) clearInterval(recordTimerRef.current);
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        mediaRecorderRef.current.stop();
-      }
+      if (processorNodeRef.current) { try { processorNodeRef.current.disconnect(); } catch {} }
+      if (sourceNodeRef.current) { try { sourceNodeRef.current.disconnect(); } catch {} }
+      if (audioContextRef.current) { try { audioContextRef.current.close(); } catch {} }
+      if (mediaStreamRef.current) { mediaStreamRef.current.getTracks().forEach((t) => t.stop()); }
     };
   }, []);
 
@@ -157,35 +204,32 @@ export const OnlineGame: React.FC = () => {
     setChatInput('');
   };
 
-  /** 开始录音 */
+  /** 开始录音（Web Audio API + WAV 编码，全浏览器通用） */
   const startRecording = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
+      mediaStreamRef.current = stream;
+
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      const audioContext = new AudioCtx({ sampleRate: 8000 });
+      audioContextRef.current = audioContext;
+
+      const source = audioContext.createMediaStreamSource(stream);
+      sourceNodeRef.current = source;
+
+      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      processorNodeRef.current = processor;
+
       audioChunksRef.current = [];
 
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      processor.onaudioprocess = (e) => {
+        const input = e.inputBuffer.getChannelData(0);
+        audioChunksRef.current.push(new Float32Array(input));
       };
 
-      recorder.onstop = () => {
-        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        if (blob.size < 1024) return;
+      source.connect(processor);
+      processor.connect(audioContext.destination);
 
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const base64 = reader.result as string;
-          if (base64 && base64.length < 200000) {
-            sendVoiceMessage(base64, recordSeconds);
-          }
-        };
-        reader.readAsDataURL(blob);
-
-        stream.getTracks().forEach((t) => t.stop());
-      };
-
-      recorder.start();
-      mediaRecorderRef.current = recorder;
       setIsRecording(true);
       setRecordSeconds(0);
       recordTimerRef.current = setInterval(() => {
@@ -194,7 +238,7 @@ export const OnlineGame: React.FC = () => {
     } catch (err) {
       console.warn('[voice] 录音启动失败:', err);
     }
-  }, [sendVoiceMessage, recordSeconds]);
+  }, [sendVoiceMessage]);
 
   /** 停止并发送录音 */
   const stopAndSendRecording = useCallback(() => {
@@ -202,11 +246,34 @@ export const OnlineGame: React.FC = () => {
       clearInterval(recordTimerRef.current);
       recordTimerRef.current = null;
     }
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      mediaRecorderRef.current.stop();
+
+    // 断开音频节点
+    if (processorNodeRef.current) { try { processorNodeRef.current.disconnect(); } catch {} processorNodeRef.current = null; }
+    if (sourceNodeRef.current) { try { sourceNodeRef.current.disconnect(); } catch {} sourceNodeRef.current = null; }
+
+    // 编码 WAV 并发送
+    const audioContext = audioContextRef.current;
+    if (audioContext && audioChunksRef.current.length > 0) {
+      const wavBase64 = encodeWAVBase64(audioChunksRef.current, audioContext.sampleRate);
+      const secs = recordSeconds;
+      if (wavBase64.length < 150000) {
+        sendVoiceMessage(wavBase64, secs);
+      } else {
+        console.warn('[voice] WAV too large:', wavBase64.length, 'bytes');
+      }
+      try { audioContext.close(); } catch {}
+      audioContextRef.current = null;
     }
+
+    // 停止麦克风
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      mediaStreamRef.current = null;
+    }
+
+    audioChunksRef.current = [];
     setIsRecording(false);
-  }, []);
+  }, [sendVoiceMessage, recordSeconds]);
 
   /** 取消录音 */
   const cancelRecording = useCallback(() => {
@@ -214,16 +281,11 @@ export const OnlineGame: React.FC = () => {
       clearInterval(recordTimerRef.current);
       recordTimerRef.current = null;
     }
-    if (mediaRecorderRef.current) {
-      mediaRecorderRef.current.ondataavailable = null;
-      mediaRecorderRef.current.onstop = null;
-      if (mediaRecorderRef.current.state === 'recording') {
-        mediaRecorderRef.current.stop();
-      }
-      const stream = mediaRecorderRef.current.stream;
-      if (stream) stream.getTracks().forEach((t) => t.stop());
-    }
-    mediaRecorderRef.current = null;
+    if (processorNodeRef.current) { try { processorNodeRef.current.disconnect(); } catch {} processorNodeRef.current = null; }
+    if (sourceNodeRef.current) { try { sourceNodeRef.current.disconnect(); } catch {} sourceNodeRef.current = null; }
+    if (audioContextRef.current) { try { audioContextRef.current.close(); } catch {} audioContextRef.current = null; }
+    if (mediaStreamRef.current) { mediaStreamRef.current.getTracks().forEach((t) => t.stop()); mediaStreamRef.current = null; }
+    audioChunksRef.current = [];
     setIsRecording(false);
     setRecordSeconds(0);
   }, []);
@@ -246,9 +308,16 @@ export const OnlineGame: React.FC = () => {
 
     const audio = new Audio(audioData);
     audio.onended = () => setPlayingId(null);
+    audio.onerror = (e) => {
+      console.warn('[voice] Playback error:', e, 'data prefix:', audioData.substring(0, 40));
+      setPlayingId(null);
+    };
     audioPlayRef.current = audio;
     setPlayingId(msgIndex);
-    audio.play().catch(() => setPlayingId(null));
+    audio.play().catch((err) => {
+      console.warn('[voice] play() rejected:', err, 'data prefix:', audioData.substring(0, 40));
+      setPlayingId(null);
+    });
   };
 
   /** 切换浮动最大化 */
