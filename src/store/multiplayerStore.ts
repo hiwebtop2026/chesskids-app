@@ -247,12 +247,17 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => {
           port: 443,
           path: '/',
           secure: true,
-          debug: 0,
+          debug: 1,
           config: {
             iceServers: [
               { urls: 'stun:stun.l.google.com:19302' },
               { urls: 'stun:stun1.l.google.com:19302' },
               { urls: 'stun:stun2.l.google.com:19302' },
+              { urls: 'turn:eu-0.turn.peerjs.com:3478', username: 'peerjs', credential: 'peerjsp' },
+              { urls: 'turn:eu-0.turn.peerjs.com:3478?transport=tcp', username: 'peerjs', credential: 'peerjsp' },
+              { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+              { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+              { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
             ],
           },
         });
@@ -270,7 +275,19 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => {
             peer = null;
             initPeer(newCode, newCode, true).then(resolve).catch(reject);
           } else if (err.type === 'peer-unavailable') {
-            set({ notification: '房间不存在，请确认房间号是否正确', connectionStatus: 'disconnected' });
+            set({ notification: '房间不存在或对方已离开，请确认房间号是否正确', connectionStatus: 'disconnected' });
+            reject(err);
+          } else if (err.type === 'negotiation-failed' || err.type === 'ice-connection-failed') {
+            set({
+              notification: 'WebRTC连接失败，可能是网络环境（对称NAT/防火墙）阻止了P2P连接，请尝试更换网络',
+              connectionStatus: 'disconnected',
+            });
+            reject(err);
+          } else if (err.type === 'network' || err.type === 'server-error' || err.type === 'socket-error') {
+            set({
+              notification: '无法连接到信令服务器，请检查网络连接后重试',
+              connectionStatus: 'disconnected',
+            });
             reject(err);
           } else {
             set({ notification: `连接失败：${err.message || err.type}`, connectionStatus: 'disconnected' });
@@ -423,11 +440,11 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => {
           connectTimeout = setTimeout(() => {
             if (!conn || !conn.open) {
               set({
-                notification: '连接超时，请确认房间号是否正确或对方是否在线',
+                notification: '连接超时，请确认：1）房间号是否正确 2）对方是否在线 3）网络是否允许WebRTC连接',
                 connectionStatus: 'disconnected',
               });
             }
-          }, 15000);
+          }, 20000);
 
           connection.on('open', () => {
             if (connectTimeout) {
