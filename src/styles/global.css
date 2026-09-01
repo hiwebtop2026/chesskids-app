@@ -2805,3 +2805,349 @@ ul {
     height: 84%;
   }
 }
+
+/* ===== 联网对局浮动窗口最大化 ===== */
+
+.online-game-floating-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: var(--bg);
+  z-index: 9999;
+  overflow: auto;
+  padding: var(--space-md);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.online-game-floating-overlay .game-layout {
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+}
+
+.online-game-floating-overlay .game-board-section {
+  width: min(95vh, 80vw) !important;
+  max-width: 900px !important;
+  aspect-ratio: 1 / 1;
+}
+
+.float-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-xs) var(--space-md);
+  background: var(--bg-card);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+  flex-shrink: 0;
+}
+
+.float-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.float-restore-btn {
+  padding: var(--space-xs) var(--space-md);
+  background: var(--primary);
+  color: var(--text-white);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.float-restore-btn:hover {
+  background: var(--primary-dark);
+}
+
+.float-toggle-btn {
+  background: var(--accent) !important;
+  color: var(--text) !important;
+}
+
+.float-toggle-btn.active {
+  background: var(--accent-dark) !important;
+}
+
+.float-toggle-btn:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.game-layout-floating {
+  max-width: 1500px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* ===== 聊天气泡优化（区分房主/对手） ===== */
+
+.chat-bubble {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: 12px;
+  max-width: 85%;
+  word-break: break-word;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.chat-bubble-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.chat-role-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.chat-time {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+}
+
+/* 我的消息（右对齐） */
+.chat-bubble-mine {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.chat-bubble-mine.chat-bubble-host {
+  background: linear-gradient(135deg, #4A90D9, #3A7BC8);
+  color: #fff;
+}
+
+.chat-bubble-mine.chat-bubble-guest {
+  background: linear-gradient(135deg, #FF9800, #F57C00);
+  color: #fff;
+}
+
+.chat-bubble-mine .chat-role-badge {
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+
+.chat-bubble-mine .chat-time {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* 对方消息（左对齐） */
+.chat-bubble-other {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+
+.chat-bubble-other.chat-bubble-host {
+  background: rgba(74, 144, 217, 0.12);
+  border: 1px solid rgba(74, 144, 217, 0.3);
+  color: var(--text);
+}
+
+.chat-bubble-other.chat-bubble-guest {
+  background: rgba(255, 152, 0, 0.12);
+  border: 1px solid rgba(255, 152, 0, 0.3);
+  color: var(--text);
+}
+
+.chat-bubble-other.chat-bubble-host .chat-role-badge {
+  background: rgba(74, 144, 217, 0.2);
+  color: var(--primary-dark);
+}
+
+.chat-bubble-other.chat-bubble-guest .chat-role-badge {
+  background: rgba(255, 152, 0, 0.2);
+  color: #E65100;
+}
+
+/* 兼容旧消息样式（保留 system 消息样式） */
+.chat-message-system {
+  align-self: center;
+  background: rgba(74, 144, 217, 0.1);
+  color: var(--text-secondary);
+  font-style: italic;
+  text-align: center;
+  max-width: 100%;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  word-break: break-word;
+}
+
+/* ===== 语音消息样式 ===== */
+
+.chat-voice-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.voice-play-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.25);
+  color: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: var(--transition);
+}
+
+.chat-bubble-other .voice-play-btn {
+  background: var(--bg-hover);
+  color: var(--primary);
+}
+
+.voice-play-btn:hover {
+  transform: scale(1.1);
+}
+
+.voice-duration {
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.voice-wave {
+  font-size: 0.8rem;
+  opacity: 0.6;
+  letter-spacing: 2px;
+}
+
+/* ===== 录音状态栏 ===== */
+
+.chat-recording-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-sm);
+  background: rgba(239, 83, 80, 0.08);
+  border: 1px solid rgba(239, 83, 80, 0.3);
+  border-radius: var(--radius-sm);
+}
+
+.recording-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--danger);
+  flex-shrink: 0;
+  animation: pulse 1s infinite;
+}
+
+.recording-timer {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--danger);
+  flex: 1;
+}
+
+.recording-cancel {
+  padding: var(--space-xs) var(--space-sm);
+  background: transparent;
+  border: 1px solid var(--border-dark);
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.recording-cancel:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.recording-send {
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--primary);
+  color: var(--text-white);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.recording-send:hover {
+  background: var(--primary-dark);
+}
+
+/* 语音按钮 */
+.chat-voice-btn {
+  width: 36px;
+  height: 36px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  font-size: 1.1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: var(--transition);
+}
+
+.chat-voice-btn:hover:not(:disabled) {
+  border-color: var(--primary);
+  background: rgba(74, 144, 217, 0.08);
+}
+
+.chat-voice-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ===== 浮动模式响应式 ===== */
+
+@media (max-width: 768px) {
+  .online-game-floating-overlay {
+    padding: var(--space-sm);
+  }
+
+  .online-game-floating-overlay .game-layout {
+    flex-direction: column;
+  }
+
+  .online-game-floating-overlay .game-board-section {
+    width: 90vw !important;
+    max-width: 600px !important;
+  }
+
+  .online-game-floating-overlay .game-side-panel {
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+}
+
+/* 浮动模式下侧面板更宽 */
+.online-game-floating-overlay .game-side-panel {
+  max-width: 420px !important;
+}
+
+/* 浮动模式下聊天区域更高 */
+.online-game-floating-overlay .chat-messages {
+  max-height: 300px;
+}
