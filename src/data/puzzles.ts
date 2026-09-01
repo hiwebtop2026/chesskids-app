@@ -1,6 +1,10 @@
 /**
  * ChessKids - 战术谜题数据
  * 对应PRD功能模块三：实战技巧训练
+ *
+ * 坐标系：board[row][col]，row 0 = 段 8（黑方底线），row 7 = 段 1（白方底线）
+ * col 0 = a 列（左），col 7 = h 列（右）
+ * 大写 = 白方棋子，小写 = 黑方棋子
  */
 
 import type { Puzzle } from '../types';
@@ -22,14 +26,14 @@ export const PUZZLES: Puzzle[] = [
     fen: '',
     board: (() => {
       const b = emptyBoard();
-      b[0][3] = 'q';
-      b[0][4] = 'k';
-      b[2][3] = 'N';
-      b[7][4] = 'K';
+      b[0][2] = 'q';  // 黑后 c8
+      b[0][4] = 'k';  // 黑王 e8
+      b[3][5] = 'N';  // 白马 f5
+      b[7][4] = 'K';  // 白王 e1
       return b;
     })(),
-    answer: { from: [2, 3], to: [0, 2] },
-    hint: '马走到哪里可以同时攻击黑方国王和皇后？',
+    answer: { from: [3, 5], to: [2, 3] },  // f5 → d6
+    hint: '马走到d6，看看它同时攻击了哪两个棋子？',
     difficulty: 1,
     stars: 0,
     solved: false,
@@ -43,14 +47,14 @@ export const PUZZLES: Puzzle[] = [
     fen: '',
     board: (() => {
       const b = emptyBoard();
-      b[0][3] = 'q';
-      b[0][4] = 'k';
-      b[7][3] = 'R';
-      b[7][4] = 'K';
+      b[0][3] = 'k';  // 黑王 d8
+      b[3][3] = 'q';  // 黑后 d4
+      b[7][0] = 'R';  // 白车 a1
+      b[7][4] = 'K';  // 白王 e1
       return b;
     })(),
-    answer: { from: [7, 3], to: [0, 3] },
-    hint: '车走到哪里可以让对方的后无法移动？（后后面是国王）',
+    answer: { from: [7, 0], to: [7, 3] },  // a1 → d1
+    hint: '车走到d1，沿d线攻击后，后后面是国王，后无法移动！',
     difficulty: 1,
     stars: 0,
     solved: false,
@@ -64,14 +68,14 @@ export const PUZZLES: Puzzle[] = [
     fen: '',
     board: (() => {
       const b = emptyBoard();
-      b[1][1] = 'k';
-      b[3][3] = 'q';
-      b[6][6] = 'B';
-      b[7][2] = 'K';
+      b[0][0] = 'q';  // 黑后 a8
+      b[1][1] = 'k';  // 黑王 b7
+      b[5][5] = 'B';  // 白象 f3
+      b[7][2] = 'K';  // 白王 c1
       return b;
     })(),
-    answer: { from: [6, 6], to: [2, 2] },
-    hint: '象沿斜线走到哪里可以串击国王和皇后？',
+    answer: { from: [5, 5], to: [2, 2] },  // f3 → c6
+    hint: '象沿斜线走到c6，先攻击国王（更近），国王逃跑后可以吃掉后面的皇后！',
     difficulty: 1,
     stars: 0,
     solved: false,
@@ -86,15 +90,15 @@ export const PUZZLES: Puzzle[] = [
     fen: '',
     board: (() => {
       const b = emptyBoard();
-      b[0][0] = 'r';
-      b[0][4] = 'k';
-      b[2][5] = 'N';
-      b[3][2] = 'N';
-      b[7][4] = 'K';
+      b[0][0] = 'r';  // 黑车 a8
+      b[0][4] = 'k';  // 黑王 e8
+      b[3][1] = 'N';  // 白马 b5
+      b[3][4] = 'N';  // 白马 e5（配合：限制王的逃跑路线）
+      b[7][4] = 'K';  // 白王 e1
       return b;
     })(),
-    answer: { from: [2, 5], to: [0, 4] },
-    hint: '哪个马可以将军并同时威胁车？',
+    answer: { from: [3, 1], to: [1, 2] },  // b5 → c7
+    hint: 'b5的马跳到c7，同时攻击e8的国王和a8的车！另一匹马在e5封锁国王的逃跑路线。',
     difficulty: 2,
     stars: 0,
     solved: false,
@@ -108,14 +112,14 @@ export const PUZZLES: Puzzle[] = [
     fen: '',
     board: (() => {
       const b = emptyBoard();
-      b[0][4] = 'k';
-      b[3][4] = 'B';
-      b[4][4] = 'R';
-      b[7][4] = 'K';
+      b[0][4] = 'k';  // 黑王 e8
+      b[3][4] = 'B';  // 白象 e5（挡住车对王的攻击线）
+      b[4][4] = 'R';  // 白车 e4
+      b[7][4] = 'K';  // 白王 e1
       return b;
     })(),
-    answer: { from: [3, 4], to: [2, 3] },
-    hint: '移动象，让车可以攻击国王。象应该走到哪里？',
+    answer: { from: [3, 4], to: [2, 3] },  // e5 → d6
+    hint: '移动象，让车可以沿e线攻击国王。象应该走到哪里？',
     difficulty: 2,
     stars: 0,
     solved: false,
@@ -129,14 +133,14 @@ export const PUZZLES: Puzzle[] = [
     fen: '',
     board: (() => {
       const b = emptyBoard();
-      b[0][4] = 'k';
-      b[2][2] = 'B';
-      b[3][5] = 'N';
-      b[7][4] = 'K';
+      b[0][4] = 'k';  // 黑王 e8
+      b[3][1] = 'B';  // 白象 b5（攻击线被马挡住）
+      b[1][3] = 'N';  // 白马 d7（挡住象的攻击线）
+      b[7][4] = 'K';  // 白王 e1
       return b;
     })(),
-    answer: { from: [3, 5], to: [1, 4] },
-    hint: '马走到哪里可以同时让象和马都攻击国王？',
+    answer: { from: [1, 3], to: [2, 5] },  // d7 → f6
+    hint: '马从d7跳到f6：象沿斜线发现将军（b5→e8），马也同时将军（f6→e8）！双将！',
     difficulty: 2,
     stars: 0,
     solved: false,
@@ -151,15 +155,15 @@ export const PUZZLES: Puzzle[] = [
     fen: '',
     board: (() => {
       const b = emptyBoard();
-      b[0][0] = 'r';
-      b[0][4] = 'k';
-      b[0][7] = 'r';
-      b[4][4] = 'Q';
-      b[7][4] = 'K';
+      b[0][1] = 'r';  // 黑车 b8
+      b[0][4] = 'k';  // 黑王 e8
+      b[0][7] = 'r';  // 黑车 h8
+      b[4][4] = 'Q';  // 白后 e4
+      b[7][4] = 'K';  // 白王 e1
       return b;
     })(),
-    answer: { from: [4, 4], to: [3, 4] },
-    hint: '皇后走到哪里可以同时攻击国王和两个车？',
+    answer: { from: [4, 4], to: [3, 4] },  // e4 → e5
+    hint: '皇后走到e5：沿e线将军(e8)，沿两条斜线同时攻击b8和h8的两个车！',
     difficulty: 3,
     stars: 0,
     solved: false,
@@ -169,19 +173,18 @@ export const PUZZLES: Puzzle[] = [
     type: 'skewer',
     typeName: '串击',
     title: '高级串击',
-    description: '连续串击，获得子力优势！',
+    description: '用车串击国王和皇后，获得子力优势！',
     fen: '',
     board: (() => {
       const b = emptyBoard();
-      b[0][0] = 'k';
-      b[2][2] = 'q';
-      b[4][4] = 'r';
-      b[7][0] = 'R';
-      b[7][7] = 'K';
+      b[0][0] = 'q';  // 黑后 a8
+      b[3][0] = 'k';  // 黑王 a5
+      b[7][7] = 'R';  // 白车 h1
+      b[6][7] = 'K';  // 白王 h2
       return b;
     })(),
-    answer: { from: [7, 0], to: [0, 0] },
-    hint: '车走到哪里可以串击国王？国王移动后可以吃掉什么？',
+    answer: { from: [7, 7], to: [7, 0] },  // h1 → a1
+    hint: '车沿底线走到a1，沿a线串击：先攻击a5的国王，国王逃跑后吃掉a8的皇后！',
     difficulty: 3,
     stars: 0,
     solved: false,
