@@ -807,6 +807,19 @@ ul {
   align-items: start;
 }
 
+.rule-board-wrapper {
+  width: 500px;
+  min-width: 360px;
+  aspect-ratio: 1 / 1;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.rule-board-wrapper .threejs-chess-board {
+  width: 100%;
+  height: 100%;
+}
+
 .step-info {
   display: flex;
   flex-direction: column;
@@ -2488,6 +2501,11 @@ ul {
     min-height: unset;
   }
 
+  .rule-board-wrapper {
+    width: 100%;
+    min-width: unset;
+  }
+
   .puzzle-board .threejs-chess-board {
     height: 400px;
     min-height: unset;
@@ -2544,6 +2562,11 @@ ul {
   .board-grid {
     width: 340px;
     height: 340px;
+  }
+
+  .rule-board-wrapper {
+    width: 100%;
+    min-width: unset;
   }
 }
 
@@ -2620,6 +2643,11 @@ ul {
     height: 350px;
     min-width: unset;
     min-height: unset;
+  }
+
+  .rule-board-wrapper {
+    width: 100%;
+    min-width: unset;
   }
 
   .puzzle-board .threejs-chess-board {

@@ -81,16 +81,18 @@ export const RulesLearning: React.FC = () => {
 
         <div className="rule-step-display">
           {/* 棋盘演示 */}
-          <ThreeJSChessBoard
-            board={step.board as unknown as string[][]}
-            selectedSquare={null}
-            legalTargets={[]}
-            lastMove={null}
-            checkSquare={null}
-            hint={null}
-            onSquareClick={() => {}}
-            readOnly
-          />
+          <div className="rule-board-wrapper">
+            <ThreeJSChessBoard
+              board={step.board}
+              selectedSquare={null}
+              legalTargets={[]}
+              lastMove={null}
+              checkSquare={null}
+              hint={null}
+              onSquareClick={() => {}}
+              readOnly
+            />
+          </div>
 
           {/* 步骤说明 */}
           <div className="step-info">
