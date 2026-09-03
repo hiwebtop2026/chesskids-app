@@ -803,124 +803,115 @@ export const OnlineGame: React.FC = () => {
               )}
             </div>
 
-            {/* 录音中状态 */}
-            {isRecording ? (
-              <div className={`chat-recording-overlay ${isCancelling ? 'recording-cancel-mode' : ''}`}>
-                <div className="recording-circle">
-                  <div className="recording-mic-icon">
-                    {isCancelling ? '✕' : '🎤'}
-                  </div>
-                  {/* 波形动画 */}
-                  <div className="recording-wave">
+            {/* 表情包面板 */}
+            {showEmojiPicker && !isRecording && (
+              <div className="emoji-picker-panel">
+                {EMOJI_LIST.map((emoji, idx) => (
+                  <button
+                    key={idx}
+                    className="emoji-item"
+                    onClick={() => {
+                      setChatInput((prev) => (prev + emoji).slice(0, 200));
+                    }}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="chat-input-group">
+              <button
+                className="chat-emoji-btn"
+                onClick={() => setShowEmojiPicker((v) => !v)}
+                disabled={!opponent || isRecording}
+                title="表情"
+                aria-label="表情"
+              >
+                😊
+              </button>
+              <button
+                className={`chat-voice-btn ${isRecording ? (isCancelling ? 'voice-btn-cancel' : 'voice-btn-recording') : ''}`}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  handleRecordStart(e.clientY);
+                }}
+                onMouseMove={(e) => {
+                  e.preventDefault();
+                  handleRecordMove(e.clientY);
+                }}
+                onMouseUp={(e) => {
+                  e.preventDefault();
+                  handleRecordEnd();
+                }}
+                onMouseLeave={(e) => {
+                  e.preventDefault();
+                  if (isRecording) handleRecordEnd();
+                }}
+                onTouchStart={(e) => {
+                  e.preventDefault();
+                  const touch = e.touches[0];
+                  handleRecordStart(touch.clientY);
+                }}
+                onTouchMove={(e) => {
+                  e.preventDefault();
+                  const touch = e.touches[0];
+                  handleRecordMove(touch.clientY);
+                }}
+                onTouchEnd={(e) => {
+                  e.preventDefault();
+                  handleRecordEnd();
+                }}
+                disabled={!opponent}
+                title="按住说话"
+                aria-label="按住说话"
+              >
+                {isRecording ? (
+                  <span className="voice-btn-timer">{recordSeconds}</span>
+                ) : (
+                  '🎤'
+                )}
+              </button>
+              {/* 录音中：显示内联状态；非录音：显示输入框 */}
+              {isRecording ? (
+                <div className={`chat-recording-inline ${isCancelling ? 'recording-cancel-mode' : ''}`}>
+                  <div className="recording-wave-inline">
                     {[...Array(5)].map((_, i) => (
                       <span
                         key={i}
-                        className="wave-bar"
+                        className="wave-bar-inline"
                         style={{
-                          height: `${Math.max(4, recordVolume * 40 * (0.5 + i * 0.15))}px`,
-                          opacity: 0.5 + recordVolume * 0.5,
+                          height: `${Math.max(3, recordVolume * 24 * (0.5 + i * 0.15))}px`,
                         }}
                       />
                     ))}
                   </div>
-                </div>
-                <div className="recording-info">
-                  <span className="recording-timer-large">
-                    {formatDuration(recordSeconds)} / {maxRecordDuration}s
-                  </span>
-                  <span className="recording-hint">
-                    {isCancelling ? '松开手指 取消发送' : '上滑取消 · 松开发送'}
+                  <span className="recording-hint-inline">
+                    {isCancelling ? '松开取消' : '松开发送'}
                   </span>
                 </div>
-              </div>
-            ) : (
-              <React.Fragment>
-                {/* 表情包面板 */}
-                {showEmojiPicker && (
-                  <div className="emoji-picker-panel">
-                    {EMOJI_LIST.map((emoji, idx) => (
-                      <button
-                        key={idx}
-                        className="emoji-item"
-                        onClick={() => {
-                          setChatInput((prev) => (prev + emoji).slice(0, 200));
-                        }}
-                      >
-                        {emoji}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <div className="chat-input-group">
-                  <button
-                    className="chat-emoji-btn"
-                    onClick={() => setShowEmojiPicker((v) => !v)}
-                    disabled={!opponent}
-                    title="表情"
-                    aria-label="表情"
-                  >
-                    😊
-                  </button>
-                  <button
-                    className={`chat-voice-btn ${isRecording ? 'voice-btn-recording' : ''}`}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      handleRecordStart(e.clientY);
-                    }}
-                    onMouseMove={(e) => {
-                      e.preventDefault();
-                      handleRecordMove(e.clientY);
-                    }}
-                    onMouseUp={(e) => {
-                      e.preventDefault();
-                      handleRecordEnd();
-                    }}
-                    onMouseLeave={(e) => {
-                      e.preventDefault();
-                      // 鼠标移出时如果在录音，根据取消状态决定
-                      if (isRecording) handleRecordEnd();
-                    }}
-                    onTouchStart={(e) => {
-                      e.preventDefault();
-                      const touch = e.touches[0];
-                      handleRecordStart(touch.clientY);
-                    }}
-                    onTouchMove={(e) => {
-                      e.preventDefault();
-                      const touch = e.touches[0];
-                      handleRecordMove(touch.clientY);
-                    }}
-                    onTouchEnd={(e) => {
-                      e.preventDefault();
-                      handleRecordEnd();
-                    }}
-                    disabled={!opponent}
-                    title="按住说话"
-                    aria-label="按住说话"
-                  >
-                    🎤
-                  </button>
-                  <input
-                    type="text"
-                    className="chat-input"
-                    placeholder="输入消息..."
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleSendChat();
-                    }}
-                    maxLength={200}
-                  />
-                  <button
-                    className="chat-send-btn"
-                    onClick={handleSendChat}
-                    disabled={!chatInput.trim() || !opponent}
-                  >
-                    发送
-                  </button>
-                </div>
-              </React.Fragment>
-            )}
+              ) : (
+                <input
+                  type="text"
+                  className="chat-input"
+                  placeholder="输入消息..."
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSendChat();
+                  }}
+                  maxLength={200}
+                />
+              )}
+              {!isRecording && (
+                <button
+                  className="chat-send-btn"
+                  onClick={handleSendChat}
+                  disabled={!chatInput.trim() || !opponent}
+                >
+                  发送
+                </button>
+              )}
+            </div>
           </div>
 
           {/* 游戏结束弹窗 */}

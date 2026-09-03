@@ -3119,84 +3119,59 @@ ul {
   cursor: pointer;
 }
 
-/* ===== 录音覆盖层（按住说话） ===== */
+/* ===== 录音内联状态（按住说话） ===== */
 
-.chat-recording-overlay {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  top: 0;
-  background: rgba(0, 0, 0, 0.75);
+.chat-recording-inline {
+  flex: 1;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: var(--space-md);
-  border-radius: var(--radius-md);
-  z-index: 10;
-  transition: background 0.2s ease;
+  gap: var(--space-sm);
+  padding: 0 var(--space-sm);
+  background: rgba(74, 144, 217, 0.08);
+  border: 1px solid rgba(74, 144, 217, 0.3);
+  border-radius: var(--radius-sm);
+  height: 40px;
+  transition: background 0.2s ease, border-color 0.2s ease;
 }
 
-.chat-recording-overlay.recording-cancel-mode {
-  background: rgba(239, 83, 80, 0.85);
+.chat-recording-inline.recording-cancel-mode {
+  background: rgba(239, 83, 80, 0.08);
+  border-color: rgba(239, 83, 80, 0.3);
 }
 
-.recording-circle {
-  width: 100px;
-  height: 100px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.15);
+.recording-wave-inline {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  position: relative;
-  animation: recordingPulse 1.5s ease-in-out infinite;
+  gap: 2px;
+  height: 24px;
 }
 
-@keyframes recordingPulse {
-  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255,255,255,0.2); }
-  50% { transform: scale(1.05); box-shadow: 0 0 0 15px rgba(255,255,255,0); }
-}
-
-.recording-mic-icon {
-  font-size: 2.2rem;
-  line-height: 1;
-}
-
-.recording-wave {
-  display: flex;
-  align-items: flex-end;
-  gap: 3px;
-  height: 20px;
-}
-
-.wave-bar {
+.wave-bar-inline {
   width: 3px;
-  background: #fff;
+  background: var(--primary);
   border-radius: 2px;
-  transition: height 0.05s linear, opacity 0.1s ease;
+  transition: height 0.05s linear;
 }
 
-.recording-info {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  color: #fff;
+.chat-recording-inline.recording-cancel-mode .wave-bar-inline {
+  background: var(--danger);
 }
 
-.recording-timer-large {
-  font-size: 1.3rem;
+.recording-hint-inline {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--primary);
+  white-space: nowrap;
+}
+
+.chat-recording-inline.recording-cancel-mode .recording-hint-inline {
+  color: var(--danger);
+}
+
+.voice-btn-timer {
+  font-size: 0.85rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-}
-
-.recording-hint {
-  font-size: 0.8rem;
-  opacity: 0.8;
 }
 
 /* 语音按钮 - 按住说话 */
@@ -3228,8 +3203,20 @@ ul {
 .chat-voice-btn.voice-btn-recording {
   background: var(--primary);
   border-color: var(--primary);
-  transform: scale(1.1);
   color: #fff;
+  animation: voicePulse 1s ease-in-out infinite;
+}
+
+@keyframes voicePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(74, 144, 217, 0.3); }
+  50% { box-shadow: 0 0 0 6px rgba(74, 144, 217, 0); }
+}
+
+.chat-voice-btn.voice-btn-cancel {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+  animation: none;
 }
 
 .chat-voice-btn:disabled {
