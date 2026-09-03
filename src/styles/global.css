@@ -2063,6 +2063,7 @@ ul {
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
+  position: relative;
 }
 
 .online-chat h3 {
@@ -3118,29 +3119,117 @@ ul {
   cursor: pointer;
 }
 
-.recording-send:hover {
-  background: var(--primary-dark);
+/* ===== 录音覆盖层（按住说话） ===== */
+
+.chat-recording-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  top: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  border-radius: var(--radius-md);
+  z-index: 10;
+  transition: background 0.2s ease;
 }
 
-/* 语音按钮 */
+.chat-recording-overlay.recording-cancel-mode {
+  background: rgba(239, 83, 80, 0.85);
+}
+
+.recording-circle {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  position: relative;
+  animation: recordingPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes recordingPulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255,255,255,0.2); }
+  50% { transform: scale(1.05); box-shadow: 0 0 0 15px rgba(255,255,255,0); }
+}
+
+.recording-mic-icon {
+  font-size: 2.2rem;
+  line-height: 1;
+}
+
+.recording-wave {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 20px;
+}
+
+.wave-bar {
+  width: 3px;
+  background: #fff;
+  border-radius: 2px;
+  transition: height 0.05s linear, opacity 0.1s ease;
+}
+
+.recording-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: #fff;
+}
+
+.recording-timer-large {
+  font-size: 1.3rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.recording-hint {
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+
+/* 语音按钮 - 按住说话 */
 .chat-voice-btn {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border: 2px solid var(--border);
-  border-radius: var(--radius-sm);
+  border-radius: 50%;
   background: var(--bg-card);
-  font-size: 1.1rem;
+  font-size: 1.2rem;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: var(--transition);
+  transition: all 0.15s ease;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
 }
 
 .chat-voice-btn:hover:not(:disabled) {
   border-color: var(--primary);
   background: rgba(74, 144, 217, 0.08);
+  transform: scale(1.05);
+}
+
+.chat-voice-btn:active:not(:disabled),
+.chat-voice-btn.voice-btn-recording {
+  background: var(--primary);
+  border-color: var(--primary);
+  transform: scale(1.1);
+  color: #fff;
 }
 
 .chat-voice-btn:disabled {

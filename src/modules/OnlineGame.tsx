@@ -114,13 +114,21 @@ export const OnlineGame: React.FC = () => {
   // 语音录制状态
   const [isRecording, setIsRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
+  const [recordVolume, setRecordVolume] = useState(0); // 0-1 音量，用于波形动画
+  const [isCancelling, setIsCancelling] = useState(false); // 滑动取消状态
   const recordSecondsRef = useRef(0);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioChunksRef = useRef<Float32Array[]>([]);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
+  const filterNodeRef = useRef<BiquadFilterNode | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
   const processorNodeRef = useRef<ScriptProcessorNode | null>(null);
   const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const volumeAnimRef = useRef<number | null>(null);
+  const recordStartYRef = useRef(0); // 记录按下时的 Y 坐标，用于滑动取消
+  const maxRecordDuration = 15; // 最大录音时长 15 秒
 
   // 表情包面板
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -158,8 +166,12 @@ export const OnlineGame: React.FC = () => {
   /** 清理录音资源 */
   useEffect(() => {
     return () => {
+      if (volumeAnimRef.current) cancelAnimationFrame(volumeAnimRef.current);
       if (recordTimerRef.current) clearInterval(recordTimerRef.current);
       if (processorNodeRef.current) { try { processorNodeRef.current.onaudioprocess = null; processorNodeRef.current.disconnect(); } catch {} }
+      if (analyserRef.current) { try { analyserRef.current.disconnect(); } catch {} }
+      if (filterNodeRef.current) { try { filterNodeRef.current.disconnect(); } catch {} }
+      if (gainNodeRef.current) { try { gainNodeRef.current.disconnect(); } catch {} }
       if (sourceNodeRef.current) { try { sourceNodeRef.current.disconnect(); } catch {} }
       if (audioContextRef.current) { try { audioContextRef.current.close(); } catch {} }
       if (mediaStreamRef.current) { mediaStreamRef.current.getTracks().forEach((t) => t.stop()); }
@@ -217,17 +229,25 @@ export const OnlineGame: React.FC = () => {
     setChatInput('');
   };
 
-  /** 开始录音（Web Audio API + WAV 编码，全浏览器通用） */
-  const startRecording = useCallback(async () => {
+  /** 开始录音（16kHz + 高通滤波 + 增益 + 音量分析，高质量语音采集） */
+  const startRecording = useCallback(async (startY?: number) => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 16000,
+          channelCount: 1,
+        },
+      });
       mediaStreamRef.current = stream;
 
-      // 复用 AudioContext（避免多次创建导致浏览器限制）
+      // 复用 AudioContext
       let audioContext = audioContextRef.current;
       if (!audioContext || audioContext.state === 'closed') {
         const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-        audioContext = new AudioCtx({ sampleRate: 8000 });
+        audioContext = new AudioCtx({ sampleRate: 16000 });
         audioContextRef.current = audioContext;
       }
       if (audioContext.state === 'suspended') {
@@ -237,26 +257,69 @@ export const OnlineGame: React.FC = () => {
       const source = audioContext.createMediaStreamSource(stream);
       sourceNodeRef.current = source;
 
+      // 高通滤波器：去除低频噪音（空调、键盘等）
+      const highPass = audioContext.createBiquadFilter();
+      highPass.type = 'highpass';
+      highPass.frequency.value = 300; // 300Hz 以下切掉
+      filterNodeRef.current = highPass;
+
+      // 增益节点：提升音量，让声音更清晰响亮
+      const gain = audioContext.createGain();
+      gain.gain.value = 1.8; // 1.8 倍增益
+      gainNodeRef.current = gain;
+
+      // 分析器节点：用于音量波形动画
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      analyserRef.current = analyser;
+
+      // 脚本处理节点：采集音频数据
       const processor = audioContext.createScriptProcessor(4096, 1, 1);
       processorNodeRef.current = processor;
 
       audioChunksRef.current = [];
+
+      // 音频链路：source → 高通滤波 → 增益 → 分析器 → 处理器
+      source.connect(highPass);
+      highPass.connect(gain);
+      gain.connect(analyser);
+      analyser.connect(processor);
+      // 不连到 destination，避免回声
 
       processor.onaudioprocess = (e) => {
         const input = e.inputBuffer.getChannelData(0);
         audioChunksRef.current.push(new Float32Array(input));
       };
 
-      source.connect(processor);
-      processor.connect(audioContext.destination);
+      // 实时音量动画
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      const updateVolume = () => {
+        if (!analyserRef.current) return;
+        analyserRef.current.getByteFrequencyData(dataArray);
+        // 计算平均音量（0-255 → 0-1）
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+        const avg = sum / dataArray.length / 255;
+        setRecordVolume(Math.min(1, avg * 2.5)); // 放大显示
+        volumeAnimRef.current = requestAnimationFrame(updateVolume);
+      };
+      volumeAnimRef.current = requestAnimationFrame(updateVolume);
+
+      // 记录起始 Y 坐标（用于滑动取消）
+      if (startY !== undefined) recordStartYRef.current = startY;
 
       setIsRecording(true);
       setRecordSeconds(0);
+      setIsCancelling(false);
       recordSecondsRef.current = 0;
       recordTimerRef.current = setInterval(() => {
         setRecordSeconds((s) => {
           const next = s + 1;
           recordSecondsRef.current = next;
+          // 到达最大时长自动停止并发送
+          if (next >= maxRecordDuration) {
+            stopAndSendRecording();
+          }
           return next;
         });
       }, 1000);
@@ -271,6 +334,10 @@ export const OnlineGame: React.FC = () => {
       clearInterval(recordTimerRef.current);
       recordTimerRef.current = null;
     }
+    if (volumeAnimRef.current) {
+      cancelAnimationFrame(volumeAnimRef.current);
+      volumeAnimRef.current = null;
+    }
 
     // 先停止处理回调，再断开节点
     if (processorNodeRef.current) {
@@ -278,6 +345,9 @@ export const OnlineGame: React.FC = () => {
       try { processorNodeRef.current.disconnect(); } catch {}
       processorNodeRef.current = null;
     }
+    if (analyserRef.current) { try { analyserRef.current.disconnect(); } catch {} analyserRef.current = null; }
+    if (gainNodeRef.current) { try { gainNodeRef.current.disconnect(); } catch {} gainNodeRef.current = null; }
+    if (filterNodeRef.current) { try { filterNodeRef.current.disconnect(); } catch {} filterNodeRef.current = null; }
     if (sourceNodeRef.current) {
       try { sourceNodeRef.current.disconnect(); } catch {}
       sourceNodeRef.current = null;
@@ -288,10 +358,9 @@ export const OnlineGame: React.FC = () => {
     if (audioContext && audioChunksRef.current.length > 0) {
       const wavBase64 = encodeWAVBase64(audioChunksRef.current, audioContext.sampleRate);
       const secs = recordSecondsRef.current;
-      if (wavBase64.length < 150000) {
+      if (secs >= 1 && wavBase64.length < 500000) {
+        // 至少 1 秒才发送，避免误触
         sendVoiceMessage(wavBase64, secs);
-      } else {
-        console.warn('[voice] WAV too large:', wavBase64.length, 'bytes');
       }
       // 挂起 AudioContext 而非关闭，允许复用
       try { audioContext.suspend(); } catch {}
@@ -305,6 +374,8 @@ export const OnlineGame: React.FC = () => {
 
     audioChunksRef.current = [];
     setIsRecording(false);
+    setRecordVolume(0);
+    setIsCancelling(false);
   }, [sendVoiceMessage]);
 
   /** 取消录音 */
@@ -313,19 +384,54 @@ export const OnlineGame: React.FC = () => {
       clearInterval(recordTimerRef.current);
       recordTimerRef.current = null;
     }
+    if (volumeAnimRef.current) {
+      cancelAnimationFrame(volumeAnimRef.current);
+      volumeAnimRef.current = null;
+    }
     if (processorNodeRef.current) {
       processorNodeRef.current.onaudioprocess = null;
       try { processorNodeRef.current.disconnect(); } catch {}
       processorNodeRef.current = null;
     }
+    if (analyserRef.current) { try { analyserRef.current.disconnect(); } catch {} analyserRef.current = null; }
+    if (gainNodeRef.current) { try { gainNodeRef.current.disconnect(); } catch {} gainNodeRef.current = null; }
+    if (filterNodeRef.current) { try { filterNodeRef.current.disconnect(); } catch {} filterNodeRef.current = null; }
     if (sourceNodeRef.current) { try { sourceNodeRef.current.disconnect(); } catch {} sourceNodeRef.current = null; }
     if (audioContextRef.current) { try { audioContextRef.current.suspend(); } catch {} }
     if (mediaStreamRef.current) { mediaStreamRef.current.getTracks().forEach((t) => t.stop()); mediaStreamRef.current = null; }
     audioChunksRef.current = [];
     setIsRecording(false);
+    setRecordVolume(0);
+    setIsCancelling(false);
     setRecordSeconds(0);
     recordSecondsRef.current = 0;
   }, []);
+
+  // ===== 按住说话交互 =====
+
+  /** 按下开始录音（鼠标/触摸通用） */
+  const handleRecordStart = useCallback((clientY: number) => {
+    if (!opponent) return;
+    startRecording(clientY);
+  }, [opponent, startRecording]);
+
+  /** 移动中检测是否滑动取消 */
+  const handleRecordMove = useCallback((clientY: number) => {
+    if (!isRecording) return;
+    const diff = recordStartYRef.current - clientY;
+    // 向上滑动超过 60px 进入取消状态
+    setIsCancelling(diff > 60);
+  }, [isRecording]);
+
+  /** 松开：如果在取消状态则取消，否则发送 */
+  const handleRecordEnd = useCallback(() => {
+    if (!isRecording) return;
+    if (isCancelling) {
+      cancelRecording();
+    } else {
+      stopAndSendRecording();
+    }
+  }, [isRecording, isCancelling, cancelRecording, stopAndSendRecording]);
 
   /** 播放/暂停语音消息 */
   const togglePlayVoice = (msgIndex: number, audioData: string) => {
@@ -699,15 +805,33 @@ export const OnlineGame: React.FC = () => {
 
             {/* 录音中状态 */}
             {isRecording ? (
-              <div className="chat-recording-bar">
-                <span className="recording-dot" />
-                <span className="recording-timer">{formatDuration(recordSeconds)}</span>
-                <button className="recording-cancel" onClick={cancelRecording}>
-                  取消
-                </button>
-                <button className="recording-send" onClick={stopAndSendRecording}>
-                  发送
-                </button>
+              <div className={`chat-recording-overlay ${isCancelling ? 'recording-cancel-mode' : ''}`}>
+                <div className="recording-circle">
+                  <div className="recording-mic-icon">
+                    {isCancelling ? '✕' : '🎤'}
+                  </div>
+                  {/* 波形动画 */}
+                  <div className="recording-wave">
+                    {[...Array(5)].map((_, i) => (
+                      <span
+                        key={i}
+                        className="wave-bar"
+                        style={{
+                          height: `${Math.max(4, recordVolume * 40 * (0.5 + i * 0.15))}px`,
+                          opacity: 0.5 + recordVolume * 0.5,
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div className="recording-info">
+                  <span className="recording-timer-large">
+                    {formatDuration(recordSeconds)} / {maxRecordDuration}s
+                  </span>
+                  <span className="recording-hint">
+                    {isCancelling ? '松开手指 取消发送' : '上滑取消 · 松开发送'}
+                  </span>
+                </div>
               </div>
             ) : (
               <React.Fragment>
@@ -738,13 +862,43 @@ export const OnlineGame: React.FC = () => {
                     😊
                   </button>
                   <button
-                    className="chat-voice-btn"
-                    onClick={startRecording}
+                    className={`chat-voice-btn ${isRecording ? 'voice-btn-recording' : ''}`}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      handleRecordStart(e.clientY);
+                    }}
+                    onMouseMove={(e) => {
+                      e.preventDefault();
+                      handleRecordMove(e.clientY);
+                    }}
+                    onMouseUp={(e) => {
+                      e.preventDefault();
+                      handleRecordEnd();
+                    }}
+                    onMouseLeave={(e) => {
+                      e.preventDefault();
+                      // 鼠标移出时如果在录音，根据取消状态决定
+                      if (isRecording) handleRecordEnd();
+                    }}
+                    onTouchStart={(e) => {
+                      e.preventDefault();
+                      const touch = e.touches[0];
+                      handleRecordStart(touch.clientY);
+                    }}
+                    onTouchMove={(e) => {
+                      e.preventDefault();
+                      const touch = e.touches[0];
+                      handleRecordMove(touch.clientY);
+                    }}
+                    onTouchEnd={(e) => {
+                      e.preventDefault();
+                      handleRecordEnd();
+                    }}
                     disabled={!opponent}
-                    title="发送语音消息"
-                    aria-label="发送语音消息"
+                    title="按住说话"
+                    aria-label="按住说话"
                   >
-                    🎙
+                    🎤
                   </button>
                   <input
                     type="text"
