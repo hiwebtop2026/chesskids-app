@@ -286,12 +286,17 @@ export const OnlineGame: React.FC = () => {
 
       audioChunksRef.current = [];
 
-      // 音频链路：source → 高通滤波 → 增益 → 分析器 → 处理器
+      // 音频链路：source → 高通滤波 → 增益 → 分析器 → 处理器 → 静音输出 → destination
+      // 必须连到 destination，否则 ScriptProcessorNode.onaudioprocess 不触发
       source.connect(highPass);
       highPass.connect(gain);
       gain.connect(analyser);
       analyser.connect(processor);
-      // 不连到 destination，避免回声
+      // 静音输出节点：保持音频图活跃但不产生回声
+      const silentGain = audioContext.createGain();
+      silentGain.gain.value = 0;
+      processor.connect(silentGain);
+      silentGain.connect(audioContext.destination);
 
       processor.onaudioprocess = (e) => {
         const input = e.inputBuffer.getChannelData(0);
@@ -322,15 +327,12 @@ export const OnlineGame: React.FC = () => {
       isCancellingRef.current = false;
       recordSecondsRef.current = 0;
       recordTimerRef.current = setInterval(() => {
-        setRecordSeconds((s) => {
-          const next = s + 1;
-          recordSecondsRef.current = next;
-          // 到达最大时长自动停止并发送
-          if (next >= maxRecordDuration) {
-            stopRecordingRef.current();
-          }
-          return next;
-        });
+        recordSecondsRef.current += 1;
+        setRecordSeconds(recordSecondsRef.current);
+        // 到达最大时长自动停止并发送
+        if (recordSecondsRef.current >= maxRecordDuration) {
+          stopRecordingRef.current();
+        }
       }, 1000);
     } catch (err) {
       isRecordingRef.current = false;
@@ -367,15 +369,21 @@ export const OnlineGame: React.FC = () => {
 
     // 编码 WAV 并发送
     const audioContext = audioContextRef.current;
-    if (audioContext && audioChunksRef.current.length > 0) {
-      const wavBase64 = encodeWAVBase64(audioChunksRef.current, audioContext.sampleRate);
+    const chunks = audioChunksRef.current;
+    console.log('[voice] stopAndSend: chunks=', chunks.length, 'secs=', recordSecondsRef.current, 'ctx=', !!audioContext);
+    if (audioContext && chunks.length > 0) {
+      const wavBase64 = encodeWAVBase64(chunks, audioContext.sampleRate);
       const secs = recordSecondsRef.current;
+      console.log('[voice] WAV size=', wavBase64.length, 'secs=', secs);
       if (secs >= 1 && wavBase64.length < 500000) {
-        // 至少 1 秒才发送，避免误触
         sendVoiceMessage(wavBase64, secs);
+      } else if (secs < 1) {
+        console.warn('[voice] 录音时间不足1秒，已丢弃');
       }
       // 挂起 AudioContext 而非关闭，允许复用
       try { audioContext.suspend(); } catch {}
+    } else {
+      console.warn('[voice] 无音频数据，chunks=', chunks.length);
     }
 
     // 停止麦克风
