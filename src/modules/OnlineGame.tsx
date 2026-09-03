@@ -129,6 +129,10 @@ export const OnlineGame: React.FC = () => {
   const volumeAnimRef = useRef<number | null>(null);
   const recordStartYRef = useRef(0); // 记录按下时的 Y 坐标，用于滑动取消
   const maxRecordDuration = 15; // 最大录音时长 15 秒
+  // 用 ref 跟踪录音状态，避免 async 导致的 stale closure
+  const isRecordingRef = useRef(false);
+  const isCancellingRef = useRef(false);
+  const stopRecordingRef = useRef<() => void>(() => {});
 
   // 表情包面板
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -231,6 +235,9 @@ export const OnlineGame: React.FC = () => {
 
   /** 开始录音（16kHz + 高通滤波 + 增益 + 音量分析，高质量语音采集） */
   const startRecording = useCallback(async (startY?: number) => {
+    // 立即设置 ref，避免松开时 stale closure
+    isRecordingRef.current = true;
+    isCancellingRef.current = false;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -311,6 +318,8 @@ export const OnlineGame: React.FC = () => {
       setIsRecording(true);
       setRecordSeconds(0);
       setIsCancelling(false);
+      isRecordingRef.current = true;
+      isCancellingRef.current = false;
       recordSecondsRef.current = 0;
       recordTimerRef.current = setInterval(() => {
         setRecordSeconds((s) => {
@@ -318,12 +327,15 @@ export const OnlineGame: React.FC = () => {
           recordSecondsRef.current = next;
           // 到达最大时长自动停止并发送
           if (next >= maxRecordDuration) {
-            stopAndSendRecording();
+            stopRecordingRef.current();
           }
           return next;
         });
       }, 1000);
     } catch (err) {
+      isRecordingRef.current = false;
+      isCancellingRef.current = false;
+      setIsRecording(false);
       console.warn('[voice] 录音启动失败:', err);
     }
   }, [sendVoiceMessage]);
@@ -376,7 +388,12 @@ export const OnlineGame: React.FC = () => {
     setIsRecording(false);
     setRecordVolume(0);
     setIsCancelling(false);
+    isRecordingRef.current = false;
+    isCancellingRef.current = false;
   }, [sendVoiceMessage]);
+
+  // 保持 ref 指向最新的 stopAndSendRecording
+  stopRecordingRef.current = stopAndSendRecording;
 
   /** 取消录音 */
   const cancelRecording = useCallback(() => {
@@ -405,6 +422,8 @@ export const OnlineGame: React.FC = () => {
     setIsCancelling(false);
     setRecordSeconds(0);
     recordSecondsRef.current = 0;
+    isRecordingRef.current = false;
+    isCancellingRef.current = false;
   }, []);
 
   // ===== 按住说话交互 =====
@@ -417,21 +436,22 @@ export const OnlineGame: React.FC = () => {
 
   /** 移动中检测是否滑动取消 */
   const handleRecordMove = useCallback((clientY: number) => {
-    if (!isRecording) return;
+    if (!isRecordingRef.current) return;
     const diff = recordStartYRef.current - clientY;
-    // 向上滑动超过 60px 进入取消状态
-    setIsCancelling(diff > 60);
-  }, [isRecording]);
+    const cancelling = diff > 60;
+    isCancellingRef.current = cancelling;
+    setIsCancelling(cancelling);
+  }, []);
 
   /** 松开：如果在取消状态则取消，否则发送 */
   const handleRecordEnd = useCallback(() => {
-    if (!isRecording) return;
-    if (isCancelling) {
+    if (!isRecordingRef.current) return;
+    if (isCancellingRef.current) {
       cancelRecording();
     } else {
       stopAndSendRecording();
     }
-  }, [isRecording, isCancelling, cancelRecording, stopAndSendRecording]);
+  }, [cancelRecording, stopAndSendRecording]);
 
   /** 播放/暂停语音消息 */
   const togglePlayVoice = (msgIndex: number, audioData: string) => {
@@ -836,16 +856,13 @@ export const OnlineGame: React.FC = () => {
                   handleRecordStart(e.clientY);
                 }}
                 onMouseMove={(e) => {
-                  e.preventDefault();
                   handleRecordMove(e.clientY);
                 }}
-                onMouseUp={(e) => {
-                  e.preventDefault();
+                onMouseUp={() => {
                   handleRecordEnd();
                 }}
-                onMouseLeave={(e) => {
-                  e.preventDefault();
-                  if (isRecording) handleRecordEnd();
+                onMouseLeave={() => {
+                  if (isRecordingRef.current) handleRecordEnd();
                 }}
                 onTouchStart={(e) => {
                   e.preventDefault();
