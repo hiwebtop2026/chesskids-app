@@ -9,3 +9,7 @@ export { GamePlay } from './GamePlay';
 export { LocalGame } from './LocalGame';
 export { ProgressSystem } from './ProgressSystem';
 export { OnlineGame } from './OnlineGame';
+
+// 中国象棋模块
+export { XiangqiRulesLearning } from './XiangqiRulesLearning';
+export { XiangqiLocalGame } from './XiangqiLocalGame';
