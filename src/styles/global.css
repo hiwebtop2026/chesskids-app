@@ -3298,6 +3298,7 @@ ul {
   .online-game-floating-overlay .game-board-section {
     width: 90vw !important;
     max-width: 600px !important;
+    min-width: 0 !important;
   }
 
   .online-game-floating-overlay .game-side-panel {
@@ -3347,6 +3348,148 @@ ul {
   background: var(--primary);
   color: var(--text-white);
   font-weight: 600;
+}
+
+/* ===== 返回首页按钮 ===== */
+.home-back-btn {
+  padding: 6px 14px;
+  border: none;
+  background: var(--bg);
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: var(--transition);
+  white-space: nowrap;
+  margin-right: var(--space-sm);
+}
+
+.home-back-btn:hover {
+  background: var(--primary);
+  color: var(--text-white);
+}
+
+/* ===== 首页棋类选择 ===== */
+.home-main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.game-select-screen {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: var(--space-lg);
+}
+
+.game-select-header {
+  text-align: center;
+  margin-bottom: var(--space-xl);
+}
+
+.game-select-header h2 {
+  font-size: 1.8rem;
+  color: var(--text);
+  margin-bottom: var(--space-sm);
+}
+
+.game-select-header p {
+  color: var(--text-secondary);
+  font-size: 1rem;
+}
+
+.game-select-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-lg);
+}
+
+.game-select-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xl) var(--space-lg);
+  border: 3px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  box-shadow: var(--shadow-sm);
+}
+
+.game-select-card:hover {
+  transform: translateY(-6px);
+  box-shadow: var(--shadow-lg);
+}
+
+.game-card-chess:hover {
+  border-color: var(--primary);
+}
+
+.game-card-xiangqi:hover {
+  border-color: #b5402a;
+}
+
+.game-card-icon {
+  font-size: 4.5rem;
+  line-height: 1;
+  margin-bottom: var(--space-xs);
+}
+
+.game-card-chess .game-card-icon {
+  color: #4a5568;
+}
+
+.game-card-xiangqi .game-card-icon {
+  color: #b5402a;
+}
+
+.game-card-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.game-card-desc {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  text-align: center;
+  line-height: 1.6;
+}
+
+.game-card-btn {
+  margin-top: var(--space-sm);
+  padding: 10px 28px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--text-white);
+  font-weight: 600;
+  font-size: 0.95rem;
+  transition: var(--transition);
+}
+
+.game-card-xiangqi .game-card-btn {
+  background: #b5402a;
+}
+
+.game-select-card:hover .game-card-btn {
+  filter: brightness(1.08);
+}
+
+@media (max-width: 640px) {
+  .game-select-cards {
+    grid-template-columns: 1fr;
+    gap: var(--space-md);
+  }
+  .game-select-header h2 {
+    font-size: 1.4rem;
+  }
+  .game-card-icon {
+    font-size: 3.5rem;
+  }
 }
 
 /* ===== 中国象棋 2D 棋盘 ===== */
@@ -3455,6 +3598,24 @@ ul {
   transform: scale(1.1);
   box-shadow: 0 0 0 3px #FFD700, 0 4px 8px rgba(0,0,0,0.4);
   z-index: 2;
+}
+
+/* 黑方视角：棋盘整体旋转 180°（网格/河界/棋子坐标全部翻转，点击仍用逻辑坐标） */
+.xiangqi-board-flipped {
+  transform: rotate(180deg);
+}
+
+.xiangqi-piece .piece-char {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+/* 棋盘已转 180°，黑方自己的棋子文字再反转以保持正立 */
+.xiangqi-piece .piece-char.piece-char-inv {
+  transform: rotate(180deg);
 }
 
 .legal-move-dot {
@@ -3595,11 +3756,20 @@ ul {
   cursor: not-allowed;
 }
 
-.game-layout {
-  display: grid;
-  grid-template-columns: 1fr 280px;
-  gap: var(--space-md);
-  align-items: start;
+/* 中国象棋模块桌面端：棋盘 + 窄侧栏（移动端堆叠由媒体查询控制） */
+@media (min-width: 768px) {
+  .game-layout {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: var(--space-md);
+    align-items: start;
+  }
+}
+
+/* 防溢出：棋盘容器在任何窄屏都不超出列宽，桌面仍保持 540px 上限 */
+.xiangqi-board-wrapper,
+.xiangqi-board-host {
+  max-width: min(540px, 100%);
 }
 
 .game-main-area {

@@ -26,6 +26,8 @@ interface XiangqiBoard2DProps {
   hint: XiangqiSquare[] | null;
   onSquareClick: (row: number, col: number) => void;
   readOnly?: boolean;
+  /** 黑方视角：棋盘整体旋转 180°，黑方棋子在下方 */
+  flipped?: boolean;
 }
 
 // ===== 棋盘几何常量（唯一数据源）=====
@@ -56,6 +58,7 @@ export const XiangqiBoard2D: React.FC<XiangqiBoard2DProps> = ({
   hint,
   onSquareClick,
   readOnly = false,
+  flipped = false,
 }) => {
   const isSelected = (r: number, c: number) =>
     selectedSquare && selectedSquare[0] === r && selectedSquare[1] === c;
@@ -191,7 +194,7 @@ export const XiangqiBoard2D: React.FC<XiangqiBoard2DProps> = ({
 
   return (
     <div className="xiangqi-board-wrapper">
-      <div className="xiangqi-board">
+      <div className={`xiangqi-board ${flipped ? 'xiangqi-board-flipped' : ''}`}>
         {/* 棋盘线 SVG：viewBox 与网格同为 8 格宽 × 9 格高，拉伸填满网格区 */}
         <svg
           className="xiangqi-board-lines"
@@ -244,7 +247,10 @@ export const XiangqiBoard2D: React.FC<XiangqiBoard2DProps> = ({
                         selected ? 'piece-selected' : ''
                       }`}
                     >
-                      {char}
+                      {/* 黑方视角下，棋盘整体旋转 180°，黑方文字需再反转以保持正立 */}
+                      <span className={`piece-char ${flipped && !red ? 'piece-char-inv' : ''}`}>
+                        {char}
+                      </span>
                     </span>
                   )}
                 </div>

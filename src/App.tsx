@@ -45,21 +45,23 @@ const XIANGQI_TABS: { key: XiangqiTabKey; label: string; icon: string }[] = [
 ];
 
 const App: React.FC = () => {
-  const [gameType, setGameType] = useState<GameType>('chess');
+  // null = 尚未选择棋类（显示首页选择界面）
+  const [gameType, setGameType] = useState<GameType | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>('learn');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const { progress } = useProgressStore();
 
   const tabs = gameType === 'chess' ? CHESS_TABS : XIANGQI_TABS;
 
-  const switchGame = (type: GameType) => {
+  /** 首页选择棋类，进入对应模块 */
+  const selectGame = (type: GameType) => {
     setGameType(type);
-    // 切换游戏时切换到对应默认页
-    if (type === 'chess') {
-      setActiveTab('learn');
-    } else {
-      setActiveTab('xq-rules');
-    }
+    setActiveTab(type === 'chess' ? 'learn' : 'xq-rules');
+  };
+
+  /** 返回首页（重新选择棋类） */
+  const goHome = () => {
+    setGameType(null);
   };
 
   const toggleFullscreen = useCallback(() => {
@@ -122,12 +124,70 @@ const App: React.FC = () => {
     }
   };
 
+  // ================================================================
+  // 首页：选择棋类
+  // ================================================================
+  if (gameType === null) {
+    return (
+      <div className="app app-home">
+        <header className="app-header">
+          <div className="header-left">
+            <h1 className="app-title">
+              <span className="app-logo">♔</span>
+              ChessKids
+            </h1>
+            <span className="app-subtitle">少儿棋类学堂</span>
+          </div>
+          <div className="header-right">
+            <UserProfile progress={progress} compact />
+          </div>
+        </header>
+
+        <main className="app-main home-main">
+          <div className="game-select-screen">
+            <div className="game-select-header">
+              <h2>🎯 选择你想学习的棋类</h2>
+              <p>点击卡片进入，开始你的棋艺之旅吧！</p>
+            </div>
+            <div className="game-select-cards">
+              <button
+                className="game-select-card game-card-chess"
+                onClick={() => selectGame('chess')}
+              >
+                <span className="game-card-icon">♔</span>
+                <span className="game-card-title">国际象棋</span>
+                <span className="game-card-desc">
+                  棋子学习 · 规则 · 战术训练 · 人机 / 双人 / 联机对战
+                </span>
+                <span className="game-card-btn">进入游戏 →</span>
+              </button>
+              <button
+                className="game-select-card game-card-xiangqi"
+                onClick={() => selectGame('xiangqi')}
+              >
+                <span className="game-card-icon">帥</span>
+                <span className="game-card-title">中国象棋</span>
+                <span className="game-card-desc">
+                  规则学习 · 人机对战 · 双人对战 · 在线联机
+                </span>
+                <span className="game-card-btn">进入游戏 →</span>
+              </button>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // ================================================================
+  // 棋类模块界面
+  // ================================================================
   return (
     <div className={`app ${isFullscreen ? 'app-fullscreen' : ''}`}>
       {/* 顶部导航栏 */}
       <header className="app-header">
         <div className="header-left">
-          <h1 className="app-title">
+          <h1 className="app-title" onClick={goHome} style={{ cursor: 'pointer' }} title="返回首页">
             <span className="app-logo">{gameType === 'chess' ? '♔' : '帥'}</span>
             ChessKids
           </h1>
@@ -136,23 +196,15 @@ const App: React.FC = () => {
           </span>
         </div>
         <div className="header-right">
-          {/* 游戏切换按钮 */}
-          <div className="game-switcher">
-            <button
-              className={`game-switch-btn ${gameType === 'chess' ? 'active' : ''}`}
-              onClick={() => switchGame('chess')}
-              title="国际象棋"
-            >
-              ♔ 国际象棋
-            </button>
-            <button
-              className={`game-switch-btn ${gameType === 'xiangqi' ? 'active' : ''}`}
-              onClick={() => switchGame('xiangqi')}
-              title="中国象棋"
-            >
-              🐴 中国象棋
-            </button>
-          </div>
+          {/* 返回首页选择棋类 */}
+          <button
+            className="home-back-btn"
+            onClick={goHome}
+            title="返回首页重新选择棋类"
+            aria-label="返回首页"
+          >
+            🏠 首页
+          </button>
           <UserProfile progress={progress} compact />
           <button
             className="fullscreen-btn"

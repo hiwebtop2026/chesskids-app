@@ -60,7 +60,7 @@ const squareToWorld = (row: number, col: number): [number, number] => {
 };
 
 // ============ 相机自动取景：按容器宽高比调整距离，完整显示棋盘与棋子 ============
-const fitCameraToBoard = (camera: THREE.PerspectiveCamera, width: number, height: number) => {
+const fitCameraToBoard = (camera: THREE.PerspectiveCamera, width: number, height: number, flipped = false) => {
   const T = THREE as any;
   const cam = camera as any;
   cam.aspect = width / height;
@@ -75,8 +75,8 @@ const fitCameraToBoard = (camera: THREE.PerspectiveCamera, width: number, height
     corners.push(new T.Vector3(sx * halfW, yTop, sz * halfD));
   }
   const target = new T.Vector3(0, 0.15, 0);
-  // 观察方向固定（红方斜俯视），仅迭代调整距离
-  const viewDir = new T.Vector3(0, 11, 9.8).normalize();
+  // 观察方向：红方视角从 +z 看；黑方视角翻转后从 -z 看（棋子文字已按朝向渲染）
+  const viewDir = new T.Vector3(0, 11, flipped ? -9.8 : 9.8).normalize();
 
   const pad = 1.16; // 四周留白
   let dist = 13;
@@ -596,6 +596,8 @@ export interface ThreeJSXiangqiBoardProps {
   hint: XiangqiSquare[] | null;
   onSquareClick: (row: number, col: number) => void;
   readOnly?: boolean;
+  /** 黑方视角：相机移至棋盘另一侧，黑方棋子在下方 */
+  flipped?: boolean;
 }
 
 export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
@@ -607,6 +609,7 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
   hint,
   onSquareClick,
   readOnly = false,
+  flipped = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -620,13 +623,15 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
   const needsRenderRef = useRef(true);
   const onSquareClickRef = useRef(onSquareClick);
   const readOnlyRef = useRef(readOnly);
+  const flippedRef = useRef(flipped);
   const hoveredRef = useRef<THREE.Object3D | null>(null);
   const clockRef = useRef(new (THREE as any).Clock());
 
-  // 始终保持 ref 最新（避免初始化 effect 闭包捕获过期的 readOnly）
+  // 始终保持 ref 最新（避免初始化 effect 闭包捕获过期的 readOnly/flipped）
   useEffect(() => {
     onSquareClickRef.current = onSquareClick;
     readOnlyRef.current = readOnly;
+    flippedRef.current = flipped;
   });
 
   // ---- 初始化场景 ----
@@ -641,8 +646,8 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
     scene.fog = new THREE.Fog(0xB8A888, 30, 60);
 
     const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 100);
-    // 红方斜俯视，距离按容器宽高比自动取景（完整显示棋盘与棋子）
-    fitCameraToBoard(camera, width, height);
+    // 斜俯视，距离按容器宽高比自动取景（完整显示棋盘与棋子）；黑方时相机移至对侧
+    fitCameraToBoard(camera, width, height, flippedRef.current);
 
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
@@ -809,7 +814,7 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
       if (!containerRef.current || !rendererRef.current || !cameraRef.current) return;
       const w = containerRef.current.clientWidth;
       const h = containerRef.current.clientHeight;
-      fitCameraToBoard(cameraRef.current, w, h); // 重新取景，保证棋盘完整显示
+      fitCameraToBoard(cameraRef.current, w, h, flippedRef.current); // 重新取景，保证棋盘完整显示（含视角）
       rendererRef.current.setSize(w, h);
       needsRenderRef.current = true;
     };
@@ -851,6 +856,15 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ---- 视角切换（红方/黑方）：相机换到棋盘另一侧并重新取景 ----
+  useEffect(() => {
+    const cam = cameraRef.current;
+    const el = containerRef.current;
+    if (!cam || !el) return;
+    fitCameraToBoard(cam, el.clientWidth, el.clientHeight, flipped);
+    needsRenderRef.current = true;
+  }, [flipped]);
 
   // ---- 悬停处理 ----
   const handleHover = () => {

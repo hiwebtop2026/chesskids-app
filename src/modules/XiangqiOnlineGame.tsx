@@ -623,6 +623,7 @@ export const XiangqiOnlineGame: React.FC = () => {
                 hint={null}
                 onSquareClick={selectSquare}
                 readOnly={boardReadOnly}
+                flipped={color === 'b'}
               />
             ) : (
               <XiangqiBoard2D
@@ -634,6 +635,7 @@ export const XiangqiOnlineGame: React.FC = () => {
                 hint={null}
                 onSquareClick={selectSquare}
                 readOnly={boardReadOnly}
+                flipped={color === 'b'}
               />
             )}
           </div>
