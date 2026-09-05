@@ -59,6 +59,41 @@ const squareToWorld = (row: number, col: number): [number, number] => {
   return [x, z];
 };
 
+// ============ 相机自动取景：按容器宽高比调整距离，完整显示棋盘与棋子 ============
+const fitCameraToBoard = (camera: THREE.PerspectiveCamera, width: number, height: number) => {
+  const T = THREE as any;
+  const cam = camera as any;
+  cam.aspect = width / height;
+
+  // 棋盘包围盒 8 角点（含边框、棋子高度与外围余量）
+  const halfW = BOARD_W / 2 + PIECE_RADIUS * 0.6;
+  const halfD = BOARD_D / 2 + PIECE_RADIUS * 0.6;
+  const yTop = BOARD_HEIGHT + PIECE_HEIGHT;
+  const corners: any[] = [];
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    corners.push(new T.Vector3(sx * halfW, 0, sz * halfD));
+    corners.push(new T.Vector3(sx * halfW, yTop, sz * halfD));
+  }
+  const target = new T.Vector3(0, 0.15, 0);
+  // 观察方向固定（红方斜俯视），仅迭代调整距离
+  const viewDir = new T.Vector3(0, 11, 9.8).normalize();
+
+  const pad = 1.16; // 四周留白
+  let dist = 13;
+  for (let i = 0; i < 3; i++) {
+    cam.position.copy(target).addScaledVector(viewDir, dist);
+    cam.lookAt(target);
+    cam.updateProjectionMatrix();
+    cam.updateMatrixWorld(true);
+    let maxNdc = 0;
+    for (const c of corners) {
+      const p = c.clone().project(cam);
+      maxNdc = Math.max(maxNdc, Math.abs(p.x), Math.abs(p.y));
+    }
+    dist *= maxNdc * pad; // NDC 超出量 ∝ 1/距离，按比例拉远
+  }
+};
+
 // ============ 程序化木纹纹理 ============
 const createWoodTexture = (
   baseColor: string,
@@ -246,7 +281,95 @@ const createBoardTopTexture = (): any => {
   return tex;
 };
 
-// ============ 阴文雕刻纹理（汉字 + 顶面环槽）============
+// ============ 棋身漆木纹理（侧面：Lathe UV 的 U=环绕 V=高度）============
+const createPieceSideTextures = (baseHex: number): { map: any; bump: any } => {
+  const w = 512, h = 256;
+  const base = '#' + baseHex.toString(16).padStart(6, '0');
+  const dark = shade(base, -34);
+  const light = shade(base, 26);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, w, h);
+
+  // 木纹：沿高度方向的波浪条纹（深色）
+  for (let i = 0; i < 70; i++) {
+    const x = Math.random() * w;
+    ctx.strokeStyle = `rgba(${hexRGB(dark)}, ${Math.random() * 0.22 + 0.05})`;
+    ctx.lineWidth = Math.random() * 3 + 0.6;
+    ctx.beginPath();
+    ctx.moveTo(x, -10);
+    ctx.bezierCurveTo(
+      x + (Math.random() - 0.5) * 26, h * 0.33,
+      x + (Math.random() - 0.5) * 26, h * 0.66,
+      x + (Math.random() - 0.5) * 18, h + 10,
+    );
+    ctx.stroke();
+  }
+  // 少量亮色高光纹
+  for (let i = 0; i < 26; i++) {
+    const x = Math.random() * w;
+    ctx.strokeStyle = `rgba(${hexRGB(light)}, ${Math.random() * 0.14 + 0.04})`;
+    ctx.lineWidth = Math.random() * 2 + 0.4;
+    ctx.beginPath();
+    ctx.moveTo(x, -10);
+    ctx.bezierCurveTo(
+      x + (Math.random() - 0.5) * 20, h * 0.33,
+      x + (Math.random() - 0.5) * 20, h * 0.66,
+      x + (Math.random() - 0.5) * 14, h + 10,
+    );
+    ctx.stroke();
+  }
+  // 颗粒噪点
+  const img = ctx.getImageData(0, 0, w, h);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const n = (Math.random() - 0.5) * 14;
+    img.data[i] = clamp(img.data[i] + n);
+    img.data[i + 1] = clamp(img.data[i + 1] + n);
+    img.data[i + 2] = clamp(img.data[i + 2] + n);
+  }
+  ctx.putImageData(img, 0, 0);
+
+  // bump 贴图：灰度木纹（条纹处凹陷/凸起）
+  const bumpCanvas = document.createElement('canvas');
+  bumpCanvas.width = w; bumpCanvas.height = h;
+  const bctx = bumpCanvas.getContext('2d')!;
+  bctx.fillStyle = '#808080';
+  bctx.fillRect(0, 0, w, h);
+  for (let i = 0; i < 70; i++) {
+    const x = Math.random() * w;
+    bctx.strokeStyle = `rgba(40,40,40,${Math.random() * 0.35 + 0.08})`;
+    bctx.lineWidth = Math.random() * 3 + 0.6;
+    bctx.beginPath();
+    bctx.moveTo(x, -10);
+    bctx.bezierCurveTo(
+      x + (Math.random() - 0.5) * 26, h * 0.33,
+      x + (Math.random() - 0.5) * 26, h * 0.66,
+      x + (Math.random() - 0.5) * 18, h + 10,
+    );
+    bctx.stroke();
+  }
+
+  const map = new (THREE as any).CanvasTexture(canvas);
+  map.wrapS = map.wrapT = (THREE as any).RepeatWrapping;
+  map.colorSpace = THREE.SRGBColorSpace;
+  map.anisotropy = 8;
+  const bump = new (THREE as any).CanvasTexture(bumpCanvas);
+  bump.wrapS = bump.wrapT = (THREE as any).RepeatWrapping;
+  bump.colorSpace = (THREE as any).NoColorSpace;
+  bump.anisotropy = 8;
+  return { map, bump };
+};
+
+// hex → "r,g,b"
+function hexRGB(hex: string): string {
+  const n = parseInt(hex.slice(1), 16);
+  return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
+}
+
+// ============ 阴文雕刻纹理（汉字 + 顶面环槽 + 年轮）============
 const createEngravedCharTexture = (
   char: string,
   charColor: string,
@@ -279,6 +402,14 @@ const createEngravedCharTexture = (
   dctx.textAlign = 'center';
   dctx.textBaseline = 'middle';
   dctx.fillText(char, cx, cy + size * 0.02);
+  // 极浅年轮环（凹凸细微，仅作木质触感）
+  dctx.strokeStyle = 'rgba(150,150,150,0.5)';
+  for (let i = 1; i <= 7; i++) {
+    dctx.lineWidth = size * 0.006;
+    dctx.beginPath();
+    dctx.arc(cx, cy, size * 0.065 * i, 0, Math.PI * 2);
+    dctx.stroke();
+  }
 
   // 轻微模糊 → 刻痕边缘形成斜面，更真实地捕捉光影
   const blurred = document.createElement('canvas');
@@ -304,6 +435,17 @@ const createEngravedCharTexture = (
   bgGrad.addColorStop(1, bgBottom);
   cctx.fillStyle = bgGrad;
   cctx.fillRect(0, 0, size, size);
+  // 年轮：横截面同心环（微弱，漆木质感）
+  for (let i = 1; i <= 9; i++) {
+    const rr = size * 0.06 * i + (Math.random() - 0.5) * size * 0.012;
+    cctx.strokeStyle = i % 2 === 0
+      ? `rgba(${hexRGB(bgBottom)},0.10)`
+      : `rgba(255,255,255,0.06)`;
+    cctx.lineWidth = size * 0.008 + Math.random() * size * 0.006;
+    cctx.beginPath();
+    cctx.arc(cx + (Math.random() - 0.5) * 6, cy + (Math.random() - 0.5) * 6, rr, 0, Math.PI * 2);
+    cctx.stroke();
+  }
   // 环槽阴影色（模拟刻槽里的暗部）
   cctx.strokeStyle = grooveColor;
   cctx.lineWidth = ringW * 1.4;
@@ -363,6 +505,15 @@ const createDrumProfile = (): THREE.Vector2[] => {
 
 // 棋子模板缓存
 const pieceCache = new Map<string, THREE.Group>();
+const sideTexCache = new Map<number, { map: any; bump: any }>();
+const getSideTextures = (bodyColor: number) => {
+  let t = sideTexCache.get(bodyColor);
+  if (!t) {
+    t = createPieceSideTextures(bodyColor);
+    sideTexCache.set(bodyColor, t);
+  }
+  return t;
+};
 
 const createPieceMesh = (piece: string): THREE.Group => {
   const cacheKey = piece;
@@ -376,13 +527,17 @@ const createPieceMesh = (piece: string): THREE.Group => {
 
   const T = THREE as any;
 
-  // 漆木鼓身（红方朱红 / 黑方墨黑），微清漆质感
+  // 漆木鼓身（红方朱红 / 黑方墨黑）：木纹贴图 + 凹凸，微清漆质感
+  const sideTex = getSideTextures(pal.body);
   const bodyMat = new T.MeshPhysicalMaterial({
-    color: pal.body,
-    roughness: 0.38,
+    color: 0xffffff,
+    map: sideTex.map,
+    bumpMap: sideTex.bump,
+    bumpScale: 0.012,
+    roughness: 0.42,
     metalness: 0.0,
-    clearcoat: 0.6,
-    clearcoatRoughness: 0.3,
+    clearcoat: 0.65,
+    clearcoatRoughness: 0.28,
   });
 
   // 鼓型主体（单层实木鼓状）
@@ -479,12 +634,11 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xB8A888);
-    scene.fog = new THREE.Fog(0xB8A888, 20, 40);
+    scene.fog = new THREE.Fog(0xB8A888, 30, 60);
 
     const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 100);
-    // 红方视角：从斜上方看向棋盘中心，红方（row 9）靠近观察者（+z 方向）
-    camera.position.set(0, 11, 9.5);
-    camera.lookAt(0, 0, 0);
+    // 红方斜俯视，距离按容器宽高比自动取景（完整显示棋盘与棋子）
+    fitCameraToBoard(camera, width, height);
 
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
@@ -651,8 +805,7 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
       if (!containerRef.current || !rendererRef.current || !cameraRef.current) return;
       const w = containerRef.current.clientWidth;
       const h = containerRef.current.clientHeight;
-      cameraRef.current.aspect = w / h;
-      cameraRef.current.updateProjectionMatrix();
+      fitCameraToBoard(cameraRef.current, w, h); // 重新取景，保证棋盘完整显示
       rendererRef.current.setSize(w, h);
       needsRenderRef.current = true;
     };

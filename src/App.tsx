@@ -16,13 +16,14 @@ import {
   XiangqiRulesLearning,
   XiangqiLocalGame,
   XiangqiAIGame,
+  XiangqiOnlineGame,
 } from './modules';
 import { UserProfile, ErrorBoundary } from './components';
 import { useProgressStore } from './store';
 
 type GameType = 'chess' | 'xiangqi';
 type ChessTabKey = 'learn' | 'rules' | 'tactics' | 'game' | 'local' | 'online' | 'progress';
-type XiangqiTabKey = 'xq-rules' | 'xq-ai' | 'xq-local' | 'progress';
+type XiangqiTabKey = 'xq-rules' | 'xq-ai' | 'xq-local' | 'xq-online' | 'progress';
 type TabKey = ChessTabKey | XiangqiTabKey;
 
 const CHESS_TABS: { key: ChessTabKey; label: string; icon: string }[] = [
@@ -39,6 +40,7 @@ const XIANGQI_TABS: { key: XiangqiTabKey; label: string; icon: string }[] = [
   { key: 'xq-rules', label: '规则学习', icon: '📖' },
   { key: 'xq-ai', label: '人机对战', icon: '🤖' },
   { key: 'xq-local', label: '双人对战', icon: '👥' },
+  { key: 'xq-online', label: '联机对战', icon: '🌐' },
   { key: 'progress', label: '我的进度', icon: '🏆' },
 ];
 
@@ -113,6 +115,8 @@ const App: React.FC = () => {
         return <XiangqiAIGame />;
       case 'xq-local':
         return <XiangqiLocalGame />;
+      case 'xq-online':
+        return <XiangqiOnlineGame />;
       default:
         return null;
     }
