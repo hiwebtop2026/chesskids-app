@@ -29,9 +29,9 @@ const BOARD_W = GRID_W + BOARD_MARGIN * 2;
 const BOARD_D = GRID_D + BOARD_MARGIN * 2;
 const BOARD_HEIGHT = 0.22;        // 棋盘厚度
 
-// 棋子尺寸（鼓型）：直径 = 格距的 80%，高度 = 直径的 60%
+// 棋子尺寸（鼓型）：直径 = 格距的 80%，高度 = 半径的 0.7（扁平圆鼓）
 const PIECE_RADIUS = CELL * 0.4;   // 0.4
-const PIECE_HEIGHT = PIECE_RADIUS * 1.2; // 0.48
+const PIECE_HEIGHT = PIECE_RADIUS * 0.7; // 0.28 扁平鼓形
 
 // 颜色（参考 3D 渲染图：黑方黑底红字 / 红方枣红金字）
 const RED_BODY = 0xC23A24;        // 红方：枣红
@@ -152,9 +152,9 @@ const createBoardTopTexture = (): any => {
   ctx.fillStyle = 'rgba(180, 120, 50, 0.12)';
   ctx.fillRect(0, 0, W, H);
 
-  // 坐标换算：像素 = 交叉点百分比 × 画布尺寸
-  // 网格区占画布绝大部分，留边距
-  const margin = 0.06; // 6% 边距
+  // 坐标换算：网格区占满整个平面（与棋子世界坐标严格对齐）
+  // 棋子位于 (col-4)*CELL, (row-4.5)*CELL，故网格交叉点必须占满平面
+  const margin = 0.0; // 0 边距，网格线与平面边缘重合，边框由外框提供
   const gx = (c: number) => (margin + (c / (COLS - 1)) * (1 - margin * 2)) * W;
   const gy = (r: number) => (margin + (r / (ROWS - 1)) * (1 - margin * 2)) * H;
 
@@ -243,7 +243,7 @@ const createEngravedCharTexture = (
   bgTop: string,
   bgBottom: string,
 ): { displacement: any; bump: any; map: any } => {
-  const size = 512;
+  const size = 1024; // 提高分辨率，刻痕更清晰
 
   // displacement / bump：白底黑字 → 字处低值，位移向下（凹陷）
   const dispCanvas = document.createElement('canvas');
@@ -252,12 +252,19 @@ const createEngravedCharTexture = (
   dctx.fillStyle = '#ffffff';
   dctx.fillRect(0, 0, size, size);
   dctx.fillStyle = '#000000';
-  dctx.font = `bold ${Math.round(size * 0.66)}px "KaiTi", "STKaiti", "SimSun", serif`;
+  dctx.font = `bold ${Math.round(size * 0.68)}px "KaiTi", "STKaiti", "SimSun", serif`;
   dctx.textAlign = 'center';
   dctx.textBaseline = 'middle';
   dctx.fillText(char, size / 2, size / 2 + size * 0.02);
 
-  const displacement = new (THREE as any).CanvasTexture(dispCanvas);
+  // 对位移图做轻微模糊 → 刻痕边缘形成斜面，更好地捕捉光影（阴刻更立体）
+  const blurred = document.createElement('canvas');
+  blurred.width = blurred.height = size;
+  const bctx = blurred.getContext('2d')!;
+  bctx.filter = 'blur(3px)';
+  bctx.drawImage(dispCanvas, 0, 0);
+
+  const displacement = new (THREE as any).CanvasTexture(blurred);
   displacement.colorSpace = (THREE as any).NoColorSpace;
 
   const bump = new (THREE as any).CanvasTexture(dispCanvas);
@@ -275,7 +282,7 @@ const createEngravedCharTexture = (
   cctx.fillRect(0, 0, size, size);
   // 字色
   cctx.fillStyle = charColor;
-  cctx.font = `bold ${Math.round(size * 0.66)}px "KaiTi", "STKaiti", "SimSun", serif`;
+  cctx.font = `bold ${Math.round(size * 0.68)}px "KaiTi", "STKaiti", "SimSun", serif`;
   cctx.textAlign = 'center';
   cctx.textBaseline = 'middle';
   cctx.fillText(char, size / 2, size / 2 + size * 0.02);
@@ -287,23 +294,31 @@ const createEngravedCharTexture = (
 };
 
 // ============ 鼓型棋子几何体 ============
-// 鼓型轮廓：底面平 → 底座缘 → 腰部微收 → 顶缘 → 顶面微凸
+// 传统中国象棋鼓形：扁平圆鼓，侧面微向外凸（外凸），平顶刻字
+// 轮廓：底面平 → 下缘倒角 → 腰部外凸（鼓肚）→ 上缘倒角 → 顶面平
 const createDrumProfile = (): THREE.Vector2[] => {
   const R = PIECE_RADIUS;
   const H = PIECE_HEIGHT;
-  const waist = R * 0.90; // 腰部略收
-  const rimH = H * 0.12;
-  const topDome = H * 0.04;
-  return [
+  const rimH = H * 0.18;       // 上下缘倒角高度
+  const belly = R * 1.025;     // 鼓肚半径（略大于缘，形成外凸）
+  const pts: THREE.Vector2[] = [
     new THREE.Vector2(0, 0),
     new THREE.Vector2(R, 0),
     new THREE.Vector2(R, rimH),
-    new THREE.Vector2(waist, H * 0.5),
-    new THREE.Vector2(R, H - rimH),
-    new THREE.Vector2(R, H),
-    new THREE.Vector2(R * 0.6, H + topDome * 0.6),
-    new THREE.Vector2(0, H + topDome),
   ];
+  // 腰部用抛物线外凸：中间最宽，两端收至 R
+  const segs = 5;
+  for (let i = 1; i < segs; i++) {
+    const t = i / segs;
+    const y = rimH + t * (H - rimH * 2);
+    const bulge = belly - R;
+    const r = R + 4 * bulge * t * (1 - t); // 抛物线，t=0.5 时最大外凸
+    pts.push(new THREE.Vector2(r, y));
+  }
+  pts.push(new THREE.Vector2(R, H - rimH));
+  pts.push(new THREE.Vector2(R, H));
+  pts.push(new THREE.Vector2(0, H)); // 平顶（无穹顶）
+  return pts;
 };
 
 // 棋子模板缓存
@@ -335,7 +350,7 @@ const createPieceMesh = (piece: string): THREE.Group => {
     envMapIntensity: 1.15,
   });
 
-  // 鼓型主体
+  // 鼓型主体（单层鼓状，无中间分隔环）
   const profile = createDrumProfile();
   const bodyGeo = new THREE.LatheGeometry(profile, 64);
   (bodyGeo as any).computeVertexNormals();
@@ -344,31 +359,18 @@ const createPieceMesh = (piece: string): THREE.Group => {
   body.receiveShadow = true;
   group.add(body);
 
-  // 上下缘装饰环（深色细线，勾勒轮廓）
+  // 顶面内圈凸环（参考图棋子顶面的"圈"造型）
   const rimMat = new T.MeshStandardMaterial({
     color: rimColor,
     roughness: 0.4,
     metalness: 0.1,
   });
-  const rimY = [PIECE_HEIGHT * 0.12, PIECE_HEIGHT * 0.88];
-  rimY.forEach((y) => {
-    const torus = new THREE.Mesh(
-      new THREE.TorusGeometry(PIECE_RADIUS, 0.014, 8, 48),
-      rimMat,
-    );
-    torus.position.y = y;
-    torus.rotation.x = Math.PI / 2;
-    torus.castShadow = true;
-    group.add(torus);
-  });
-
-  // 顶面内圈凸环（参考图棋子顶面的"圈"造型）
   const innerRing = new THREE.Mesh(
-    new THREE.TorusGeometry(PIECE_RADIUS * 0.62, 0.02, 8, 48),
+    new THREE.TorusGeometry(PIECE_RADIUS * 0.62, 0.018, 8, 48),
     rimMat,
   );
   innerRing.rotation.x = Math.PI / 2;
-  innerRing.position.y = PIECE_HEIGHT + PIECE_HEIGHT * 0.045;
+  innerRing.position.y = PIECE_HEIGHT + 0.008; // 置于平顶之上
   group.add(innerRing);
 
   // 顶面阴文雕刻汉字
@@ -379,22 +381,25 @@ const createPieceMesh = (piece: string): THREE.Group => {
     isRed ? '#9E2A16' : '#161616',
   );
   const topRadius = PIECE_RADIUS * 0.92;
-  // 高分段圆面，位移贴图产生雕刻凹陷
-  const topGeo = new (THREE as any).CircleGeometry(topRadius, 64);
+  // 高分段圆面，位移贴图产生雕刻凹陷（阴刻）
+  const topGeo = new (THREE as any).CircleGeometry(topRadius, 96);
   const topMat = new T.MeshStandardMaterial({
     map,
     displacementMap: displacement,
-    displacementScale: 0.09, // 字凹陷更深，更立体
+    displacementScale: 0.16, // 阴刻深度加大，字凹陷更明显
     bumpMap: bump,
-    bumpScale: 0.03,
+    bumpScale: 0.08,         // 增强雕刻边缘明暗
     roughness: 0.45,
     metalness: 0.0,
   });
   const topFace = new THREE.Mesh(topGeo, topMat);
   topFace.rotation.x = -Math.PI / 2; // 法线朝上
-  topFace.position.y = PIECE_HEIGHT + PIECE_HEIGHT * 0.04; // 置于微凸顶面
+  topFace.position.y = PIECE_HEIGHT; // 贴合平顶
   topFace.receiveShadow = true;
   group.add(topFace);
+
+  // 黑方棋子文字朝向黑方视角：从红方看黑方棋子文字倒置（传统象棋规范）
+  if (!isRed) group.rotation.y = Math.PI;
 
   pieceCache.set(cacheKey, group);
   return group;

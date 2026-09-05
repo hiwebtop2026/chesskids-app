@@ -58,8 +58,18 @@ function pseudoMoves(b: FlatBoard, idx: number): number[] {
   const c: 'r' | 'b' = isRed(p) ? 'r' : 'b';
   const type = p.toLowerCase();
   const out: number[] = [];
-  const add = (nx: number, ny: number) => { if (inBoard(nx, ny)) out.push(ny * COLS + nx); };
-  const addIf = (nx: number, ny: number, cond: () => boolean) => { if (inBoard(nx, ny) && cond()) out.push(ny * COLS + nx); };
+  const add = (nx: number, ny: number) => {
+    if (!inBoard(nx, ny)) return;
+    const q = b[ny * COLS + nx];
+    if (q && isRed(q) === isRed(p)) return; // 不能吃本方棋子
+    out.push(ny * COLS + nx);
+  };
+  const addIf = (nx: number, ny: number, cond: () => boolean) => {
+    if (!inBoard(nx, ny) || !cond()) return;
+    const q = b[ny * COLS + nx];
+    if (q && isRed(q) === isRed(p)) return; // 不能吃本方棋子
+    out.push(ny * COLS + nx);
+  };
 
   switch (type) {
     case TYPE.GENERAL:
