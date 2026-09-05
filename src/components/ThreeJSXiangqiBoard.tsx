@@ -619,11 +619,15 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
   const mouseRef = useRef<THREE.Vector2 | null>(null);
   const needsRenderRef = useRef(true);
   const onSquareClickRef = useRef(onSquareClick);
+  const readOnlyRef = useRef(readOnly);
   const hoveredRef = useRef<THREE.Object3D | null>(null);
   const clockRef = useRef(new (THREE as any).Clock());
 
-  // 始终保持 ref 最新
-  useEffect(() => { onSquareClickRef.current = onSquareClick; });
+  // 始终保持 ref 最新（避免初始化 effect 闭包捕获过期的 readOnly）
+  useEffect(() => {
+    onSquareClickRef.current = onSquareClick;
+    readOnlyRef.current = readOnly;
+  });
 
   // ---- 初始化场景 ----
   useEffect(() => {
@@ -825,7 +829,7 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
     };
 
     const onPointerClick = (e: MouseEvent) => {
-      if (readOnly) return;
+      if (readOnlyRef.current) return;
       setMouse(e);
       handleClick();
     };
