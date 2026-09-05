@@ -5,12 +5,14 @@
 
 import React, { useMemo, useState } from 'react';
 import { XiangqiBoard2D } from '../components/XiangqiBoard2D';
+import { ThreeJSXiangqiBoard } from '../components/ThreeJSXiangqiBoard';
 import {
   XIANGQI_INITIAL_BOARD,
   cloneXiangqiBoard,
   applyXiangqiMove,
   getAllXiangqiLegalMoves,
   getXiangqiGameStatus,
+  getXiangqiMoveNotation,
   findXiangqiKing,
   isXiangqiRed,
 } from '../engine/xiangqi';
@@ -23,6 +25,7 @@ import type {
   XiangqiGameStatus,
   XiangqiMoveHistoryEntry,
 } from '../types/xiangqi';
+import { supportsWebGL } from '../utils/webgl';
 
 const PLAYER_NAMES: Record<XiangqiColor, string> = {
   r: '红方',
@@ -47,6 +50,7 @@ export const XiangqiLocalGame: React.FC = () => {
   const [lastMove, setLastMove] = useState<{ from: XiangqiSquare; to: XiangqiSquare } | null>(null);
   const [moveHistory, setMoveHistory] = useState<XiangqiMoveHistoryEntry[]>([]);
   const [moves, setMoves] = useState<XiangqiMove[]>([]);
+  const [viewMode, setViewMode] = useState<'3d' | '2d'>(supportsWebGL() ? '3d' : '2d');
 
   const status = useMemo<XiangqiGameStatus>(
     () => getXiangqiGameStatus(board, turn),
@@ -107,7 +111,7 @@ export const XiangqiLocalGame: React.FC = () => {
 
     // 记录到历史
     const moveNum = moves.length + 1;
-    const notation = getMoveNotation(piece, from, to, captured);
+    const notation = getXiangqiMoveNotation(piece, from, to, captured);
     if (turn === 'r') {
       setMoveHistory((h) => [
         ...h,
@@ -122,44 +126,6 @@ export const XiangqiLocalGame: React.FC = () => {
         return h;
       });
     }
-  };
-
-  const getMoveNotation = (
-    piece: string,
-    from: XiangqiSquare,
-    to: XiangqiSquare,
-    captured: string,
-  ): string => {
-    const cols = '九八七六五四三二一'; // 红方用汉字
-    const colsBlack = '９８７６５４３２１'; // 黑方用阿拉伯数字
-    const isRed = isXiangqiRed(piece);
-    const colNames = isRed ? cols : colsBlack;
-    const pieceName = piece.toUpperCase();
-    const pieceMap: Record<string, string> = isRed
-      ? { K: '帅', A: '仕', B: '相', N: '马', R: '车', C: '炮', P: '兵' }
-      : { K: '将', A: '士', B: '象', N: '马', R: '车', C: '炮', P: '卒' };
-
-    const name = pieceMap[pieceName] || piece;
-    const fromCol = colNames[from[1]];
-    const toCol = colNames[to[1]];
-
-    // 简单记法：棋子名 + 起始列 + 平/进/退 + 目标列/步数
-    const rowDiff = to[0] - from[0];
-    const forward = isRed ? rowDiff < 0 : rowDiff > 0;
-    const absRowDiff = Math.abs(rowDiff);
-
-    let action = '平';
-    let target = toCol;
-    if (rowDiff !== 0 && from[1] === to[1]) {
-      action = forward ? '进' : '退';
-      target = isRed ? colsBlack[absRowDiff] : String(absRowDiff);
-    } else if (rowDiff !== 0) {
-      // 斜走（马、象、士）
-      action = forward ? '进' : '退';
-      target = toCol;
-    }
-
-    return `${name}${fromCol}${action}${target}${captured ? '(吃)' : ''}`;
   };
 
   const handleReset = () => {
@@ -194,8 +160,8 @@ export const XiangqiLocalGame: React.FC = () => {
       const black = newMoves[i + 1];
       history.push({
         moveNumber: i / 2 + 1,
-        red: red ? getMoveNotation(red.piece, red.from, red.to, red.captured || '') : '',
-        black: black ? getMoveNotation(black.piece, black.from, black.to, black.captured || '') : '',
+        red: red ? getXiangqiMoveNotation(red.piece, red.from, red.to, red.captured || '') : '',
+        black: black ? getXiangqiMoveNotation(black.piece, black.from, black.to, black.captured || '') : '',
       });
     }
     setMoveHistory(history);
@@ -217,6 +183,18 @@ export const XiangqiLocalGame: React.FC = () => {
               {STATUS_TEXT[status](turn)}
             </span>
             <div className="game-actions">
+              <button
+                className={`action-btn ${viewMode === '3d' ? 'primary' : ''}`}
+                onClick={() => setViewMode('3d')}
+              >
+                🎲 3D
+              </button>
+              <button
+                className={`action-btn ${viewMode === '2d' ? 'primary' : ''}`}
+                onClick={() => setViewMode('2d')}
+              >
+                ▦ 2D
+              </button>
               <button className="action-btn" onClick={handleUndo} disabled={moves.length === 0}>
                 ↩ 悔棋
               </button>
@@ -226,15 +204,29 @@ export const XiangqiLocalGame: React.FC = () => {
             </div>
           </div>
 
-          <XiangqiBoard2D
-            board={board}
-            selectedSquare={selection}
-            legalTargets={legalTargets}
-            lastMove={lastMove}
-            checkSquare={checkSquare}
-            hint={null}
-            onSquareClick={handleSquareClick}
-          />
+          <div className={`xiangqi-board-host view-${viewMode}`}>
+            {viewMode === '3d' ? (
+              <ThreeJSXiangqiBoard
+                board={board}
+                selectedSquare={selection}
+                legalTargets={legalTargets}
+                lastMove={lastMove}
+                checkSquare={checkSquare}
+                hint={null}
+                onSquareClick={handleSquareClick}
+              />
+            ) : (
+              <XiangqiBoard2D
+                board={board}
+                selectedSquare={selection}
+                legalTargets={legalTargets}
+                lastMove={lastMove}
+                checkSquare={checkSquare}
+                hint={null}
+                onSquareClick={handleSquareClick}
+              />
+            )}
+          </div>
         </div>
 
         <div className="game-side-panel">

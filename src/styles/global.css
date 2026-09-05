@@ -3360,6 +3360,7 @@ ul {
 }
 
 .xiangqi-board {
+  /* 棋盘几何：网格区边距 M=6%，网格区 88%×88%（与 XiangqiBoard2D 的 viewBox 同源） */
   position: relative;
   width: 100%;
   height: 100%;
@@ -3367,25 +3368,25 @@ ul {
   border: 3px solid #5D4037;
   border-radius: 8px;
   box-shadow: var(--shadow-lg);
-  padding: 5%;
   box-sizing: border-box;
 }
 
 .xiangqi-board-lines {
   position: absolute;
-  top: 5%;
-  left: 5%;
-  width: 90%;
-  height: 90%;
+  top: 6%;
+  left: 6%;
+  width: 88%;
+  height: 88%;
   pointer-events: none;
 }
 
 .xiangqi-river {
+  /* 河界 = 第4、5条横线之间：top = 6% + 88%×4/9，height = 一格 = 88%/9 */
   position: absolute;
-  top: 45%;
-  left: 5%;
-  width: 90%;
-  height: 10%;
+  top: calc(6% + 88% * 4 / 9);
+  left: 6%;
+  width: 88%;
+  height: calc(88% / 9);
   display: flex;
   align-items: center;
   justify-content: space-around;
@@ -3402,11 +3403,12 @@ ul {
 }
 
 .xiangqi-pieces-layer {
+  /* 与棋盘线 SVG 同区域、同基准，保证棋子中心精确落在交叉点上 */
   position: absolute;
-  top: 5%;
-  left: 5%;
-  width: 90%;
-  height: 90%;
+  top: 6%;
+  left: 6%;
+  width: 88%;
+  height: 88%;
   z-index: 2;
 }
 
@@ -3498,6 +3500,36 @@ ul {
 
 .point-hint .xiangqi-piece {
   box-shadow: 0 0 0 3px rgba(156, 39, 176, 0.7);
+}
+
+/* ===== 中国象棋 3D 棋盘 ===== */
+
+.xiangqi-board-host {
+  width: 100%;
+  max-width: 540px;
+  margin: 0 auto;
+  aspect-ratio: 9 / 10;
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+}
+
+.xiangqi-board-host.view-2d {
+  max-width: 540px;
+}
+
+.threejs-xiangqi-board {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+}
+
+.rule-view-switch {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
 }
 
 /* ===== 中国象棋本地对战 ===== */
@@ -3799,4 +3831,42 @@ ul {
   .overview-cards {
     grid-template-columns: 1fr;
   }
+}
+
+/* ===== 中国象棋人机对战 ===== */
+.xiangqi-game .difficulty-select {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  font-size: 0.85rem;
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 600;
+}
+.xiangqi-game .thinking-bar {
+  margin-top: var(--space-sm);
+  padding: var(--space-sm);
+  text-align: center;
+  background: rgba(255, 152, 0, 0.12);
+  border-radius: var(--radius-sm);
+  color: var(--accent-dark);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.xiangqi-game .side-badge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-sm) var(--space-md);
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.xiangqi-game .side-badge .action-btn {
+  padding: var(--space-xs) var(--space-sm);
+  font-size: 0.8rem;
 }

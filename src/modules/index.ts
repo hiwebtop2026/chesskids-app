@@ -13,3 +13,4 @@ export { OnlineGame } from './OnlineGame';
 // 中国象棋模块
 export { XiangqiRulesLearning } from './XiangqiRulesLearning';
 export { XiangqiLocalGame } from './XiangqiLocalGame';
+export { XiangqiAIGame } from './XiangqiAIGame';

@@ -427,3 +427,42 @@ export function isXiangqiMoveLegal(
          m.to[0] === to[0] && m.to[1] === to[1],
   );
 }
+
+/** 中文记谱
+ * 路名从各自右手边数起：红方在下（col 8 = 一路），黑方在上（col 0 = 1 路）
+ * 红方用汉字数字、黑方用全角数字（符合传统记谱习惯）
+ */
+export function getXiangqiMoveNotation(
+  piece: string,
+  from: XiangqiSquare,
+  to: XiangqiSquare,
+  captured?: string,
+): string {
+  const isRed = isXiangqiRed(piece);
+  const colsRed = '九八七六五四三二一';   // 红方路名
+  const colsBlack = '１２３４５６７８９'; // 黑方路名
+  const numsRed = '一二三四五六七八九';   // 红方进退步数
+  const numsBlack = '１２３４５６７８９'; // 黑方进退步数
+  const colNames = isRed ? colsRed : colsBlack;
+  const stepNames = isRed ? numsRed : numsBlack;
+  const pieceMap: Record<string, string> = isRed
+    ? { K: '帅', A: '仕', B: '相', N: '马', R: '车', C: '炮', P: '兵' }
+    : { K: '将', A: '士', B: '象', N: '马', R: '车', C: '炮', P: '卒' };
+  const name = pieceMap[piece.toUpperCase()] || piece;
+  const fromCol = colNames[from[1]];
+  const toCol = colNames[to[1]];
+  const rowDiff = to[0] - from[0];
+  const forward = isRed ? rowDiff < 0 : rowDiff > 0;
+  let action = '平';
+  let target = toCol;
+  if (rowDiff !== 0 && from[1] === to[1]) {
+    // 直走（车、炮、兵、帅）：步数
+    action = forward ? '进' : '退';
+    target = stepNames[Math.abs(rowDiff) - 1];
+  } else if (rowDiff !== 0) {
+    // 斜走（马、相、士）：落点列
+    action = forward ? '进' : '退';
+    target = toCol;
+  }
+  return `${name}${fromCol}${action}${target}${captured ? '(吃)' : ''}`;
+}
