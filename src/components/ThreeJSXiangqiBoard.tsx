@@ -29,17 +29,27 @@ const BOARD_W = GRID_W + BOARD_MARGIN * 2;
 const BOARD_D = GRID_D + BOARD_MARGIN * 2;
 const BOARD_HEIGHT = 0.22;        // 棋盘厚度
 
-// 棋子尺寸（鼓型）：直径 = 格距的 80%，高度 = 半径的 0.7（扁平圆鼓）
-const PIECE_RADIUS = CELL * 0.4;   // 0.4
-const PIECE_HEIGHT = PIECE_RADIUS * 0.7; // 0.28 扁平鼓形
+// 棋子尺寸（传统鼓型）：直径 = 格距的 80%，高度约为直径的 40%（厚实圆木棋）
+const PIECE_RADIUS = CELL * 0.4;    // 0.4
+const PIECE_HEIGHT = PIECE_RADIUS * 0.8; // 0.32 鼓形实木比例
 
-// 颜色（参考 3D 渲染图：黑方黑底红字 / 红方枣红金字）
-const RED_BODY = 0xC23A24;        // 红方：枣红
-const RED_CHAR = '#FFE9B0';       // 红方字：米金
-const RED_RIM = 0x7A1B0E;         // 红方：深红环
-const BLACK_BODY = 0x262626;      // 黑方：曜石黑（参考图）
-const BLACK_CHAR = '#E2321C';     // 黑方字：朱红（参考图）
-const BLACK_RIM = 0x0A0A0A;       // 黑方：黑环
+// 颜色（红黑双方棋身区分：红方朱红漆木 / 黑方墨黑漆木，白字阴刻高对比）
+const SIDE_COLORS = {
+  r: {
+    body: 0xB5402A,        // 棋身：朱红漆木
+    faceLight: '#D96A4F',  // 顶面中心：亮朱红
+    faceDark: '#8E2B18',   // 顶面边缘：深枣红
+    char: '#FFFFFF',       // 阴刻字：纯白（高对比）
+    groove: 'rgba(60,12,5,0.6)', // 刻槽阴影
+  },
+  b: {
+    body: 0x2B2723,        // 棋身：墨黑漆木
+    faceLight: '#4A443C',  // 顶面中心：深褐亮面
+    faceDark: '#1B1815',   // 顶面边缘：近黑
+    char: '#FFFFFF',       // 阴刻字：纯白（高对比）
+    groove: 'rgba(0,0,0,0.65)', // 刻槽阴影
+  },
+} as const;
 const LINE_COLOR = '#3E2410';     // 棋盘线格颜色
 
 // ============ 辅助：交叉点 → 世界坐标 ============
@@ -236,88 +246,118 @@ const createBoardTopTexture = (): any => {
   return tex;
 };
 
-// ============ 阴文雕刻汉字纹理 ============
+// ============ 阴文雕刻纹理（汉字 + 顶面环槽）============
 const createEngravedCharTexture = (
   char: string,
   charColor: string,
   bgTop: string,
   bgBottom: string,
+  grooveColor: string,
 ): { displacement: any; bump: any; map: any } => {
-  const size = 1024; // 提高分辨率，刻痕更清晰
+  const size = 1024;
+  const cx = size / 2;
+  const cy = size / 2;
+  const ringR = size * 0.39;   // 阴刻圆环半径（UV 空间 0.78）
+  const ringW = size * 0.014;  // 环槽宽度
+  const fontSize = Math.round(size * 0.62);
+  const font = `bold ${fontSize}px "KaiTi", "STKaiti", "SimSun", serif`;
 
-  // displacement / bump：白底黑字 → 字处低值，位移向下（凹陷）
+  // ---- displacement / bump：白底，黑字 + 黑环 = 凹陷处 ----
   const dispCanvas = document.createElement('canvas');
   dispCanvas.width = dispCanvas.height = size;
   const dctx = dispCanvas.getContext('2d')!;
   dctx.fillStyle = '#ffffff';
   dctx.fillRect(0, 0, size, size);
   dctx.fillStyle = '#000000';
-  dctx.font = `bold ${Math.round(size * 0.68)}px "KaiTi", "STKaiti", "SimSun", serif`;
+  // 阴刻圆环槽
+  dctx.lineWidth = ringW;
+  dctx.beginPath();
+  dctx.arc(cx, cy, ringR, 0, Math.PI * 2);
+  dctx.stroke();
+  // 阴刻汉字
+  dctx.font = font;
   dctx.textAlign = 'center';
   dctx.textBaseline = 'middle';
-  dctx.fillText(char, size / 2, size / 2 + size * 0.02);
+  dctx.fillText(char, cx, cy + size * 0.02);
 
-  // 对位移图做轻微模糊 → 刻痕边缘形成斜面，更好地捕捉光影（阴刻更立体）
+  // 轻微模糊 → 刻痕边缘形成斜面，更真实地捕捉光影
   const blurred = document.createElement('canvas');
   blurred.width = blurred.height = size;
   const bctx = blurred.getContext('2d')!;
-  bctx.filter = 'blur(3px)';
+  bctx.filter = 'blur(2.5px)';
   bctx.drawImage(dispCanvas, 0, 0);
 
   const displacement = new (THREE as any).CanvasTexture(blurred);
   displacement.colorSpace = (THREE as any).NoColorSpace;
+  displacement.anisotropy = 8;
 
   const bump = new (THREE as any).CanvasTexture(dispCanvas);
   bump.colorSpace = (THREE as any).NoColorSpace;
+  bump.anisotropy = 8;
 
-  // color map：浅木底 + 红/黑字
+  // ---- color map：木色底面 + 凹槽阴影 + 红/黑字 ----
   const colorCanvas = document.createElement('canvas');
   colorCanvas.width = colorCanvas.height = size;
   const cctx = colorCanvas.getContext('2d')!;
-  // 浅木底
-  const bgGrad = cctx.createRadialGradient(size / 2, size / 2, size * 0.1, size / 2, size / 2, size * 0.6);
+  const bgGrad = cctx.createRadialGradient(cx, cy, size * 0.08, cx, cy, size * 0.55);
   bgGrad.addColorStop(0, bgTop);
   bgGrad.addColorStop(1, bgBottom);
   cctx.fillStyle = bgGrad;
   cctx.fillRect(0, 0, size, size);
-  // 字色
+  // 环槽阴影色（模拟刻槽里的暗部）
+  cctx.strokeStyle = grooveColor;
+  cctx.lineWidth = ringW * 1.4;
+  cctx.beginPath();
+  cctx.arc(cx, cy, ringR, 0, Math.PI * 2);
+  cctx.stroke();
+  // 汉字
   cctx.fillStyle = charColor;
-  cctx.font = `bold ${Math.round(size * 0.68)}px "KaiTi", "STKaiti", "SimSun", serif`;
+  cctx.font = font;
   cctx.textAlign = 'center';
   cctx.textBaseline = 'middle';
-  cctx.fillText(char, size / 2, size / 2 + size * 0.02);
+  cctx.fillText(char, cx, cy + size * 0.02);
 
   const map = new (THREE as any).CanvasTexture(colorCanvas);
   map.colorSpace = THREE.SRGBColorSpace;
+  map.anisotropy = 8;
 
   return { displacement, bump, map };
 };
 
 // ============ 鼓型棋子几何体 ============
-// 传统中国象棋鼓形：扁平圆鼓，侧面微向外凸（外凸），平顶刻字
-// 轮廓：底面平 → 下缘倒角 → 腰部外凸（鼓肚）→ 上缘倒角 → 顶面平
+// 参考传统实木象棋：底/顶面平，缘部大圆角过渡，侧面外凸成鼓肚
 const createDrumProfile = (): THREE.Vector2[] => {
   const R = PIECE_RADIUS;
   const H = PIECE_HEIGHT;
-  const rimH = H * 0.18;       // 上下缘倒角高度
-  const belly = R * 1.025;     // 鼓肚半径（略大于缘，形成外凸）
+  const f = R * 0.18;       // 缘部圆角半径（顶面平坦区半径 = R-f）
+  const bulge = R * 0.05;   // 鼓肚外凸量
   const pts: THREE.Vector2[] = [
     new THREE.Vector2(0, 0),
-    new THREE.Vector2(R, 0),
-    new THREE.Vector2(R, rimH),
+    new THREE.Vector2(R - f, 0),
   ];
-  // 腰部用抛物线外凸：中间最宽，两端收至 R
-  const segs = 5;
-  for (let i = 1; i < segs; i++) {
-    const t = i / segs;
-    const y = rimH + t * (H - rimH * 2);
-    const bulge = belly - R;
-    const r = R + 4 * bulge * t * (1 - t); // 抛物线，t=0.5 时最大外凸
-    pts.push(new THREE.Vector2(r, y));
+  // 底缘圆角：四分之一圆弧，从底平面过渡到鼓身
+  const arc = (cx: number, cy: number, r: number, a0: number, a1: number, n: number) => {
+    for (let i = 1; i <= n; i++) {
+      const a = a0 + (a1 - a0) * (i / n);
+      pts.push(new THREE.Vector2(cx + r * Math.cos(a), cy + r * Math.sin(a)));
+    }
+  };
+  arc(R - f, f, f, -Math.PI / 2, 0, 6);
+  // 鼓肚：二次贝塞尔外凸，腰部最宽
+  const p0 = new THREE.Vector2(R, f);
+  const pc = new THREE.Vector2(R + bulge, H / 2);
+  const p1 = new THREE.Vector2(R, H - f);
+  for (let i = 1; i < 10; i++) {
+    const t = i / 10;
+    const mt = 1 - t;
+    pts.push(new THREE.Vector2(
+      mt * mt * p0.x + 2 * mt * t * pc.x + t * t * p1.x,
+      mt * mt * p0.y + 2 * mt * t * pc.y + t * t * p1.y,
+    ));
   }
-  pts.push(new THREE.Vector2(R, H - rimH));
-  pts.push(new THREE.Vector2(R, H));
-  pts.push(new THREE.Vector2(0, H)); // 平顶（无穹顶）
+  // 顶缘圆角：从鼓身过渡到顶平面（轮廓止于外缘，顶面由阴刻面片覆盖，
+  // 避免实体顶盖遮挡凹陷字槽）
+  arc(R - f, H - f, f, 0, Math.PI / 2, 6);
   return pts;
 };
 
@@ -331,70 +371,56 @@ const createPieceMesh = (piece: string): THREE.Group => {
 
   const group = new THREE.Group();
   const isRed = isXiangqiRed(piece);
-  const charColor = isRed ? RED_CHAR : BLACK_CHAR;   // 红方米金字 / 黑方朱红字（参考图）
-  const bodyColor = isRed ? RED_BODY : BLACK_BODY;
-  const rimColor = isRed ? RED_RIM : BLACK_RIM;
+  const pal = SIDE_COLORS[isRed ? 'r' : 'b'];   // 双方配色
   const char = XIANGQI_PIECE_CHARS[piece] || piece;
 
   const T = THREE as any;
 
-  // 主体高光材质（亮漆质感）
+  // 漆木鼓身（红方朱红 / 黑方墨黑），微清漆质感
   const bodyMat = new T.MeshPhysicalMaterial({
-    color: bodyColor,
-    roughness: 0.30,
-    metalness: 0.06,
-    clearcoat: 1.0,
-    clearcoatRoughness: 0.16,
-    sheen: 0.5,
-    sheenColor: new THREE.Color(isRed ? 0xffa070 : 0x884444),
-    envMapIntensity: 1.15,
+    color: pal.body,
+    roughness: 0.38,
+    metalness: 0.0,
+    clearcoat: 0.6,
+    clearcoatRoughness: 0.3,
   });
 
-  // 鼓型主体（单层鼓状，无中间分隔环）
+  // 鼓型主体（单层实木鼓状）
   const profile = createDrumProfile();
-  const bodyGeo = new THREE.LatheGeometry(profile, 64);
+  const bodyGeo = new THREE.LatheGeometry(profile, 96);
   (bodyGeo as any).computeVertexNormals();
   const body = new THREE.Mesh(bodyGeo, bodyMat);
   body.castShadow = true;
   body.receiveShadow = true;
   group.add(body);
 
-  // 顶面内圈凸环（参考图棋子顶面的"圈"造型）
-  const rimMat = new T.MeshStandardMaterial({
-    color: rimColor,
-    roughness: 0.4,
-    metalness: 0.1,
-  });
-  const innerRing = new THREE.Mesh(
-    new THREE.TorusGeometry(PIECE_RADIUS * 0.62, 0.018, 8, 48),
-    rimMat,
-  );
-  innerRing.rotation.x = Math.PI / 2;
-  innerRing.position.y = PIECE_HEIGHT + 0.008; // 置于平顶之上
-  group.add(innerRing);
-
-  // 顶面阴文雕刻汉字
+  // 顶面阴刻（汉字 + 环槽）：RingGeometry 带径向细分，位移贴图才能真正凹陷成形
   const { displacement, bump, map } = createEngravedCharTexture(
     char,
-    charColor,
-    isRed ? '#E8A26F' : '#4C4C4C',
-    isRed ? '#9E2A16' : '#161616',
+    pal.char,
+    pal.faceLight,
+    pal.faceDark,
+    pal.groove,
   );
-  const topRadius = PIECE_RADIUS * 0.92;
-  // 高分段圆面，位移贴图产生雕刻凹陷（阴刻）
-  const topGeo = new (THREE as any).CircleGeometry(topRadius, 96);
-  const topMat = new T.MeshStandardMaterial({
+  const topRadius = PIECE_RADIUS * 0.83; // 覆盖平顶并微叠鼓身缘口
+  const topGeo = new T.RingGeometry(0.001, topRadius, 128, 48);
+  const dispScale = PIECE_HEIGHT * 0.22; // 刻槽深度 ≈ 棋子高度的 22%（白字受光更亮）
+  const topMat = new T.MeshPhysicalMaterial({
     map,
     displacementMap: displacement,
-    displacementScale: 0.16, // 阴刻深度加大，字凹陷更明显
+    displacementScale: dispScale,
+    displacementBias: -dispScale, // 白底（棋面）贴平 y=H，黑字/黑环向下凹陷
     bumpMap: bump,
-    bumpScale: 0.08,         // 增强雕刻边缘明暗
-    roughness: 0.45,
+    bumpScale: 0.04,
+    roughness: 0.38,
     metalness: 0.0,
+    clearcoat: 0.6,
+    clearcoatRoughness: 0.3,
+    side: T.DoubleSide, // 凹槽内壁也要渲染
   });
   const topFace = new THREE.Mesh(topGeo, topMat);
   topFace.rotation.x = -Math.PI / 2; // 法线朝上
-  topFace.position.y = PIECE_HEIGHT; // 贴合平顶
+  topFace.position.y = PIECE_HEIGHT + 0.001; // 贴合平顶
   topFace.receiveShadow = true;
   group.add(topFace);
 
