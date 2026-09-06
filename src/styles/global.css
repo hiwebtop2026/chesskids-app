@@ -3618,6 +3618,49 @@ ul {
   transform: rotate(180deg);
 }
 
+/* ===== 棋盘缩放控制 ===== */
+
+.xiangqi-board-wrapper {
+  overflow: hidden;
+}
+
+.xiangqi-zoom-controls {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 10;
+}
+
+.zoom-btn {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(93, 64, 55, 0.85);
+  color: #FFF8DC;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  transition: transform 0.15s ease, background 0.15s ease;
+  line-height: 1;
+}
+
+.zoom-btn:hover {
+  background: rgba(93, 64, 55, 1);
+  transform: scale(1.08);
+}
+
+.zoom-btn:active {
+  transform: scale(0.92);
+}
+
 .legal-move-dot {
   width: 30%;
   height: 30%;

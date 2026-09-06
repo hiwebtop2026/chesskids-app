@@ -56,6 +56,7 @@ export const XiangqiAIGame: React.FC = () => {
   const [viewMode, setViewMode] = useState<'3d' | '2d'>(supportsWebGL() ? '3d' : '2d');
   const [thinking, setThinking] = useState(false);
   const [hint, setHint] = useState<XiangqiSquare[] | null>(null);
+  const [boardFlipped, setBoardFlipped] = useState(false);
   const aiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // refs 同步最新状态，供 AI 定时器读取
@@ -249,6 +250,7 @@ export const XiangqiAIGame: React.FC = () => {
               </select>
               <button className={`action-btn ${viewMode === '3d' ? 'primary' : ''}`} onClick={() => setViewMode('3d')}>🎲 3D</button>
               <button className={`action-btn ${viewMode === '2d' ? 'primary' : ''}`} onClick={() => setViewMode('2d')}>▦ 2D</button>
+              <button className="action-btn" onClick={() => setBoardFlipped(f => !f)} disabled={viewMode === '3d'} title="翻转棋盘视角">⇅ 翻转</button>
               <button className="action-btn" onClick={handleUndo} disabled={moves.length === 0 || thinking}>↩ 悔棋</button>
               <button className="action-btn" onClick={handleHint} disabled={thinking || gameOver}>💡 提示</button>
               <button className="action-btn primary" onClick={newGameDialog}>🔄 新对局</button>
@@ -274,6 +276,8 @@ export const XiangqiAIGame: React.FC = () => {
                 checkSquare={checkSquare}
                 hint={hint}
                 onSquareClick={handleSquareClick}
+                flipped={boardFlipped}
+                zoomable={true}
               />
             )}
           </div>

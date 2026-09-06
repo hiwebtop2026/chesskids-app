@@ -7,9 +7,11 @@
  *   SVG viewBox 为 "0 0 8 9"，交叉点 (col,row) 的 SVG 坐标就是 (col,row)
  *   棋子 CSS 百分比定位：left = col/8*100%，top = row/9*100%
  *   九宫斜线、炮位/兵位标记全部由交叉点公式生成，禁止硬编码像素
+ *
+ * 交互：滚轮缩放、鼠标/触摸拖动、翻转视角
  */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useState, useCallback } from 'react';
 import type {
   XiangqiBoard,
   XiangqiSquare,
@@ -28,6 +30,8 @@ interface XiangqiBoard2DProps {
   readOnly?: boolean;
   /** 黑方视角：棋盘整体旋转 180°，黑方棋子在下方 */
   flipped?: boolean;
+  /** 是否启用缩放和拖动 */
+  zoomable?: boolean;
 }
 
 // ===== 棋盘几何常量（唯一数据源）=====
@@ -49,6 +53,9 @@ const MARKER_LEN = 0.16;  // 标记线段长度
 
 const LINE_COLOR = '#5D4037';
 
+const MIN_SCALE = 0.6;
+const MAX_SCALE = 2.5;
+
 export const XiangqiBoard2D: React.FC<XiangqiBoard2DProps> = ({
   board,
   selectedSquare,
@@ -59,7 +66,20 @@ export const XiangqiBoard2D: React.FC<XiangqiBoard2DProps> = ({
   onSquareClick,
   readOnly = false,
   flipped = false,
+  zoomable = true,
 }) => {
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const dragRef = useRef<{
+    active: boolean;
+    startX: number;
+    startY: number;
+    startOffsetX: number;
+    startOffsetY: number;
+    moved: boolean;
+  }>({ active: false, startX: 0, startY: 0, startOffsetX: 0, startOffsetY: 0, moved: false });
+
   const isSelected = (r: number, c: number) =>
     selectedSquare && selectedSquare[0] === r && selectedSquare[1] === c;
 
@@ -82,6 +102,90 @@ export const XiangqiBoard2D: React.FC<XiangqiBoard2DProps> = ({
     left: `${(c / (COLS - 1)) * 100}%`,
     top: `${(r / (ROWS - 1)) * 100}%`,
   });
+
+  // 重置视图
+  const resetView = useCallback(() => {
+    setScale(1);
+    setOffset({ x: 0, y: 0 });
+  }, []);
+
+  // 滚轮缩放
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    if (!zoomable) return;
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+    setScale((s) => {
+      const ns = Math.min(MAX_SCALE, Math.max(MIN_SCALE, s + delta));
+      return ns;
+    });
+  }, [zoomable]);
+
+  // 拖动开始
+  const handleDragStart = useCallback((clientX: number, clientY: number) => {
+    if (!zoomable) return;
+    dragRef.current = {
+      active: true,
+      startX: clientX,
+      startY: clientY,
+      startOffsetX: offset.x,
+      startOffsetY: offset.y,
+      moved: false,
+    };
+  }, [zoomable, offset.x, offset.y]);
+
+  // 拖动中
+  const handleDragMove = useCallback((clientX: number, clientY: number) => {
+    if (!dragRef.current.active) return;
+    const dx = clientX - dragRef.current.startX;
+    const dy = clientY - dragRef.current.startY;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+      dragRef.current.moved = true;
+    }
+    setOffset({
+      x: dragRef.current.startOffsetX + dx,
+      y: dragRef.current.startOffsetY + dy,
+    });
+  }, []);
+
+  // 拖动结束
+  const handleDragEnd = useCallback(() => {
+    dragRef.current.active = false;
+  }, []);
+
+  // 鼠标事件
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (e.button === 0) handleDragStart(e.clientX, e.clientY);
+  };
+  const handleMouseMove = (e: React.MouseEvent) => {
+    handleDragMove(e.clientX, e.clientY);
+  };
+  const handleMouseUp = () => {
+    handleDragEnd();
+  };
+  const handleMouseLeave = () => {
+    handleDragEnd();
+  };
+
+  // 触摸事件
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      handleDragStart(e.touches[0].clientX, e.touches[0].clientY);
+    }
+  };
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      handleDragMove(e.touches[0].clientX, e.touches[0].clientY);
+    }
+  };
+  const handleTouchEnd = () => {
+    handleDragEnd();
+  };
+
+  // 点击棋子：如果拖动过就不触发点击
+  const handlePointClick = (r: number, c: number) => {
+    if (dragRef.current.moved) return;
+    if (!readOnly) onSquareClick(r, c);
+  };
 
   // 生成棋盘线的 SVG（坐标单位 = 格，viewBox 0 0 8 9）
   const boardLines = useMemo(() => {
@@ -192,9 +296,31 @@ export const XiangqiBoard2D: React.FC<XiangqiBoard2DProps> = ({
     return [...lines, ...markers];
   }, []);
 
+  // 缩放变换样式
+  const boardTransformStyle = zoomable
+    ? {
+        transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
+        cursor: dragRef.current.active ? 'grabbing' : 'grab',
+      }
+    : {};
+
   return (
-    <div className="xiangqi-board-wrapper">
-      <div className={`xiangqi-board ${flipped ? 'xiangqi-board-flipped' : ''}`}>
+    <div
+      className="xiangqi-board-wrapper"
+      ref={wrapperRef}
+      onWheel={handleWheel}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseLeave}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      <div
+        className={`xiangqi-board ${flipped ? 'xiangqi-board-flipped' : ''}`}
+        style={boardTransformStyle}
+      >
         {/* 棋盘线 SVG：viewBox 与网格同为 8 格宽 × 9 格高，拉伸填满网格区 */}
         <svg
           className="xiangqi-board-lines"
@@ -231,7 +357,7 @@ export const XiangqiBoard2D: React.FC<XiangqiBoard2DProps> = ({
                     last ? 'point-lastmove' : ''
                   } ${check ? 'point-check' : ''} ${hintSquare ? 'point-hint' : ''}`}
                   style={pos}
-                  onClick={() => !readOnly && onSquareClick(r, c)}
+                  onClick={() => handlePointClick(r, c)}
                   role="button"
                   aria-label={piece ? `棋子 ${char}` : `空位 ${r},${c}`}
                 >
@@ -259,6 +385,33 @@ export const XiangqiBoard2D: React.FC<XiangqiBoard2DProps> = ({
           )}
         </div>
       </div>
+
+      {/* 缩放控制按钮 */}
+      {zoomable && (
+        <div className="xiangqi-zoom-controls">
+          <button
+            className="zoom-btn"
+            onClick={(e) => { e.stopPropagation(); setScale((s) => Math.min(MAX_SCALE, s + 0.2)); }}
+            title="放大"
+          >
+            +
+          </button>
+          <button
+            className="zoom-btn"
+            onClick={(e) => { e.stopPropagation(); resetView(); }}
+            title="重置视图"
+          >
+            ⟳
+          </button>
+          <button
+            className="zoom-btn"
+            onClick={(e) => { e.stopPropagation(); setScale((s) => Math.max(MIN_SCALE, s - 0.2)); }}
+            title="缩小"
+          >
+            −
+          </button>
+        </div>
+      )}
     </div>
   );
 };
