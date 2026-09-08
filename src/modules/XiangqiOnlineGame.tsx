@@ -78,7 +78,7 @@ function encodeWAVBase64(chunks: Float32Array[], sampleRate: number): string {
   return 'data:audio/wav;base64,' + btoa(binary);
 }
 
-export const XiangqiOnlineGame: React.FC = () => {
+export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ autoJoinRoom }) => {
   const {
     connectionStatus,
     inGame,
@@ -142,14 +142,13 @@ export const XiangqiOnlineGame: React.FC = () => {
   const audioPlayRef = useRef<HTMLAudioElement | null>(null);
   const [playingId, setPlayingId] = useState<number | null>(null);
 
-  /** 页面加载时检查 URL 是否有房间号参数 */
+  /** 自动加入房间（通过分享链接） */
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const room = params.get('room');
-    if (room && room.length === 6) {
-      setJoinInput(room.toUpperCase());
+    if (autoJoinRoom && autoJoinRoom.length === 6 && !inGame && connectionStatus === 'disconnected') {
+      setJoinInput(autoJoinRoom);
+      joinRoom(autoJoinRoom);
     }
-  }, []);
+  }, [autoJoinRoom, inGame, connectionStatus, joinRoom]);
 
   /** 聊天列表自动滚动到底部 */
   useEffect(() => {
@@ -201,7 +200,7 @@ export const XiangqiOnlineGame: React.FC = () => {
 
   /** 生成分享链接 */
   const shareLink = roomCode
-    ? `${window.location.origin}${window.location.pathname}?room=${roomCode}`
+    ? `${window.location.origin}${window.location.pathname}?room=${roomCode}&game=xiangqi`
     : '';
 
   /** 复制分享链接 */

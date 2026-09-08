@@ -44,14 +44,43 @@ const XIANGQI_TABS: { key: XiangqiTabKey; label: string; icon: string }[] = [
   { key: 'progress', label: '我的进度', icon: '🏆' },
 ];
 
+// 启动时解析 URL 参数，支持通过分享链接自动进入房间
+function parseUrlParams(): { game: GameType; tab: TabKey; room: string } | null {
+  const params = new URLSearchParams(window.location.search);
+  const room = params.get('room');
+  const game = params.get('game');
+  if (!room) return null;
+  if (game === 'xiangqi') {
+    return { game: 'xiangqi', tab: 'xq-online', room };
+  }
+  // 默认国际象棋
+  return { game: 'chess', tab: 'online', room };
+}
+
 const App: React.FC = () => {
   // null = 尚未选择棋类（显示首页选择界面）
   const [gameType, setGameType] = useState<GameType | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>('learn');
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [autoRoom, setAutoRoom] = useState<string | null>(null);
   const { progress } = useProgressStore();
 
   const tabs = gameType === 'chess' ? CHESS_TABS : XIANGQI_TABS;
+
+  /** 启动时检测 URL 参数，自动进入对应联机房间 */
+  useEffect(() => {
+    const parsed = parseUrlParams();
+    if (parsed) {
+      setGameType(parsed.game);
+      setActiveTab(parsed.tab);
+      setAutoRoom(parsed.room);
+      // 清除 URL 参数，避免刷新时重复触发
+      const url = new URL(window.location.href);
+      url.searchParams.delete('room');
+      url.searchParams.delete('game');
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, []);
 
   /** 首页选择棋类，进入对应模块 */
   const selectGame = (type: GameType) => {
@@ -108,7 +137,7 @@ const App: React.FC = () => {
       case 'local':
         return <LocalGame />;
       case 'online':
-        return <OnlineGame />;
+        return <OnlineGame autoJoinRoom={autoRoom} />;
       case 'progress':
         return <ProgressSystem />;
       case 'xq-rules':
@@ -118,7 +147,7 @@ const App: React.FC = () => {
       case 'xq-local':
         return <XiangqiLocalGame />;
       case 'xq-online':
-        return <XiangqiOnlineGame />;
+        return <XiangqiOnlineGame autoJoinRoom={autoRoom} />;
       default:
         return null;
     }
