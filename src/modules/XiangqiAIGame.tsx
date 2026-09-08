@@ -54,6 +54,45 @@ export const XiangqiAIGame: React.FC = () => {
   const [moveHistory, setMoveHistory] = useState<XiangqiMoveHistoryEntry[]>([]);
   const [moves, setMoves] = useState<XiangqiMove[]>([]);
   const [viewMode, setViewMode] = useState<'3d' | '2d'>(supportsWebGL() ? '3d' : '2d');
+  const [isFloating, setIsFloating] = useState(false);
+  const floatRef = useRef<HTMLDivElement>(null);
+
+  /** 切换浮动全屏模式 */
+  const toggleFloat = () => {
+    if (!isFloating) {
+      setIsFloating(true);
+      if (floatRef.current?.requestFullscreen) {
+        floatRef.current.requestFullscreen().catch(() => {});
+      }
+    } else {
+      setIsFloating(false);
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      }
+    }
+  };
+
+  /** ESC 键退出浮动模式 */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFloating) {
+        setIsFloating(false);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isFloating]);
+
+  /** 监听浏览器全屏变化 */
+  useEffect(() => {
+    const onFsChange = () => {
+      if (!document.fullscreenElement && isFloating) {
+        setIsFloating(false);
+      }
+    };
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
+  }, [isFloating]);
   const [thinking, setThinking] = useState(false);
   const [hint, setHint] = useState<XiangqiSquare[] | null>(null);
   const [boardFlipped, setBoardFlipped] = useState(false);
@@ -224,13 +263,22 @@ export const XiangqiAIGame: React.FC = () => {
     handleReset(sideChoice ? 'r' : 'b');
   };
 
-  return (
-    <div className="module xiangqi-game">
-      <div className="module-header">
-        <h2>🤖 中国象棋 · 人机对战</h2>
-        <p>和电脑下棋，难度可选，随时悔棋</p>
-      </div>
-      <div className="game-layout">
+  // ================================================================
+  // 对局内容
+  // ================================================================
+  const gameContent = (
+    <>
+      {/* 浮动模式顶部工具栏 */}
+      {isFloating && (
+        <div className="float-toolbar">
+          <span className="float-title">🤖 中国象棋 · 人机对战</span>
+          <button className="float-restore-btn" onClick={toggleFloat} title="退出最大化">
+            退出最大化
+          </button>
+        </div>
+      )}
+
+      <div className={`game-layout ${isFloating ? 'game-layout-floating' : ''}`}>
         <div className="game-main-area">
           <div className="game-status-bar">
             <span className={`turn-indicator turn-${turn}`}>
@@ -250,6 +298,13 @@ export const XiangqiAIGame: React.FC = () => {
               </select>
               <button className={`action-btn ${viewMode === '3d' ? 'primary' : ''}`} onClick={() => setViewMode('3d')}>🎲 3D</button>
               <button className={`action-btn ${viewMode === '2d' ? 'primary' : ''}`} onClick={() => setViewMode('2d')}>▦ 2D</button>
+              <button
+                className={`action-btn float-toggle-btn ${isFloating ? 'active' : ''}`}
+                onClick={toggleFloat}
+                title={isFloating ? '退出最大化' : '最大化棋盘'}
+              >
+                {isFloating ? '退出最大化' : '⬜ 最大化'}
+              </button>
               <button className="action-btn" onClick={() => setBoardFlipped(f => !f)} disabled={viewMode === '3d'} title="翻转棋盘视角">⇅ 翻转</button>
               <button className="action-btn" onClick={handleUndo} disabled={moves.length === 0 || thinking}>↩ 悔棋</button>
               <button className="action-btn" onClick={handleHint} disabled={thinking || gameOver}>💡 提示</button>
@@ -323,6 +378,29 @@ export const XiangqiAIGame: React.FC = () => {
           </div>
         </div>
       )}
+    </>
+  );
+
+  // 浮动窗口模式
+  if (isFloating) {
+    return (
+      <div
+        ref={floatRef}
+        className="online-game-floating-overlay xiangqi-floating-overlay"
+      >
+        {gameContent}
+      </div>
+    );
+  }
+
+  // 正常模式
+  return (
+    <div className="module xiangqi-game">
+      <div className="module-header">
+        <h2>🤖 中国象棋 · 人机对战</h2>
+        <p>和电脑下棋，难度可选，随时悔棋</p>
+      </div>
+      {gameContent}
     </div>
   );
 };

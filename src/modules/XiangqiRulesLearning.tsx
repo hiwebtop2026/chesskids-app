@@ -2,7 +2,7 @@
  * ChessKids - 中国象棋规则学习模块
  * 展示各个棋子的走法：点击绿色走位演示走子，点棋子复位
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { XiangqiBoard2D } from '../components/XiangqiBoard2D';
 import { ThreeJSXiangqiBoard } from '../components/ThreeJSXiangqiBoard';
 import {
@@ -137,6 +137,45 @@ const RULE_ITEMS: RuleItem[] = [
 export const XiangqiRulesLearning: React.FC = () => {
   const [activeRule, setActiveRule] = useState(0);
   const [viewMode, setViewMode] = useState<'3d' | '2d'>(supportsWebGL() ? '3d' : '2d');
+  const [isFloating, setIsFloating] = useState(false);
+  const floatRef = useRef<HTMLDivElement>(null);
+
+  /** 切换浮动全屏模式 */
+  const toggleFloat = () => {
+    if (!isFloating) {
+      setIsFloating(true);
+      if (floatRef.current?.requestFullscreen) {
+        floatRef.current.requestFullscreen().catch(() => {});
+      }
+    } else {
+      setIsFloating(false);
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      }
+    }
+  };
+
+  /** ESC 键退出浮动模式 */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFloating) {
+        setIsFloating(false);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isFloating]);
+
+  /** 监听浏览器全屏变化 */
+  useEffect(() => {
+    const onFsChange = () => {
+      if (!document.fullscreenElement && isFloating) {
+        setIsFloating(false);
+      }
+    };
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
+  }, [isFloating]);
   // 演示走子：高亮棋子的当前位置（初始为原位，点击绿色走位后移动）
   const [pos, setPos] = useState<XiangqiSquare | null>(null);
   const rule = RULE_ITEMS[activeRule];
@@ -171,6 +210,107 @@ export const XiangqiRulesLearning: React.FC = () => {
     if (demoPos[0] === r && demoPos[1] === c) setPos(null);
   };
   const resetDemo = () => setPos(null);
+
+  // ================================================================
+  // 棋盘演示内容
+  // ================================================================
+  const boardDemo = (
+    <div className="rule-board-wrapper">
+      <div className="rule-view-switch">
+        <button
+          className={`action-btn ${viewMode === '3d' ? 'primary' : ''}`}
+          onClick={() => setViewMode('3d')}
+        >
+          🎲 3D
+        </button>
+        <button
+          className={`action-btn ${viewMode === '2d' ? 'primary' : ''}`}
+          onClick={() => setViewMode('2d')}
+        >
+          ▦ 2D
+        </button>
+        <button
+          className={`action-btn float-toggle-btn ${isFloating ? 'active' : ''}`}
+          onClick={toggleFloat}
+          title={isFloating ? '退出最大化' : '最大化棋盘'}
+        >
+          {isFloating ? '退出最大化' : '⬜ 最大化'}
+        </button>
+      </div>
+      <div className={`xiangqi-board-host view-${viewMode}`}>
+        {viewMode === '3d' ? (
+          <ThreeJSXiangqiBoard
+            board={displayBoard}
+            selectedSquare={demoPos}
+            legalTargets={legalTargets}
+            lastMove={null}
+            checkSquare={null}
+            hint={null}
+            onSquareClick={handleClick}
+          />
+        ) : (
+          <XiangqiBoard2D
+            board={displayBoard}
+            selectedSquare={demoPos}
+            legalTargets={legalTargets}
+            lastMove={null}
+            checkSquare={null}
+            hint={null}
+            onSquareClick={handleClick}
+          />
+        )}
+      </div>
+    </div>
+  );
+
+  const stepInfo = (
+    <div className="step-info">
+      <h3>{rule.name}</h3>
+      <p className="step-desc">{rule.description}</p>
+      <div className="step-tip">
+        <strong>💡 小提示：</strong>
+        图中<span className="hint-dot" />标记的位置都可以走，点一下试试；点棋子可复位。
+      </div>
+      <button className="action-btn" onClick={resetDemo} style={{ alignSelf: 'flex-start' }}>
+        ↩ 复位棋子
+      </button>
+    </div>
+  );
+
+  // 浮动窗口模式
+  if (isFloating) {
+    return (
+      <div
+        ref={floatRef}
+        className="online-game-floating-overlay xiangqi-floating-overlay xiangqi-rules-floating"
+      >
+        <div className="float-toolbar">
+          <span className="float-title">📖 中国象棋 · 规则学习</span>
+          <button className="float-restore-btn" onClick={toggleFloat} title="退出最大化">
+            退出最大化
+          </button>
+        </div>
+        <div className="rule-nav rule-nav-floating">
+          {RULE_ITEMS.map((r, i) => (
+            <button
+              key={r.key}
+              className={`rule-nav-item ${i === activeRule ? 'active' : ''}`}
+              onClick={() => switchRule(i)}
+            >
+              <span className="rule-icon">{r.icon}</span>
+              <span className="rule-name">{r.name}</span>
+            </button>
+          ))}
+        </div>
+        <div className="rule-step-display xiangqi-rule-display">
+          {boardDemo}
+          {stepInfo}
+        </div>
+      </div>
+    );
+  }
+
+  // 正常模式
   return (
     <div className="module rules-learning xiangqi-rules">
       <div className="module-header">
@@ -190,56 +330,8 @@ export const XiangqiRulesLearning: React.FC = () => {
         ))}
       </div>
       <div className="rule-step-display xiangqi-rule-display">
-        <div className="rule-board-wrapper">
-          <div className="rule-view-switch">
-            <button
-              className={`action-btn ${viewMode === '3d' ? 'primary' : ''}`}
-              onClick={() => setViewMode('3d')}
-            >
-              🎲 3D
-            </button>
-            <button
-              className={`action-btn ${viewMode === '2d' ? 'primary' : ''}`}
-              onClick={() => setViewMode('2d')}
-            >
-              ▦ 2D
-            </button>
-          </div>
-          <div className={`xiangqi-board-host view-${viewMode}`}>
-            {viewMode === '3d' ? (
-              <ThreeJSXiangqiBoard
-                board={displayBoard}
-                selectedSquare={demoPos}
-                legalTargets={legalTargets}
-                lastMove={null}
-                checkSquare={null}
-                hint={null}
-                onSquareClick={handleClick}
-              />
-            ) : (
-              <XiangqiBoard2D
-                board={displayBoard}
-                selectedSquare={demoPos}
-                legalTargets={legalTargets}
-                lastMove={null}
-                checkSquare={null}
-                hint={null}
-                onSquareClick={handleClick}
-              />
-            )}
-          </div>
-        </div>
-        <div className="step-info">
-          <h3>{rule.name}</h3>
-          <p className="step-desc">{rule.description}</p>
-          <div className="step-tip">
-            <strong>💡 小提示：</strong>
-            图中<span className="hint-dot" />标记的位置都可以走，点一下试试；点棋子可复位。
-          </div>
-          <button className="action-btn" onClick={resetDemo} style={{ alignSelf: 'flex-start' }}>
-            ↩ 复位棋子
-          </button>
-        </div>
+        {boardDemo}
+        {stepInfo}
       </div>
       <div className="rule-overview-section">
         <h3>🎯 基本规则</h3>

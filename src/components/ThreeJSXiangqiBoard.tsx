@@ -74,11 +74,12 @@ const fitCameraToBoard = (camera: THREE.PerspectiveCamera, width: number, height
     corners.push(new T.Vector3(sx * halfW, 0, sz * halfD));
     corners.push(new T.Vector3(sx * halfW, yTop, sz * halfD));
   }
-  const target = new T.Vector3(0, 0.15, 0);
-  // 观察方向：红方视角从 +z 看；黑方视角翻转后从 -z 看（棋子文字已按朝向渲染）
-  const viewDir = new T.Vector3(0, 11, flipped ? -9.8 : 9.8).normalize();
+  const target = new T.Vector3(0, 0.2, 0);
+  // 观察方向：红方视角从 +z 侧前方斜俯视；黑方视角翻转后从 -z 侧前方斜俯视
+  // 更陡的角度（y更大）+ 更前的位置，立体感更强
+  const viewDir = new T.Vector3(0, 12, flipped ? -8.5 : 8.5).normalize();
 
-  const pad = 1.16; // 四周留白
+  const pad = 1.18; // 四周留白
   let dist = 13;
   for (let i = 0; i < 3; i++) {
     cam.position.copy(target).addScaledVector(viewDir, dist);
@@ -645,7 +646,7 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
     scene.background = new THREE.Color(0xB8A888);
     scene.fog = new THREE.Fog(0xB8A888, 30, 60);
 
-    const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 100);
+    const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
     // 斜俯视，距离按容器宽高比自动取景（完整显示棋盘与棋子）；黑方时相机移至对侧
     fitCameraToBoard(camera, width, height, flippedRef.current);
 
@@ -682,32 +683,52 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
     scene.environment = pmrem.fromEquirectangular(envTex).texture;
     pmrem.dispose();
 
-    // 光照
-    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-    const hemi = new THREE.HemisphereLight(0xfff2dd, 0x5a3a1a, 0.5);
+    // --- 光照系统：升级为真实摄影棚布光（三点布光 + 反光板 + 顶光） ---
+    // 环境光 - 柔和基础照明，提亮整体暗部
+    scene.add(new THREE.AmbientLight(0xffffff, 0.45));
+
+    // 半球光 - 天空暖色/地面深木色，营造中式棋桌氛围
+    const hemi = new THREE.HemisphereLight(0xfff2dd, 0x5a3a1a, 0.55);
     hemi.position.set(0, 10, 0);
     scene.add(hemi);
 
-    const key = new THREE.DirectionalLight(0xfff0d8, 1.7);
-    key.position.set(7, 13, 6);
+    // 主光源 Key Light：暖白方向光，从观众右上方45°斜射
+    const key = new THREE.DirectionalLight(0xfff0d8, 1.8);
+    key.position.set(7, 14, -6);
     key.castShadow = true;
     (key.shadow.mapSize as any).set(2048, 2048);
     key.shadow.camera.near = 0.5;
     key.shadow.camera.far = 40;
     key.shadow.camera.left = -8;
     key.shadow.camera.right = 8;
-    key.shadow.camera.top = 8;
-    key.shadow.camera.bottom = -8;
+    key.shadow.camera.top = 10;
+    key.shadow.camera.bottom = -10;
     key.shadow.bias = -0.0005;
+    key.shadow.normalBias = 0.06;
     scene.add(key);
 
-    const fill = new THREE.DirectionalLight(0xd8e8ff, 0.5);
-    fill.position.set(-6, 8, -4);
+    // 补光 Fill Light：冷色调，从左侧补光，压暗阴影对比度
+    const fill = new THREE.DirectionalLight(0xb8d0ff, 0.55);
+    fill.position.set(-6, 9, -5);
     scene.add(fill);
 
-    const rim = new THREE.DirectionalLight(0xffe8c0, 0.6);
-    rim.position.set(0, 6, -8);
+    // 轮廓光 Rim Light：从背后下方勾勒棋子高光边缘
+    const rim = new THREE.DirectionalLight(0xfff0c8, 0.9);
+    rim.position.set(0, 10, 8);
     scene.add(rim);
+
+    // 底光 Ground Bounce：棋盘反射，模拟木质棋盘地面的反光
+    const bounceLight = new (THREE as any).PointLight(0xd4a574, 0.4, 12, 2.0);
+    bounceLight.position.set(0, 0.2, 0);
+    scene.add(bounceLight);
+
+    // 顶部聚光 Ceiling Spot：营造棋桌上吊灯的氛围
+    const spotLight = new (THREE as any).SpotLight(0xfff5e0, 0.7, 25, Math.PI / 5, 0.4, 1.2);
+    spotLight.position.set(0, 12, 0);
+    spotLight.target.position.set(0, 0, 0);
+    spotLight.castShadow = false;
+    scene.add(spotLight);
+    scene.add(spotLight.target);
 
     // ---- 棋盘 ----
     const boardGroup = new THREE.Group();

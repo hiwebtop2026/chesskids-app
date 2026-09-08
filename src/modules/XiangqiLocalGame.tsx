@@ -3,7 +3,7 @@
  * 两位玩家在同一设备上轮流走棋
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { XiangqiBoard2D } from '../components/XiangqiBoard2D';
 import { ThreeJSXiangqiBoard } from '../components/ThreeJSXiangqiBoard';
 import {
@@ -51,6 +51,45 @@ export const XiangqiLocalGame: React.FC = () => {
   const [moveHistory, setMoveHistory] = useState<XiangqiMoveHistoryEntry[]>([]);
   const [moves, setMoves] = useState<XiangqiMove[]>([]);
   const [viewMode, setViewMode] = useState<'3d' | '2d'>(supportsWebGL() ? '3d' : '2d');
+  const [isFloating, setIsFloating] = useState(false);
+  const floatRef = useRef<HTMLDivElement>(null);
+
+  /** 切换浮动全屏模式 */
+  const toggleFloat = () => {
+    if (!isFloating) {
+      setIsFloating(true);
+      if (floatRef.current?.requestFullscreen) {
+        floatRef.current.requestFullscreen().catch(() => {});
+      }
+    } else {
+      setIsFloating(false);
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      }
+    }
+  };
+
+  /** ESC 键退出浮动模式 */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFloating) {
+        setIsFloating(false);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isFloating]);
+
+  /** 监听浏览器全屏变化 */
+  useEffect(() => {
+    const onFsChange = () => {
+      if (!document.fullscreenElement && isFloating) {
+        setIsFloating(false);
+      }
+    };
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
+  }, [isFloating]);
 
   const status = useMemo<XiangqiGameStatus>(
     () => getXiangqiGameStatus(board, turn),
@@ -169,14 +208,22 @@ export const XiangqiLocalGame: React.FC = () => {
 
   const gameOver = isXiangqiGameOver(status);
 
-  return (
-    <div className="module xiangqi-game">
-      <div className="module-header">
-        <h2>🐴 中国象棋 · 双人对战</h2>
-        <p>两位玩家在同一设备上轮流对弈</p>
-      </div>
+  // ================================================================
+  // 对局内容
+  // ================================================================
+  const gameContent = (
+    <>
+      {/* 浮动模式顶部工具栏 */}
+      {isFloating && (
+        <div className="float-toolbar">
+          <span className="float-title">🐴 中国象棋 · 双人对战</span>
+          <button className="float-restore-btn" onClick={toggleFloat} title="退出最大化">
+            退出最大化
+          </button>
+        </div>
+      )}
 
-      <div className="game-layout">
+      <div className={`game-layout ${isFloating ? 'game-layout-floating' : ''}`}>
         <div className="game-main-area">
           <div className="game-status-bar">
             <span className={`turn-indicator turn-${turn}`}>
@@ -194,6 +241,13 @@ export const XiangqiLocalGame: React.FC = () => {
                 onClick={() => setViewMode('2d')}
               >
                 ▦ 2D
+              </button>
+              <button
+                className={`action-btn float-toggle-btn ${isFloating ? 'active' : ''}`}
+                onClick={toggleFloat}
+                title={isFloating ? '退出最大化' : '最大化棋盘'}
+              >
+                {isFloating ? '退出最大化' : '⬜ 最大化'}
               </button>
               <button className="action-btn" onClick={handleUndo} disabled={moves.length === 0}>
                 ↩ 悔棋
@@ -269,6 +323,30 @@ export const XiangqiLocalGame: React.FC = () => {
           </div>
         </div>
       )}
+    </>
+  );
+
+  // 浮动窗口模式：渲染为 fixed 全屏覆盖层
+  if (isFloating) {
+    return (
+      <div
+        ref={floatRef}
+        className="online-game-floating-overlay xiangqi-floating-overlay"
+      >
+        {gameContent}
+      </div>
+    );
+  }
+
+  // 正常模式
+  return (
+    <div className="module xiangqi-game">
+      <div className="module-header">
+        <h2>🐴 中国象棋 · 双人对战</h2>
+        <p>两位玩家在同一设备上轮流对弈</p>
+      </div>
+
+      {gameContent}
     </div>
   );
 };

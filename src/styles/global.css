@@ -4083,3 +4083,101 @@ ul {
   padding: var(--space-xs) var(--space-sm);
   font-size: 0.8rem;
 }
+
+/* ===== 中国象棋浮动全屏模式 ===== */
+
+.xiangqi-floating-overlay .game-layout {
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+}
+
+.xiangqi-floating-overlay .xiangqi-board-host {
+  width: min(85vh, 45vw) !important;
+  max-width: none !important;
+  aspect-ratio: 9 / 10 !important;
+  min-width: 280px;
+}
+
+.xiangqi-floating-overlay .game-side-panel {
+  max-width: 280px;
+}
+
+/* 规则学习浮动模式 */
+.xiangqi-rules-floating {
+  padding: var(--space-md);
+}
+
+.xiangqi-rules-floating .rule-nav-floating {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+  padding: 0;
+  border-bottom: none;
+}
+
+.xiangqi-rules-floating .rule-step-display {
+  flex: 1;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-lg);
+  align-items: start;
+  justify-content: center;
+  padding: var(--space-md) 0;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.xiangqi-rules-floating .rule-board-wrapper {
+  width: auto;
+  min-width: 320px;
+  aspect-ratio: auto;
+}
+
+.xiangqi-rules-floating .xiangqi-board-host {
+  width: min(80vh, 40vw) !important;
+  max-width: none !important;
+  aspect-ratio: 9 / 10 !important;
+}
+
+.xiangqi-rules-floating .step-info {
+  max-width: 400px;
+}
+
+/* 响应式：窄屏 */
+@media (max-width: 1023px) {
+  .xiangqi-floating-overlay .game-layout {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  .xiangqi-floating-overlay .xiangqi-board-host {
+    width: min(70vh, 80vw) !important;
+  }
+
+  .xiangqi-floating-overlay .game-side-panel {
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .xiangqi-rules-floating .rule-step-display {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  .xiangqi-rules-floating .xiangqi-board-host {
+    width: min(65vh, 85vw) !important;
+  }
+}
+
+@media (max-width: 599px) {
+  .xiangqi-floating-overlay .xiangqi-board-host {
+    width: min(75vh, 90vw) !important;
+  }
+
+  .xiangqi-rules-floating .xiangqi-board-host {
+    width: min(70vh, 90vw) !important;
+  }
+}
