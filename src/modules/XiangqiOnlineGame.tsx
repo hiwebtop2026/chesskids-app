@@ -142,11 +142,18 @@ export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
   const audioPlayRef = useRef<HTMLAudioElement | null>(null);
   const [playingId, setPlayingId] = useState<number | null>(null);
 
-  /** 自动加入房间（通过分享链接） */
+  /** 自动加入房间（通过分享链接）
+   *  房间号格式：X-XXXXXX（8位，带前缀）或 XXXXXX（6位，兼容旧链接）
+   */
   useEffect(() => {
-    if (autoJoinRoom && autoJoinRoom.length === 6 && !inGame && connectionStatus === 'disconnected') {
-      setJoinInput(autoJoinRoom);
-      joinRoom(autoJoinRoom);
+    if (autoJoinRoom && !inGame && connectionStatus === 'disconnected') {
+      const code = autoJoinRoom.trim().toUpperCase();
+      // 支持带前缀(8位)和不带前缀(6位)两种格式
+      if (code.length === 8 || code.length === 6) {
+        // 显示用纯6位数字
+        setJoinInput(code.replace(/^X-/, ''));
+        joinRoom(code);
+      }
     }
   }, [autoJoinRoom, inGame, connectionStatus, joinRoom]);
 
@@ -217,12 +224,33 @@ export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
       input.value = shareLink;
       document.body.appendChild(input);
       input.select();
-      try {
-        document.execCommand('copy');
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      } catch {}
+      document.execCommand('copy');
       document.body.removeChild(input);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const [copiedMsg, setCopiedMsg] = useState(false);
+
+  /** 生成分享文案（包含房间号和操作提示，适合微信发送） */
+  const shareMessage = `🎮 中国象棋对战邀请\n\n🏠 房间号：${displayRoomCode}\n🔗 点击链接加入：${shareLink}\n\n💡 如果在微信中打开，请点击右上角「在浏览器中打开」即可开始对战！`;
+
+  /** 复制分享文案（适合直接粘贴到微信） */
+  const copyShareMessage = async () => {
+    try {
+      await navigator.clipboard.writeText(shareMessage);
+      setCopiedMsg(true);
+      setTimeout(() => setCopiedMsg(false), 2000);
+    } catch {
+      const input = document.createElement('input');
+      input.value = shareMessage;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand('copy');
+      document.body.removeChild(input);
+      setCopiedMsg(true);
+      setTimeout(() => setCopiedMsg(false), 2000);
     }
   };
 
@@ -684,8 +712,14 @@ export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
                 </button>
               </div>
               <div className="share-room-code">
-                房间号：<strong>{displayRoomCode}</strong>
+                房间号：<strong className="room-code-strong">{displayRoomCode}</strong>
               </div>
+              <button className="share-message-btn" onClick={copyShareMessage}>
+                {copiedMsg ? '✓ 已复制分享文案' : '📋 一键复制分享文案（微信推荐）'}
+              </button>
+              <p className="share-tip">
+                💡 分享文案包含房间号和操作提示，好友在微信中收到后一目了然
+              </p>
             </div>
           )}
 

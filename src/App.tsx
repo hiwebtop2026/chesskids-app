@@ -18,8 +18,9 @@ import {
   XiangqiAIGame,
   XiangqiOnlineGame,
 } from './modules';
-import { UserProfile, ErrorBoundary } from './components';
+import { UserProfile, ErrorBoundary, WeChatGuide } from './components';
 import { useProgressStore } from './store';
+import { isWeChatBrowser } from './utils/wechat';
 
 type GameType = 'chess' | 'xiangqi';
 type ChessTabKey = 'learn' | 'rules' | 'tactics' | 'game' | 'local' | 'online' | 'progress';
@@ -77,6 +78,9 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabKey>('learn');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [autoRoom, setAutoRoom] = useState<string | null>(null);
+  const [showWeChatGuide, setShowWeChatGuide] = useState(false);
+  const [weChatRoom, setWeChatRoom] = useState<string | null>(null);
+  const [weChatGame, setWeChatGame] = useState<GameType>('chess');
   const { progress } = useProgressStore();
 
   const tabs = gameType === 'chess' ? CHESS_TABS : XIANGQI_TABS;
@@ -85,14 +89,28 @@ const App: React.FC = () => {
   useEffect(() => {
     const parsed = parseUrlParams();
     if (parsed) {
-      setGameType(parsed.game);
-      setActiveTab(parsed.tab);
-      setAutoRoom(parsed.room);
-      // 清除 URL 参数，避免刷新时重复触发
-      const url = new URL(window.location.href);
-      url.searchParams.delete('room');
-      url.searchParams.delete('game');
-      window.history.replaceState({}, '', url.toString());
+      // 检测是否在微信内置浏览器中打开
+      if (isWeChatBrowser()) {
+        // 在微信中：显示引导页，提示用户在浏览器中打开
+        setWeChatRoom(parsed.room);
+        setWeChatGame(parsed.game);
+        setShowWeChatGuide(true);
+        // 清除 URL 参数，避免刷新时重复触发
+        const url = new URL(window.location.href);
+        url.searchParams.delete('room');
+        url.searchParams.delete('game');
+        window.history.replaceState({}, '', url.toString());
+      } else {
+        // 非微信环境：正常自动进入房间
+        setGameType(parsed.game);
+        setActiveTab(parsed.tab);
+        setAutoRoom(parsed.room);
+        // 清除 URL 参数，避免刷新时重复触发
+        const url = new URL(window.location.href);
+        url.searchParams.delete('room');
+        url.searchParams.delete('game');
+        window.history.replaceState({}, '', url.toString());
+      }
     }
   }, []);
 
@@ -218,6 +236,15 @@ const App: React.FC = () => {
             </div>
           </div>
         </main>
+
+        {/* 微信内置浏览器引导页 */}
+        {showWeChatGuide && weChatRoom && (
+          <WeChatGuide
+            roomCode={weChatRoom}
+            gameType={weChatGame}
+            onClose={() => setShowWeChatGuide(false)}
+          />
+        )}
       </div>
     );
   }
@@ -280,6 +307,15 @@ const App: React.FC = () => {
           </button>
         ))}
       </nav>
+
+      {/* 微信内置浏览器引导页 */}
+      {showWeChatGuide && weChatRoom && (
+        <WeChatGuide
+          roomCode={weChatRoom}
+          gameType={weChatGame}
+          onClose={() => setShowWeChatGuide(false)}
+        />
+      )}
     </div>
   );
 };

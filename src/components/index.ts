@@ -24,3 +24,6 @@ export { UserProfile } from './UserProfile';
 export type { UserProfileProps } from './UserProfile';
 
 export { ErrorBoundary } from './ErrorBoundary';
+
+export { WeChatGuide } from './WeChatGuide';
+export type { WeChatGuideProps } from './WeChatGuide';
