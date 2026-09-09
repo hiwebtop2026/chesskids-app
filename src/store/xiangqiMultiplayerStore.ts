@@ -115,14 +115,14 @@ function isOwnPiece(piece: string, color: XiangqiColor): boolean {
   return (color === 'r' && isRedPiece) || (color === 'b' && !isRedPiece);
 }
 
-/** 生成 6 位房间号 */
+/** 生成带前缀的房间号（X-XXXXXX，X 代表 Xiangqi 中国象棋） */
 function generateRoomCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let code = '';
   for (let i = 0; i < 6; i++) {
     code += chars.charAt(Math.floor(Math.random() * chars.length));
   }
-  return code;
+  return 'X-' + code;
 }
 
 /** 获取初始棋盘状态 */
@@ -443,7 +443,7 @@ export const useXiangqiMultiplayerStore = create<XiangqiMultiplayerState>((set, 
             inGame: true,
             ...getInitialBoardState(),
             chatMessages: [],
-            notification: `房间已创建，房间号：${roomCode}，等待对手加入...`,
+            notification: `房间已创建，房间号：${roomCode.replace('X-', '')}，等待对手加入...`,
           });
         })
         .catch(() => {});
@@ -451,8 +451,13 @@ export const useXiangqiMultiplayerStore = create<XiangqiMultiplayerState>((set, 
 
     /** 加入房间（执黑） */
     joinRoom: (roomCode) => {
-      const code = roomCode.trim().toUpperCase();
-      if (!code || code.length !== 6) {
+      const input = roomCode.trim().toUpperCase();
+      // 兼容带前缀(X-)和不带前缀的输入，统一为 X-XXXXXX 格式
+      let code = input;
+      if (code.length === 6) {
+        code = 'X-' + code;
+      }
+      if (!code || code.length !== 8 || !code.startsWith('X-')) {
         set({ notification: '请输入6位房间号' });
         return;
       }

@@ -115,14 +115,14 @@ function isOwnPiece(piece: string, color: PieceColor): boolean {
   return (color === 'w' && isWhitePiece) || (color === 'b' && !isWhitePiece);
 }
 
-/** 生成 6 位房间号 */
+/** 生成带前缀的房间号（C-XXXXXX，C 代表 Chess 国际象棋） */
 function generateRoomCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let code = '';
   for (let i = 0; i < 6; i++) {
     code += chars.charAt(Math.floor(Math.random() * chars.length));
   }
-  return code;
+  return 'C-' + code;
 }
 
 /** 获取初始棋盘状态 */
@@ -452,7 +452,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => {
             inGame: true,
             ...getInitialBoardState(),
             chatMessages: [],
-            notification: `房间已创建，房间号：${roomCode}，等待对手加入...`,
+            notification: `房间已创建，房间号：${roomCode.replace('C-', '')}，等待对手加入...`,
           });
         })
         .catch(() => {});
@@ -460,8 +460,13 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => {
 
     /** 加入房间 */
     joinRoom: (roomCode) => {
-      const code = roomCode.trim().toUpperCase();
-      if (!code || code.length !== 6) {
+      const input = roomCode.trim().toUpperCase();
+      // 兼容带前缀(C-)和不带前缀的输入，统一为 C-XXXXXX 格式
+      let code = input;
+      if (code.length === 6) {
+        code = 'C-' + code;
+      }
+      if (!code || code.length !== 8 || !code.startsWith('C-')) {
         set({ notification: '请输入6位房间号' });
         return;
       }

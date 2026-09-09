@@ -45,16 +45,30 @@ const XIANGQI_TABS: { key: XiangqiTabKey; label: string; icon: string }[] = [
 ];
 
 // 启动时解析 URL 参数，支持通过分享链接自动进入房间
+// 棋类判断优先级：game 参数 > 房间号前缀（C-/X-） > 默认国际象棋
 function parseUrlParams(): { game: GameType; tab: TabKey; room: string } | null {
   const params = new URLSearchParams(window.location.search);
   const room = params.get('room');
   const game = params.get('game');
   if (!room) return null;
+
+  const roomUpper = room.toUpperCase();
+  let detectedGame: GameType = 'chess';
+
   if (game === 'xiangqi') {
-    return { game: 'xiangqi', tab: 'xq-online', room };
+    detectedGame = 'xiangqi';
+  } else if (game === 'chess') {
+    detectedGame = 'chess';
+  } else if (roomUpper.startsWith('X-')) {
+    // 从房间号前缀识别中国象棋
+    detectedGame = 'xiangqi';
+  } else if (roomUpper.startsWith('C-')) {
+    // 从房间号前缀识别国际象棋
+    detectedGame = 'chess';
   }
-  // 默认国际象棋
-  return { game: 'chess', tab: 'online', room };
+
+  const tab = detectedGame === 'xiangqi' ? 'xq-online' as TabKey : 'online' as TabKey;
+  return { game: detectedGame, tab, room: roomUpper };
 }
 
 const App: React.FC = () => {

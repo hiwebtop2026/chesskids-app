@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ChessKids - 中国象棋联机对战模块
  * 基于 PeerJS P2P，通过房间号/分享链接与好友对弈
  * 房主执红（先手），加入者执黑；支持 2D/3D 棋盘切换、语音消息、角色聊天
@@ -198,10 +198,13 @@ export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
   const isGameOver = isXiangqiGameOver(status);
   const boardReadOnly = !opponent || !isMyTurn || isGameOver;
 
-  /** 生成分享链接 */
+  /** 生成分享链接（带房间号前缀和 game 参数，双重保险） */
   const shareLink = roomCode
     ? `${window.location.origin}${window.location.pathname}?room=${roomCode}&game=xiangqi`
     : '';
+
+  /** 显示用房间号（去掉 X- 前缀，只显示 6 位） */
+  const displayRoomCode = roomCode ? roomCode.replace(/^X-/, '') : '';
 
   /** 复制分享链接 */
   const copyShareLink = async () => {
@@ -578,7 +581,7 @@ export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
     <>
       {isFloating && (
         <div className="float-toolbar">
-          <span className="float-title">🌐 象棋联网对战 · 房间 {roomCode}</span>
+          <span className="float-title">🌐 象棋联网对战 · 房间 {displayRoomCode}</span>
           <button className="float-restore-btn" onClick={toggleFloat} title="退出最大化">
             退出最大化
           </button>
@@ -681,7 +684,7 @@ export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
                 </button>
               </div>
               <div className="share-room-code">
-                房间号：<strong>{roomCode}</strong>
+                房间号：<strong>{displayRoomCode}</strong>
               </div>
             </div>
           )}
@@ -690,7 +693,7 @@ export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
             <div className="online-game-info">
               <div className="info-row">
                 <span className="info-label">房间号</span>
-                <span className="info-value room-code-display">{roomCode}</span>
+                <span className="info-value room-code-display">{displayRoomCode}</span>
               </div>
               <div className="info-row">
                 <span className="info-label">你的身份</span>
@@ -928,7 +931,7 @@ export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
       <div className="module-header">
         <h2>🌐 象棋联网对战</h2>
         <p>
-          房间号：<strong className="room-code-inline">{roomCode}</strong>
+          房间号：<strong className="room-code-inline">{displayRoomCode}</strong>
           {opponent && (
             <span className="header-opponent">
               {' '}· {opponent.color === 'r' ? '房主 · 红方' : '黑方'}：{opponent.name}
@@ -942,3 +945,4 @@ export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
 };
 
 export default XiangqiOnlineGame;
+

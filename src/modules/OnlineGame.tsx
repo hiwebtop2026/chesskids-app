@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ChessKids - 联机对战模块
  * 基于 PeerJS P2P，通过房间号/分享链接与好友对弈
  * 支持浮动窗口最大化、语音消息、角色区分聊天
@@ -198,10 +198,13 @@ export const OnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ autoJoi
     status === 'checkmate' || status === 'stalemate' || status === 'draw';
   const boardReadOnly = !opponent || !isMyTurn || isGameOver;
 
-  /** 生成分享链接 */
+  /** 生成分享链接（带房间号前缀和 game 参数，双重保险） */
   const shareLink = roomCode
     ? `${window.location.origin}${window.location.pathname}?room=${roomCode}&game=chess`
     : '';
+
+  /** 显示用房间号（去掉 C- 前缀，只显示 6 位） */
+  const displayRoomCode = roomCode ? roomCode.replace(/^C-/, '') : '';
 
   /** 复制分享链接 */
   const copyShareLink = async () => {
@@ -621,7 +624,7 @@ export const OnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ autoJoi
       {isFloating && (
         <div className="float-toolbar">
           <span className="float-title">
-            🌐 联网对战 · 房间 {roomCode}
+            🌐 联网对战 · 房间 {displayRoomCode}
           </span>
           <button className="float-restore-btn" onClick={toggleFloat} title="退出最大化">
             退出最大化
@@ -719,7 +722,7 @@ export const OnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ autoJoi
                 </button>
               </div>
               <div className="share-room-code">
-                房间号：<strong>{roomCode}</strong>
+                房间号：<strong>{displayRoomCode}</strong>
               </div>
             </div>
           )}
@@ -729,7 +732,7 @@ export const OnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ autoJoi
             <div className="online-game-info">
               <div className="info-row">
                 <span className="info-label">房间号</span>
-                <span className="info-value room-code-display">{roomCode}</span>
+                <span className="info-value room-code-display">{displayRoomCode}</span>
               </div>
               <div className="info-row">
                 <span className="info-label">你的身份</span>
@@ -1013,7 +1016,7 @@ export const OnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ autoJoi
       <div className="module-header">
         <h2>🌐 联网对战</h2>
         <p>
-          房间号：<strong className="room-code-inline">{roomCode}</strong>
+          房间号：<strong className="room-code-inline">{displayRoomCode}</strong>
           {opponent && (
             <span className="header-opponent">
               {' '}· {isHostMessage(opponent.color) ? '房主' : '对手'}：{opponent.name}
@@ -1027,3 +1030,4 @@ export const OnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ autoJoi
 };
 
 export default OnlineGame;
+
