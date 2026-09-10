@@ -4709,3 +4709,80 @@ ul {
     max-width: unset;
   }
 }
+
+/* ================================================================
+   中国象棋棋盘尺寸适配优化
+   ================================================================ */
+
+/* 中国象棋：棋盘区域使用 9:10 比例，去掉灰色背景 */
+.xiangqi-online-game .game-board-section {
+  aspect-ratio: 9 / 10;
+  background: #B8A888; /* 与3D场景背景色一致 */
+  width: min(520px, 100%);
+  min-width: auto;
+}
+
+/* 中国象棋棋盘填满整个区域 */
+.xiangqi-online-game .xiangqi-board-host {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.xiangqi-online-game .threejs-xiangqi-board {
+  border-radius: 0;
+}
+
+/* ================================================================
+   沉浸模式下中国象棋棋盘最大化
+   ================================================================ */
+
+.app-immersive .xiangqi-online-game .game-board-section {
+  width: 100%;
+  max-width: none;
+  /* 使用 vmin 确保在任何屏幕比例下都能完整显示且尽量大 */
+  width: min(90vw, calc(90vh * 9 / 10));
+  height: min(calc(90vw * 10 / 9), 90vh);
+  aspect-ratio: auto;
+}
+
+.app-immersive .xiangqi-online-game .xiangqi-board-host {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+}
+
+/* 桌面端沉浸模式：棋盘更大 */
+@media (min-width: 600px) {
+  .app-immersive .xiangqi-online-game .game-board-section {
+    width: min(85vh * 9 / 10, 90vw);
+    height: min(85vh, 90vw * 10 / 9);
+  }
+}
+
+/* 移动端沉浸模式：棋盘占满可用空间 */
+@media (max-width: 599px) {
+  .app-immersive .xiangqi-online-game .game-board-section {
+    width: 100vw;
+    max-width: 100%;
+    height: auto;
+    aspect-ratio: 9 / 10;
+  }
+
+  .app-immersive .xiangqi-online-game .xiangqi-board-host {
+    width: 100%;
+    height: 100%;
+  }
+}
+
+/* 横屏沉浸模式：棋盘以高度为基准 */
+@media (max-height: 500px) and (orientation: landscape) {
+  .app-immersive .xiangqi-online-game .game-board-section {
+    width: auto;
+    height: calc(100vh - 16px);
+    max-height: calc(100vh - 16px);
+    aspect-ratio: 9 / 10;
+  }
+}
