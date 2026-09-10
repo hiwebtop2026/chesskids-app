@@ -4447,3 +4447,265 @@ ul {
     letter-spacing: 2px;
   }
 }
+
+/* ================================================================
+   移动端联机对局优化
+   ================================================================ */
+
+/* 手机端：对局界面更紧凑，棋盘优先 */
+@media (max-width: 599px) {
+  /* 联机对局：玩家信息栏更紧凑 */
+  .online-game .online-player-bar,
+  .xiangqi-online-game .online-player-bar {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+    margin-bottom: 6px;
+  }
+
+  .online-game .online-player-bar.me,
+  .xiangqi-online-game .online-player-bar.me {
+    margin-top: 6px;
+  }
+
+  .online-game .color-badge,
+  .xiangqi-online-game .color-badge {
+    width: 22px;
+    height: 22px;
+    font-size: 0.7rem;
+  }
+
+  .online-game .turn-indicator,
+  .xiangqi-online-game .turn-indicator {
+    font-size: 0.7rem;
+  }
+
+  /* 视图切换按钮更紧凑 */
+  .online-game .view-toggle,
+  .xiangqi-online-game .view-toggle {
+    margin-bottom: 6px;
+    gap: 4px;
+  }
+
+  .online-game .view-toggle .action-btn,
+  .xiangqi-online-game .view-toggle .action-btn {
+    padding: 4px 10px;
+    font-size: 0.75rem;
+  }
+
+  /* 棋盘区域：充分利用屏幕宽度 */
+  .online-game .game-board-section,
+  .xiangqi-online-game .game-board-section {
+    width: 100%;
+    max-width: 100%;
+    padding: 0;
+  }
+
+  /* 中国象棋棋盘在手机端可以更大 */
+  .xiangqi-online-game .xiangqi-board-host {
+    max-width: 100%;
+    width: 100%;
+  }
+
+  /* 对局信息面板更紧凑 */
+  .online-game .game-side-panel,
+  .xiangqi-online-game .game-side-panel {
+    gap: 12px;
+  }
+
+  .online-game .online-game-info,
+  .xiangqi-online-game .online-game-info {
+    gap: 4px;
+  }
+
+  .online-game .info-row,
+  .xiangqi-online-game .info-row {
+    font-size: 0.8rem;
+    padding: 4px 0;
+  }
+}
+
+/* 小屏手机 (< 400px) 进一步优化 */
+@media (max-width: 399px) {
+  .online-game .online-player-bar,
+  .xiangqi-online-game .online-player-bar {
+    padding: 3px 6px;
+    font-size: 0.7rem;
+  }
+
+  .online-game .player-name,
+  .xiangqi-online-game .player-name {
+    font-size: 0.75rem;
+  }
+}
+
+/* ================================================================
+   沉浸模式（对局中隐藏导航，最大化棋盘）
+   ================================================================ */
+
+.app-immersive .app-header {
+  padding: 6px 12px;
+}
+
+.app-immersive .app-nav {
+  display: none;
+}
+
+.app-immersive .app-main {
+  padding-bottom: 12px;
+  padding-top: 8px;
+}
+
+/* 沉浸模式下的棋盘更大 */
+.app-immersive .game-board-section {
+  width: min(95vw, 90vh);
+}
+
+.app-immersive .xiangqi-board-host {
+  max-width: min(95vw, 85vh);
+}
+
+/* 沉浸模式按钮 */
+.immersive-toggle-btn {
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: var(--transition);
+  white-space: nowrap;
+}
+
+.immersive-toggle-btn:hover {
+  background: var(--primary);
+  color: var(--text-white);
+  border-color: var(--primary);
+}
+
+/* 移动端沉浸模式：最大化棋盘空间 */
+@media (max-width: 599px) {
+  .app-immersive .app-header {
+    padding: 4px 10px;
+  }
+
+  .app-immersive .app-title {
+    font-size: 1rem;
+  }
+
+  .app-immersive .home-back-btn,
+  .app-immersive .fullscreen-btn {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+  }
+
+  .app-immersive .game-layout {
+    gap: 8px;
+  }
+
+  .app-immersive .game-board-section {
+    width: 100vw;
+    max-width: 100%;
+  }
+
+  .app-immersive .xiangqi-board-host {
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .app-immersive .online-player-bar {
+    padding: 3px 8px;
+    font-size: 0.7rem;
+    margin-bottom: 4px;
+  }
+
+  .app-immersive .online-player-bar.me {
+    margin-top: 4px;
+  }
+
+  .app-immersive .view-toggle {
+    margin-bottom: 4px;
+  }
+
+  .app-immersive .view-toggle .action-btn {
+    padding: 3px 8px;
+    font-size: 0.7rem;
+  }
+}
+
+/* 视图切换栏中的沉浸按钮 */
+.view-toggle .action-btn.immersive-btn {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.view-toggle .action-btn.immersive-btn:hover {
+  background: var(--primary);
+  color: var(--text-white);
+  border-color: var(--primary);
+}
+
+/* 玩家信息栏中的沉浸按钮（国际象棋） */
+.online-player-bar .immersive-toggle-btn {
+  margin-left: auto;
+  padding: 2px 8px;
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.online-player-bar .immersive-toggle-btn:hover {
+  background: var(--primary);
+  color: var(--text-white);
+  border-color: var(--primary);
+}
+
+/* 沉浸模式下显示退出提示 */
+.immersive-exit-hint {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  z-index: 9999;
+  pointer-events: none;
+  animation: fadeInOut 2s ease;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; }
+  20% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* 移动端横屏优化 */
+@media (max-height: 500px) and (orientation: landscape) {
+  .app-immersive .app-header {
+    display: none;
+  }
+
+  .app-immersive .game-board-section {
+    width: auto;
+    height: calc(100vh - 16px);
+    max-height: 100vh;
+    aspect-ratio: unset;
+  }
+
+  .app-immersive .xiangqi-board-host {
+    height: 100%;
+    max-height: calc(100vh - 16px);
+    width: auto;
+    max-width: unset;
+  }
+}

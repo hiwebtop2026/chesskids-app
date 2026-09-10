@@ -115,6 +115,28 @@ export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
   const [isFloating, setIsFloating] = useState(false);
   const floatRef = useRef<HTMLDivElement>(null);
 
+  // 沉浸模式（移动端隐藏导航，最大化棋盘）
+  const [isImmersive, setIsImmersive] = useState(false);
+
+  const toggleImmersive = useCallback(() => {
+    setIsImmersive((prev) => {
+      const next = !prev;
+      if (next) {
+        document.body.classList.add('app-immersive');
+      } else {
+        document.body.classList.remove('app-immersive');
+      }
+      return next;
+    });
+  }, []);
+
+  // 组件卸载时清理沉浸模式
+  useEffect(() => {
+    return () => {
+      document.body.classList.remove('app-immersive');
+    };
+  }, []);
+
   // 语音录制状态
   const [isRecording, setIsRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
@@ -527,7 +549,7 @@ export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
   // ================================================================
   if (!inGame) {
     return (
-      <div className="module online-game">
+      <div className="module online-game xiangqi-online-game">
         <div className="module-header">
           <h2>🌐 象棋联网对战</h2>
           <p>创建房间，将链接分享给好友，即可在线对弈中国象棋！</p>
@@ -636,10 +658,13 @@ export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
             </span>
           </div>
 
-          {/* 2D/3D 切换 */}
+          {/* 2D/3D 切换 + 沉浸模式 */}
           <div className="view-toggle">
             <button className={`action-btn ${viewMode === '3d' ? 'primary' : ''}`} onClick={() => setViewMode('3d')}>🎲 3D</button>
             <button className={`action-btn ${viewMode === '2d' ? 'primary' : ''}`} onClick={() => setViewMode('2d')}>▦ 2D</button>
+            <button className="action-btn immersive-btn" onClick={toggleImmersive} title={isImmersive ? '退出沉浸模式' : '沉浸模式'}>
+              {isImmersive ? '⛶ 退出' : '⛶ 沉浸'}
+            </button>
           </div>
 
           <div className={`xiangqi-board-host view-${viewMode}`}>
@@ -945,6 +970,9 @@ export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
                   leaveRoom();
                   setShowLeaveConfirm(false);
                   setIsFloating(false);
+                  // 退出沉浸模式
+                  setIsImmersive(false);
+                  document.body.classList.remove('app-immersive');
                 }}
               >
                 确认离开
@@ -961,7 +989,7 @@ export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
   }
 
   return (
-    <div className="module online-game">
+    <div className="module online-game xiangqi-online-game">
       <div className="module-header">
         <h2>🌐 象棋联网对战</h2>
         <p>

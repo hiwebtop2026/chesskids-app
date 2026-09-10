@@ -111,6 +111,28 @@ export const OnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ autoJoi
   const [isFloating, setIsFloating] = useState(false);
   const floatRef = useRef<HTMLDivElement>(null);
 
+  // 沉浸模式（移动端隐藏导航，最大化棋盘）
+  const [isImmersive, setIsImmersive] = useState(false);
+
+  const toggleImmersive = useCallback(() => {
+    setIsImmersive((prev) => {
+      const next = !prev;
+      if (next) {
+        document.body.classList.add('app-immersive');
+      } else {
+        document.body.classList.remove('app-immersive');
+      }
+      return next;
+    });
+  }, []);
+
+  // 组件卸载时清理沉浸模式
+  useEffect(() => {
+    return () => {
+      document.body.classList.remove('app-immersive');
+    };
+  }, []);
+
   // 语音录制状态
   const [isRecording, setIsRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
@@ -687,6 +709,9 @@ export const OnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ autoJoi
             <span className="player-name">
               {opponent ? `${isHostMessage(opponent.color) ? '房主' : '对手'} · ${opponent.name}` : '等待对手加入...'}
             </span>
+            <button className="immersive-toggle-btn" onClick={toggleImmersive} title={isImmersive ? '退出沉浸模式' : '沉浸模式'}>
+              {isImmersive ? '⛶' : '⛶'}
+            </button>
           </div>
 
           <ThreeJSChessBoard
@@ -1021,6 +1046,9 @@ export const OnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ autoJoi
                   leaveRoom();
                   setShowLeaveConfirm(false);
                   setIsFloating(false);
+                  // 退出沉浸模式
+                  setIsImmersive(false);
+                  document.body.classList.remove('app-immersive');
                 }}
               >
                 确认离开
