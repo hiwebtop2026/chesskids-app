@@ -76,7 +76,6 @@ const fitCameraToBoard = (camera: THREE.PerspectiveCamera, width: number, height
   }
   const target = new T.Vector3(0, 0.2, 0);
   // 观察方向：红方视角从 +z 侧前方斜俯视；黑方视角翻转后从 -z 侧前方斜俯视
-  // 更陡的角度（y更大）+ 更前的位置，立体感更强
   const viewDir = new T.Vector3(0, 12, flipped ? -8.5 : 8.5).normalize();
 
   const pad = 1.18; // 四周留白
@@ -91,9 +90,22 @@ const fitCameraToBoard = (camera: THREE.PerspectiveCamera, width: number, height
       const p = c.clone().project(cam);
       maxNdc = Math.max(maxNdc, Math.abs(p.x), Math.abs(p.y));
     }
-    dist *= maxNdc * pad; // NDC 超出量 ∝ 1/距离，按比例拉远
+    dist *= maxNdc * pad;
   }
 };
+
+/** 根据相机当前位置和目标点计算球面坐标（距离、方位角、俯仰角） */
+function getSphericalFromCamera(camera: THREE.PerspectiveCamera, target: THREE.Vector3) {
+  const dx = camera.position.x - target.x;
+  const dy = camera.position.y - target.y;
+  const dz = camera.position.z - target.z;
+  const distance = Math.sqrt(dx * dx + dy * dy + dz);
+  // 俯仰角：从 y 轴正方向向下测量，0 = 正上方，π/2 = 水平
+  const angleY = Math.acos(dy / distance);
+  // 方位角：绕 y 轴，从 +z 方向顺时针（从上方看）
+  const angleX = Math.atan2(dx, dz);
+  return { distance, angleX, angleY };
+}
 
 // ============ 程序化木纹纹理 ============
 const createWoodTexture = (
@@ -792,6 +804,175 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
     cameraRef.current = camera;
     rendererRef.current = renderer;
 
+    // === 轨道相机控制（拖拽旋转 + 滚轮缩放 + 触摸手势）===
+    // 使用球面坐标管理相机位置，参考国际象棋实现
+    const T = THREE as any;
+    const cameraTarget = new T.Vector3(0, 0.2, 0);
+    let cameraDistance = 15;
+    let cameraAngleX = 0;   // 水平方位角（弧度），0=从红方(+z)一侧看向棋盘
+    let cameraAngleY = 0.9; // 垂直俯仰角（弧度，0=正上方，π/2=水平）
+    let isDragging = false;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let dragStartAngleX = 0;
+    let dragStartAngleY = 0;
+    let dragMoved = false;   // 是否发生了拖拽（用于区分点击和拖拽）
+
+    // 根据球面坐标更新相机位置
+    const updateCameraFromSpherical = () => {
+      const r = cameraDistance;
+      const sinY = Math.sin(cameraAngleY);
+      camera.position.x = cameraTarget.x + r * sinY * Math.sin(cameraAngleX);
+      camera.position.y = cameraTarget.y + r * Math.cos(cameraAngleY);
+      camera.position.z = cameraTarget.z + r * sinY * Math.cos(cameraAngleX);
+      camera.lookAt(cameraTarget.x, cameraTarget.y, cameraTarget.z);
+      needsRenderRef.current = true;
+    };
+
+    // 初始化：先用 fitCameraToBoard 计算合适距离，再转为球面坐标
+    fitCameraToBoard(camera, width, height, flippedRef.current);
+    const initial = getSphericalFromCamera(camera, cameraTarget);
+    cameraDistance = initial.distance;
+    cameraAngleX = initial.angleX;
+    cameraAngleY = initial.angleY;
+    updateCameraFromSpherical();
+
+    // 缩放范围限制
+    const MIN_DISTANCE = 8;
+    const MAX_DISTANCE = 30;
+    const MIN_ANGLE_Y = 0.12;   // 接近正上方
+    const MAX_ANGLE_Y = Math.PI / 2 - 0.05; // 接近水平，避免翻转
+
+    // --- 鼠标按下：开始拖拽旋转 ---
+    const handleMouseDown = (event: MouseEvent) => {
+      isDragging = true;
+      dragMoved = false;
+      dragStartX = event.clientX;
+      dragStartY = event.clientY;
+      dragStartAngleX = cameraAngleX;
+      dragStartAngleY = cameraAngleY;
+      renderer.domElement.style.cursor = 'grabbing';
+    };
+
+    // --- 鼠标移动（拖拽时旋转视角） ---
+    const handleMouseMove = (event: MouseEvent) => {
+      if (!isDragging) return;
+      const dx = event.clientX - dragStartX;
+      const dy = event.clientY - dragStartY;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dragMoved = true;
+      // 水平拖拽 → 改变方位角
+      cameraAngleX = dragStartAngleX - dx * 0.008;
+      // 垂直拖拽 → 改变俯仰角（限制范围避免翻转）
+      cameraAngleY = Math.max(MIN_ANGLE_Y, Math.min(MAX_ANGLE_Y, dragStartAngleY - dy * 0.008));
+      updateCameraFromSpherical();
+    };
+
+    // --- 鼠标松开：结束拖拽 ---
+    const handleMouseUp = () => {
+      isDragging = false;
+      renderer.domElement.style.cursor = 'grab';
+    };
+
+    // --- 滚轮缩放 ---
+    const handleWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const scale = event.deltaY > 0 ? 1.1 : 0.9;
+      cameraDistance = Math.max(MIN_DISTANCE, Math.min(MAX_DISTANCE, cameraDistance * scale));
+      updateCameraFromSpherical();
+    };
+
+    // --- 触摸支持（移动端单指拖拽旋转 + 双指捏合缩放） ---
+    let touchStartDist = 0;
+    let touchStartCameraDist = 0;
+    const handleTouchStart = (event: TouchEvent) => {
+      if (event.touches.length === 1) {
+        isDragging = true;
+        dragMoved = false;
+        dragStartX = event.touches[0].clientX;
+        dragStartY = event.touches[0].clientY;
+        dragStartAngleX = cameraAngleX;
+        dragStartAngleY = cameraAngleY;
+      } else if (event.touches.length === 2) {
+        const dx = event.touches[0].clientX - event.touches[1].clientX;
+        const dy = event.touches[0].clientY - event.touches[1].clientY;
+        touchStartDist = Math.sqrt(dx * dx + dy * dy);
+        touchStartCameraDist = cameraDistance;
+        isDragging = false;
+        dragMoved = true; // 双指时不触发点击
+      }
+    };
+
+    const handleTouchMove = (event: TouchEvent) => {
+      event.preventDefault();
+      if (event.touches.length === 1 && isDragging) {
+        const dx = event.touches[0].clientX - dragStartX;
+        const dy = event.touches[0].clientY - dragStartY;
+        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dragMoved = true;
+        cameraAngleX = dragStartAngleX - dx * 0.008;
+        cameraAngleY = Math.max(MIN_ANGLE_Y, Math.min(MAX_ANGLE_Y, dragStartAngleY - dy * 0.008));
+        updateCameraFromSpherical();
+      } else if (event.touches.length === 2) {
+        const dx = event.touches[0].clientX - event.touches[1].clientX;
+        const dy = event.touches[0].clientY - event.touches[1].clientY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (touchStartDist > 0 && dist > 0) {
+          cameraDistance = Math.max(MIN_DISTANCE, Math.min(MAX_DISTANCE, touchStartCameraDist * (touchStartDist / dist)));
+          updateCameraFromSpherical();
+        }
+      }
+    };
+
+    const handleTouchEnd = () => {
+      isDragging = false;
+    };
+
+    // 对外暴露的相机控制方法（供 flipped 切换等使用）
+    (cameraRef.current as any)._setAngle = (angleX: number, animate = true) => {
+      if (!animate) {
+        cameraAngleX = angleX;
+        updateCameraFromSpherical();
+      } else {
+        // 平滑旋转到目标角度
+        const target = angleX;
+        const start = cameraAngleX;
+        const diff = target - start;
+        const duration = 400; // ms
+        const startTime = performance.now();
+        const step = () => {
+          const elapsed = performance.now() - startTime;
+          const t = Math.min(elapsed / duration, 1);
+          const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+          cameraAngleX = start + diff * ease;
+          updateCameraFromSpherical();
+          if (t < 1) requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+      }
+    };
+
+    (cameraRef.current as any)._getAngle = () => cameraAngleX;
+    (cameraRef.current as any)._resetView = (flipped: boolean) => {
+      // 重置到默认视角
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      fitCameraToBoard(camera, w, h, flipped);
+      const s = getSphericalFromCamera(camera, cameraTarget);
+      cameraDistance = s.distance;
+      cameraAngleY = s.angleY;
+      cameraAngleX = s.angleX;
+      updateCameraFromSpherical();
+    };
+
+    // 绑定相机控制事件
+    renderer.domElement.style.cursor = 'grab';
+    renderer.domElement.addEventListener('mousedown', handleMouseDown);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    renderer.domElement.addEventListener('wheel', handleWheel, { passive: false });
+    renderer.domElement.addEventListener('touchstart', handleTouchStart, { passive: false });
+    renderer.domElement.addEventListener('touchmove', handleTouchMove, { passive: false });
+    renderer.domElement.addEventListener('touchend', handleTouchEnd);
+
     // ---- 渲染循环（按需 + 悬停动画）----
     const animate = () => {
       animationFrameRef.current = requestAnimationFrame(animate);
@@ -835,7 +1016,10 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
       if (!containerRef.current || !rendererRef.current || !cameraRef.current) return;
       const w = containerRef.current.clientWidth;
       const h = containerRef.current.clientHeight;
-      fitCameraToBoard(cameraRef.current, w, h, flippedRef.current); // 重新取景，保证棋盘完整显示（含视角）
+      if (w === 0 || h === 0) return;
+      // 只更新 aspect 和渲染尺寸，保持用户调整后的视角
+      cameraRef.current.aspect = w / h;
+      cameraRef.current.updateProjectionMatrix();
       rendererRef.current.setSize(w, h);
       needsRenderRef.current = true;
     };
@@ -854,22 +1038,62 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
       handleHover();
     };
 
-    const onPointerClick = (e: MouseEvent) => {
+    const onPointerDown = (e: MouseEvent) => {
       if (readOnlyRef.current) return;
+      setMouse(e);
+      // 拖拽由 mousedown/mousemove 处理，这里只记录起点，在 pointerup 时判断是否为点击
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+    };
+
+    const onPointerUp = (e: MouseEvent) => {
+      if (readOnlyRef.current) return;
+      // 如果发生了拖拽（移动距离>5px），不触发点击
+      const dx = e.clientX - dragStartX;
+      const dy = e.clientY - dragStartY;
+      if (Math.abs(dx) > 5 || Math.abs(dy) > 5) return;
+      if (dragMoved) return;
       setMouse(e);
       handleClick();
     };
 
+    // 触摸点击（touch end 时判断）
+    const onTouchEndClick = (event: TouchEvent) => {
+      if (readOnlyRef.current) return;
+      if (dragMoved) return;
+      if (event.changedTouches.length === 1) {
+        const touch = event.changedTouches[0];
+        const rect = renderer.domElement.getBoundingClientRect();
+        mouseRef.current = new THREE.Vector2(
+          ((touch.clientX - rect.left) / rect.width) * 2 - 1,
+          -((touch.clientY - rect.top) / rect.height) * 2 + 1,
+        );
+        handleClick();
+      }
+    };
+
     // 绑定到容器（canvas 的父级），保证点击总能被接收
     container.addEventListener('pointermove', onPointerMove);
-    container.addEventListener('pointerdown', onPointerClick);
+    container.addEventListener('pointerdown', onPointerDown);
+    container.addEventListener('pointerup', onPointerUp);
+    renderer.domElement.addEventListener('touchend', onTouchEndClick);
 
     // 清理
     return () => {
       cancelAnimationFrame(animationFrameRef.current);
       window.removeEventListener('resize', onResize);
       container.removeEventListener('pointermove', onPointerMove);
-      container.removeEventListener('pointerdown', onPointerClick);
+      container.removeEventListener('pointerdown', onPointerDown);
+      container.removeEventListener('pointerup', onPointerUp);
+      // 清理相机控制事件
+      renderer.domElement.removeEventListener('mousedown', handleMouseDown);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      renderer.domElement.removeEventListener('wheel', handleWheel);
+      renderer.domElement.removeEventListener('touchstart', handleTouchStart);
+      renderer.domElement.removeEventListener('touchmove', handleTouchMove);
+      renderer.domElement.removeEventListener('touchend', handleTouchEnd);
+      renderer.domElement.removeEventListener('touchend', onTouchEndClick);
       renderer.dispose();
       if (renderer.domElement.parentNode) {
         renderer.domElement.parentNode.removeChild(renderer.domElement);
@@ -878,13 +1102,16 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ---- 视角切换（红方/黑方）：相机换到棋盘另一侧并重新取景 ----
+  // ---- 视角切换（红方/黑方）：平滑旋转到棋盘另一侧 ----
   useEffect(() => {
-    const cam = cameraRef.current;
-    const el = containerRef.current;
-    if (!cam || !el) return;
-    fitCameraToBoard(cam, el.clientWidth, el.clientHeight, flipped);
-    needsRenderRef.current = true;
+    const cam = cameraRef.current as any;
+    if (!cam || !cam._resetView) return;
+    // 使用平滑旋转切换视角
+    // 红方视角 angleX ≈ 0，黑方视角 angleX ≈ PI（从对面看）
+    const targetAngle = flipped ? Math.PI : 0;
+    if (cam._setAngle) {
+      cam._setAngle(targetAngle, true);
+    }
   }, [flipped]);
 
   // ---- 悬停处理 ----
