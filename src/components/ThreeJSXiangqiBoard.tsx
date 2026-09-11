@@ -1025,6 +1025,12 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
     };
     window.addEventListener('resize', onResize);
 
+    // ResizeObserver：监听容器自身尺寸变化（沉浸模式切换、布局调整等）
+    const resizeObserver = new ResizeObserver(() => {
+      onResize();
+    });
+    resizeObserver.observe(container);
+
     const setMouse = (e: MouseEvent) => {
       const rect = renderer.domElement.getBoundingClientRect();
       mouseRef.current = new THREE.Vector2(
@@ -1082,6 +1088,7 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
     return () => {
       cancelAnimationFrame(animationFrameRef.current);
       window.removeEventListener('resize', onResize);
+      resizeObserver.disconnect();
       container.removeEventListener('pointermove', onPointerMove);
       container.removeEventListener('pointerdown', onPointerDown);
       container.removeEventListener('pointerup', onPointerUp);
