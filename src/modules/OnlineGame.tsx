@@ -127,8 +127,11 @@ export const OnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ autoJoi
   }, []);
 
   // 组件卸载时清理沉浸模式
+  const isMountedRef = useRef(true);
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
+      isMountedRef.current = false;
       document.body.classList.remove('app-immersive');
     };
   }, []);
@@ -239,8 +242,9 @@ export const OnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ autoJoi
   const copyShareLink = async () => {
     try {
       await navigator.clipboard.writeText(shareLink);
+      if (!isMountedRef.current) return;
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setTimeout(() => { if (isMountedRef.current) setCopied(false); }, 2000);
     } catch {
       const input = document.createElement('input');
       input.value = shareLink;
@@ -248,8 +252,9 @@ export const OnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ autoJoi
       input.select();
       document.execCommand('copy');
       document.body.removeChild(input);
+      if (!isMountedRef.current) return;
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setTimeout(() => { if (isMountedRef.current) setCopied(false); }, 2000);
     }
   };
 
@@ -262,8 +267,9 @@ export const OnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ autoJoi
   const copyShareMessage = async () => {
     try {
       await navigator.clipboard.writeText(shareMessage);
+      if (!isMountedRef.current) return;
       setCopiedMsg(true);
-      setTimeout(() => setCopiedMsg(false), 2000);
+      setTimeout(() => { if (isMountedRef.current) setCopiedMsg(false); }, 2000);
     } catch {
       const input = document.createElement('input');
       input.value = shareMessage;
@@ -271,8 +277,9 @@ export const OnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ autoJoi
       input.select();
       document.execCommand('copy');
       document.body.removeChild(input);
+      if (!isMountedRef.current) return;
       setCopiedMsg(true);
-      setTimeout(() => setCopiedMsg(false), 2000);
+      setTimeout(() => { if (isMountedRef.current) setCopiedMsg(false); }, 2000);
     }
   };
 

@@ -99,7 +99,7 @@ function getSphericalFromCamera(camera: THREE.PerspectiveCamera, target: THREE.V
   const dx = camera.position.x - target.x;
   const dy = camera.position.y - target.y;
   const dz = camera.position.z - target.z;
-  const distance = Math.sqrt(dx * dx + dy * dy + dz);
+  const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
   // 俯仰角：从 y 轴正方向向下测量，0 = 正上方，π/2 = 水平
   const angleY = Math.acos(dy / distance);
   // 方位角：绕 y 轴，从 +z 方向顺时针（从上方看）
@@ -677,6 +677,19 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     container.appendChild(renderer.domElement);
 
+    // WebGL context loss 处理：防止 GPU 切换/休眠恢复后崩溃
+    const handleContextLost = (e: Event) => {
+      e.preventDefault();
+      console.warn('[XiangqiBoard] WebGL context lost');
+      needsRenderRef.current = false;
+    };
+    const handleContextRestored = () => {
+      console.info('[XiangqiBoard] WebGL context restored');
+      needsRenderRef.current = true;
+    };
+    renderer.domElement.addEventListener('webglcontextlost', handleContextLost);
+    renderer.domElement.addEventListener('webglcontextrestored', handleContextRestored);
+
     // 环境反射贴图
     const pmrem = new (THREE as any).PMREMGenerator(renderer);
     const envCanvas = document.createElement('canvas');
@@ -974,7 +987,9 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
     renderer.domElement.addEventListener('touchend', handleTouchEnd);
 
     // ---- 渲染循环（按需 + 悬停动画）----
+    let isMounted = true;
     const animate = () => {
+      if (!isMounted) return;
       animationFrameRef.current = requestAnimationFrame(animate);
       const t = clockRef.current.getElapsedTime();
       let need = needsRenderRef.current;
@@ -1086,6 +1101,7 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
 
     // 清理
     return () => {
+      isMounted = false;
       cancelAnimationFrame(animationFrameRef.current);
       window.removeEventListener('resize', onResize);
       resizeObserver.disconnect();
@@ -1101,6 +1117,23 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
       renderer.domElement.removeEventListener('touchmove', handleTouchMove);
       renderer.domElement.removeEventListener('touchend', handleTouchEnd);
       renderer.domElement.removeEventListener('touchend', onTouchEndClick);
+      // 清理 WebGL context loss 监听器
+      renderer.domElement.removeEventListener('webglcontextlost', handleContextLost);
+      renderer.domElement.removeEventListener('webglcontextrestored', handleContextRestored);
+      // 释放 Three.js 资源：遍历场景释放 geometry/material/texture
+      (scene as any).traverse((obj: any) => {
+        if (obj.isMesh) {
+          if (obj.geometry) obj.geometry.dispose();
+          const mat = obj.material;
+          if (mat) {
+            if (Array.isArray(mat)) mat.forEach((m: any) => m.dispose());
+            else mat.dispose();
+          }
+        }
+      });
+      // 清理棋子缓存
+      pieceCache.clear();
+      sideTexCache.clear();
       renderer.dispose();
       if (renderer.domElement.parentNode) {
         renderer.domElement.parentNode.removeChild(renderer.domElement);

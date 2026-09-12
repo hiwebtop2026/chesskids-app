@@ -141,9 +141,20 @@ function getInitialBoardState() {
 // ===== Store 创建 =====
 
 export const useXiangqiMultiplayerStore = create<XiangqiMultiplayerState>((set, get) => {
+  /** 校验坐标是否合法（10行9列） */
+  function isValidSquare(sq: any): sq is XiangqiSquare {
+    return Array.isArray(sq) && sq.length === 2 &&
+      typeof sq[0] === 'number' && typeof sq[1] === 'number' &&
+      sq[0] >= 0 && sq[0] < 10 && sq[1] >= 0 && sq[1] < 9;
+  }
+
   /** 在当前棋盘上应用一步走法 */
   function applyMoveToState(from: XiangqiSquare, to: XiangqiSquare) {
     const state = get();
+    if (!isValidSquare(from) || !isValidSquare(to)) {
+      console.error('[xq-multiplayer] applyMoveToState: invalid square', from, to);
+      return;
+    }
     const piece = state.board[from[0]][from[1]];
     const captured = state.board[to[0]][to[1]] || undefined;
     const notation = getXiangqiMoveNotation(piece, from, to, captured);
@@ -186,55 +197,66 @@ export const useXiangqiMultiplayerStore = create<XiangqiMultiplayerState>((set, 
   function handleMessage(data: any) {
     if (!data || !data.type) return;
 
-    switch (data.type) {
-      case 'HELLO': {
-        const senderColor = data.color as XiangqiColor;
-        set({ opponent: { name: data.name || '对手', color: senderColor } });
-        addChatMessage('system', `对手 ${data.name || '对手'} 已加入，对局开始！`);
-        break;
-      }
-
-      case 'MOVE': {
-        const from = data.from as XiangqiSquare;
-        const to = data.to as XiangqiSquare;
-        applyMoveToState(from, to);
-        break;
-      }
-
-      case 'GAME_RESET': {
-        set({ ...getInitialBoardState(), notification: '对手发起了重开，游戏已重置' });
-        addChatMessage('system', '游戏已重置');
-        break;
-      }
-
-      case 'CHAT': {
-        const opponentColor = get().opponent?.color;
-        if (opponentColor) {
-          addChatMessage(opponentColor, data.message);
+    try {
+      switch (data.type) {
+        case 'HELLO': {
+          const senderColor = data.color as XiangqiColor;
+          if (senderColor !== 'r' && senderColor !== 'b') return;
+          set({ opponent: { name: data.name || '对手', color: senderColor } });
+          addChatMessage('system', `对手 ${data.name || '对手'} 已加入，对局开始！`);
+          break;
         }
-        break;
-      }
 
-      case 'VOICE': {
-        console.log('[xq-multiplayer] Received voice message, size: ~', data.audioData?.length || 0, 'chars');
-        const opponentColor = get().opponent?.color;
-        if (opponentColor) {
-          set((state) => ({
-            chatMessages: [...state.chatMessages, {
-              from: opponentColor,
-              message: '语音消息',
-              timestamp: Date.now(),
-              isVoice: true,
-              audioData: data.audioData,
-              duration: data.duration,
-            }],
-          }));
+        case 'MOVE': {
+          const from = data.from as XiangqiSquare;
+          const to = data.to as XiangqiSquare;
+          if (!isValidSquare(from) || !isValidSquare(to)) {
+            console.error('[xq-multiplayer] Invalid MOVE coordinates:', data);
+            return;
+          }
+          applyMoveToState(from, to);
+          break;
         }
-        break;
-      }
 
-      default:
-        break;
+        case 'GAME_RESET': {
+          set({ ...getInitialBoardState(), notification: '对手发起了重开，游戏已重置' });
+          addChatMessage('system', '游戏已重置');
+          break;
+        }
+
+        case 'CHAT': {
+          if (typeof data.message !== 'string') return;
+          const opponentColor = get().opponent?.color;
+          if (opponentColor) {
+            addChatMessage(opponentColor, data.message);
+          }
+          break;
+        }
+
+        case 'VOICE': {
+          if (typeof data.audioData !== 'string') return;
+          console.log('[xq-multiplayer] Received voice message, size: ~', data.audioData?.length || 0, 'chars');
+          const opponentColor = get().opponent?.color;
+          if (opponentColor) {
+            set((state) => ({
+              chatMessages: [...state.chatMessages, {
+                from: opponentColor,
+                message: '语音消息',
+                timestamp: Date.now(),
+                isVoice: true,
+                audioData: data.audioData,
+                duration: typeof data.duration === 'number' ? data.duration : 0,
+              }],
+            }));
+          }
+          break;
+        }
+
+        default:
+          break;
+      }
+    } catch (err) {
+      console.error('[xq-multiplayer] handleMessage error:', err);
     }
   }
 

@@ -97,6 +97,7 @@ export const XiangqiAIGame: React.FC = () => {
   const [hint, setHint] = useState<XiangqiSquare[] | null>(null);
   const [boardFlipped, setBoardFlipped] = useState(false);
   const aiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const aiCancelledRef = useRef(false);
 
   // refs 同步最新状态，供 AI 定时器读取
   const boardRef = useRef(board);
@@ -121,7 +122,13 @@ export const XiangqiAIGame: React.FC = () => {
   const gameOver = isXiangqiGameOver(status);
   const isHumanTurn = turn === humanColor;
 
-  useEffect(() => () => { if (aiTimerRef.current) clearTimeout(aiTimerRef.current); }, []);
+  useEffect(() => {
+    aiCancelledRef.current = false;
+    return () => {
+      aiCancelledRef.current = true;
+      if (aiTimerRef.current) clearTimeout(aiTimerRef.current);
+    };
+  }, []);
 
   // 记录走子并更新全部状态（供 AI 与人类共用）
   const commitMove = useCallback((
@@ -159,7 +166,9 @@ export const XiangqiAIGame: React.FC = () => {
     if (isXiangqiGameOver(getXiangqiGameStatus(b, t))) return;
     setThinking(true);
     aiTimerRef.current = setTimeout(() => {
+      if (aiCancelledRef.current) return;
       const mv = xiangqiBestMove(b, t, diffRef.current);
+      if (aiCancelledRef.current) return;
       setThinking(false);
       if (mv) {
         commitMove(b, mv[0] as XiangqiSquare, mv[1] as XiangqiSquare, t);

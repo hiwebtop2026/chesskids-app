@@ -1,0 +1,21 @@
+fix: 全面修复中国象棋游戏闪退/重启问题，提升运行稳定性
+
+## 修复 ThreeJSXiangqiBoard.tsx（3D棋盘）
+1. 距离计算bug：getSphericalFromCamera 中 dz 未平方（dz -> dz*dz）
+2. WebGL context loss 处理：添加 webglcontextlost/restored 事件监听
+3. 动画循环 mounted 守卫：添加 isMounted 标志，组件卸载后不再执行
+4. Three.js 资源释放：清理函数中 traverse 场景释放所有 geometry/material
+
+## 修复 xiangqiMultiplayerStore.ts（联机对局）
+1. handleMessage try-catch：所有 PeerJS 消息处理包裹 try-catch
+2. MOVE 消息坐标校验：添加 isValidSquare 校验函数
+3. applyMoveToState 越界保护：在访问 board[r][c] 前校验
+4. HELLO/CHAT/VOICE 消息字段类型校验
+
+## 修复 XiangqiAIGame.tsx（人机对局）
+1. AI 定时器 mounted 守卫：添加 aiCancelledRef
+2. AI 计算后二次检查：xiangqiBestMove 返回前再次检查取消标志
+
+## 修复 XiangqiOnlineGame.tsx + OnlineGame.tsx（联机UI）
+1. 异步复制操作 mounted 守卫：copyShareLink/copyShareMessage
+2. setTimeout 回调守卫：复制成功的定时重置也检查 mounted
