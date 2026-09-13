@@ -1,21 +1,32 @@
-fix: 全面修复中国象棋游戏闪退/重启问题，提升运行稳定性
+feat: 全面优化校园网环境下的联机对局连接成功率
 
-## 修复 ThreeJSXiangqiBoard.tsx（3D棋盘）
-1. 距离计算bug：getSphericalFromCamera 中 dz 未平方（dz -> dz*dz）
-2. WebGL context loss 处理：添加 webglcontextlost/restored 事件监听
-3. 动画循环 mounted 守卫：添加 isMounted 标志，组件卸载后不再执行
-4. Three.js 资源释放：清理函数中 traverse 场景释放所有 geometry/material
+## 校园网连接问题根因分析
+1. PeerJS 信令服务器在国外，校园网可能延迟高或屏蔽
+2. 校园网 NAT 类型严格（对称 NAT），P2P 直连成功率极低
+3. UDP 端口常被屏蔽，必须走 TCP 443/80 端口
+4. 原有超时时间太短，校园网延迟高时容易过早失败
+5. TURN 服务器顺序不合理，UDP 优先导致浪费时间
 
-## 修复 xiangqiMultiplayerStore.ts（联机对局）
-1. handleMessage try-catch：所有 PeerJS 消息处理包裹 try-catch
-2. MOVE 消息坐标校验：添加 isValidSquare 校验函数
-3. applyMoveToState 越界保护：在访问 board[r][c] 前校验
-4. HELLO/CHAT/VOICE 消息字段类型校验
+## 优化内容
 
-## 修复 XiangqiAIGame.tsx（人机对局）
-1. AI 定时器 mounted 守卫：添加 aiCancelledRef
-2. AI 计算后二次检查：xiangqiBestMove 返回前再次检查取消标志
+### 1. ICE 服务器优先级重排（核心优化）
+- TLS TURN 443 → TCP TURN 443 → UDP TURN 443 → TCP 80 → UDP 3478 → STUN
+- 新增 PeerJS TURN 443 端口服务器（之前只有 3478）
+- TCP 443 端口伪装为 HTTPS 流量，校园网防火墙最可能放行
 
-## 修复 XiangqiOnlineGame.tsx + OnlineGame.tsx（联机UI）
-1. 异步复制操作 mounted 守卫：copyShareLink/copyShareMessage
-2. setTimeout 回调守卫：复制成功的定时重置也检查 mounted
+### 2. 延长连接超时时间
+- 直连超时：15s → 20s（给校园网更多协商时间）
+- 中继超时：25s → 35s（TURN 中继经过更多跳点）
+- 首次重试延迟：800ms → 600ms（更快切换到中继模式）
+
+### 3. 房主等待超时提示
+- 房主创建房间 30 秒后无人加入时显示优化建议
+- 提示：切换手机热点 / 让对方重试 / 关闭 VPN
+
+### 4. 优化提示文案
+- "直连较慢，正在切换中继模式（校园网推荐）"
+- 失败提示更具体：列出 3 条解决方案
+
+## 修改文件
+- src/store/multiplayerStore.ts（国际象棋）
+- src/store/xiangqiMultiplayerStore.ts（中国象棋）

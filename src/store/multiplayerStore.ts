@@ -264,14 +264,16 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => {
               { urls: 'turns:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
               // TCP TURN on 443 — 备选 HTTPS 端口
               { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
-              // UDP TURN on 443
               { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-              // PeerJS public TURN（端口 3478，校园网可能封禁）
-              { urls: 'turn:eu-0.turn.peerjs.com:3478', username: 'peerjs', credential: 'peerjsp' },
-              { urls: 'turn:eu-0.turn.peerjs.com:3478?transport=tcp', username: 'peerjs', credential: 'peerjsp' },
-              // OpenRelay on port 80（非标端口，补充）
-              { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+              // PeerJS TURN on 443（新增 443 端口）
+              { urls: 'turn:eu-0.turn.peerjs.com:443?transport=tcp', username: 'peerjs', credential: 'peerjsp' },
+              { urls: 'turn:eu-0.turn.peerjs.com:443', username: 'peerjs', credential: 'peerjsp' },
+              // OpenRelay on port 80 TCP
               { urls: 'turn:openrelay.metered.ca:80?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+              { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+              // PeerJS public TURN on 3478（校园网可能封禁）
+              { urls: 'turn:eu-0.turn.peerjs.com:3478?transport=tcp', username: 'peerjs', credential: 'peerjsp' },
+              { urls: 'turn:eu-0.turn.peerjs.com:3478', username: 'peerjs', credential: 'peerjsp' },
               // STUN（对称 NAT 下无效，但用于非受限网络环境）
               { urls: 'stun:stun.l.google.com:19302' },
               { urls: 'stun:stun1.l.google.com:19302' },
@@ -444,6 +446,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => {
     /** 创建房间（房主） */
     createRoom: () => {
       const roomCode = generateRoomCode();
+      let hostWaitTimer: ReturnType<typeof setTimeout> | null = null;
 
       initPeer(roomCode, roomCode, true)
         .then(() => {
@@ -454,6 +457,13 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => {
             chatMessages: [],
             notification: `房间已创建，房间号：${roomCode.replace('C-', '')}，等待对手加入...`,
           });
+          // 等待 30 秒如果还没人加入，提示可能在校园网内
+          if (hostWaitTimer) clearTimeout(hostWaitTimer);
+          hostWaitTimer = setTimeout(() => {
+            if (!get().opponent && get().roomCode === roomCode) {
+              set({ notification: '等待时间较长，如对方连不上可尝试：1) 切换手机热点 2) 让对方点加入房间重试 3) 双方都关闭VPN' });
+            }
+          }, 30000);
         })
         .catch(() => {});
     },
@@ -485,21 +495,20 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => {
             console.log(`[multiplayer] Connecting to room ${code}, relayOnly=${relayOnly}`);
 
             if (connectTimeout) clearTimeout(connectTimeout);
-            // 首次 15s 超时（校园网场景直连大概率失败，快速回退到中继）
-            // 重试时 25s 超时（TURN 中继需要更多时间）
-            const timeoutMs = relayOnly ? 25000 : 15000;
+            // 校园网延迟高，延长超时：直连 20s，中继 35s
+            const timeoutMs = relayOnly ? 35000 : 20000;
             connectTimeout = setTimeout(() => {
               if (!conn || !conn.open) {
                 if (!retryAttempted) {
                   retryAttempted = true;
-                  set({ notification: '直连超时，正在尝试中继连接...' });
+                  set({ notification: '直连较慢，正在切换中继模式（校园网推荐）...' });
                   isRetrying = true;
                   if (peer) { try { peer.destroy(); } catch {} peer = null; }
-                  setTimeout(() => attemptConnection(true), 800);
+                  setTimeout(() => attemptConnection(true), 600);
                   return;
                 }
                 set({
-                  notification: '连接超时，对方可能在校园网/企业网内，建议双方都切换手机热点后重试',
+                  notification: '连接失败：对方可能在校园网内。建议：1) 双方都用手机热点重试 2) 关闭VPN/代理 3) 确保双方网络正常',
                   connectionStatus: 'disconnected',
                 });
               }
