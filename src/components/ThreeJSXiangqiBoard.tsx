@@ -611,6 +611,8 @@ export interface ThreeJSXiangqiBoardProps {
   readOnly?: boolean;
   /** 黑方视角：相机移至棋盘另一侧，黑方棋子在下方 */
   flipped?: boolean;
+  /** 棋盘初始化完成回调，返回可调用的控制方法 */
+  onReady?: (api: { resetView: () => void }) => void;
 }
 
 export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
@@ -623,6 +625,7 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
   onSquareClick,
   readOnly = false,
   flipped = false,
+  onReady,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -831,6 +834,46 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
     let dragStartAngleY = 0;
     let dragMoved = false;   // 是否发生了拖拽（用于区分点击和拖拽）
 
+    // === 平移（Pan）相关状态 ===
+    let isPanning = false;       // 是否正在平移
+    let panStartX = 0;           // 平移起点屏幕 X
+    let panStartY = 0;           // 平移起点屏幕 Y
+    let panTargetStart = new (THREE as any).Vector3(); // 平移开始时的目标点
+
+    // 平移范围限制（棋盘边界 + 余量）
+    const PAN_LIMIT_X = 6;   // X 方向平移范围（±）
+    const PAN_LIMIT_Z = 7;   // Z 方向平移范围（±）
+
+    // 根据当前相机方向计算屏幕空间的平移向量
+    const panCamera = (deltaX: number, deltaY: number) => {
+      // 将屏幕像素差转换为世界空间平移量
+      // 平移量与相机距离成正比（越远平移越多）
+      const panScale = cameraDistance * 0.003;
+
+      // 相机右向量（水平方向）
+      const rightX = Math.cos(cameraAngleX);
+      const rightZ = -Math.sin(cameraAngleX);
+
+      // 相机上向量在 XZ 平面的投影（近似上下方向）
+      // 考虑俯仰角：angleY 越小（越俯视），垂直平移越接近世界空间
+      const forwardX = Math.sin(cameraAngleX);
+      const forwardZ = Math.cos(cameraAngleY) * Math.cos(cameraAngleX);
+
+      // 水平平移（右向量方向）
+      cameraTarget.x += rightX * deltaX * panScale;
+      cameraTarget.z += rightZ * deltaX * panScale;
+
+      // 垂直平移（前方向量的反方向，屏幕上移=目标点前移）
+      cameraTarget.x -= forwardX * deltaY * panScale;
+      cameraTarget.z -= forwardZ * deltaY * panScale;
+
+      // 限制平移范围
+      cameraTarget.x = Math.max(-PAN_LIMIT_X, Math.min(PAN_LIMIT_X, cameraTarget.x));
+      cameraTarget.z = Math.max(-PAN_LIMIT_Z, Math.min(PAN_LIMIT_Z, cameraTarget.z));
+
+      updateCameraFromSpherical();
+    };
+
     // 根据球面坐标更新相机位置
     const updateCameraFromSpherical = () => {
       const r = cameraDistance;
@@ -856,33 +899,52 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
     const MIN_ANGLE_Y = 0.12;   // 接近正上方
     const MAX_ANGLE_Y = Math.PI / 2 - 0.05; // 接近水平，避免翻转
 
-    // --- 鼠标按下：开始拖拽旋转 ---
+    // --- 鼠标按下：左键旋转，右键平移 ---
     const handleMouseDown = (event: MouseEvent) => {
-      isDragging = true;
       dragMoved = false;
-      dragStartX = event.clientX;
-      dragStartY = event.clientY;
-      dragStartAngleX = cameraAngleX;
-      dragStartAngleY = cameraAngleY;
-      renderer.domElement.style.cursor = 'grabbing';
+      if (event.button === 2) {
+        // 右键 → 平移
+        isPanning = true;
+        panStartX = event.clientX;
+        panStartY = event.clientY;
+        panTargetStart.copy(cameraTarget);
+        renderer.domElement.style.cursor = 'grabbing';
+      } else {
+        // 左键 → 旋转
+        isDragging = true;
+        dragStartX = event.clientX;
+        dragStartY = event.clientY;
+        dragStartAngleX = cameraAngleX;
+        dragStartAngleY = cameraAngleY;
+        renderer.domElement.style.cursor = 'grabbing';
+      }
     };
 
-    // --- 鼠标移动（拖拽时旋转视角） ---
+    // --- 鼠标移动（拖拽旋转 / 平移） ---
     const handleMouseMove = (event: MouseEvent) => {
-      if (!isDragging) return;
-      const dx = event.clientX - dragStartX;
-      const dy = event.clientY - dragStartY;
-      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dragMoved = true;
-      // 水平拖拽 → 改变方位角
-      cameraAngleX = dragStartAngleX - dx * 0.008;
-      // 垂直拖拽 → 改变俯仰角（限制范围避免翻转）
-      cameraAngleY = Math.max(MIN_ANGLE_Y, Math.min(MAX_ANGLE_Y, dragStartAngleY - dy * 0.008));
-      updateCameraFromSpherical();
+      if (isPanning) {
+        // 平移模式
+        const dx = event.clientX - panStartX;
+        const dy = event.clientY - panStartY;
+        if (Math.abs(dx) > 2 || Math.abs(dy) > 2) dragMoved = true;
+        // 从起始目标点开始计算偏移
+        cameraTarget.copy(panTargetStart);
+        panCamera(dx, dy);
+      } else if (isDragging) {
+        // 旋转模式
+        const dx = event.clientX - dragStartX;
+        const dy = event.clientY - dragStartY;
+        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dragMoved = true;
+        cameraAngleX = dragStartAngleX - dx * 0.008;
+        cameraAngleY = Math.max(MIN_ANGLE_Y, Math.min(MAX_ANGLE_Y, dragStartAngleY - dy * 0.008));
+        updateCameraFromSpherical();
+      }
     };
 
-    // --- 鼠标松开：结束拖拽 ---
+    // --- 鼠标松开：结束拖拽/平移 ---
     const handleMouseUp = () => {
       isDragging = false;
+      isPanning = false;
       renderer.domElement.style.cursor = 'grab';
     };
 
@@ -894,12 +956,16 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
       updateCameraFromSpherical();
     };
 
-    // --- 触摸支持（移动端单指拖拽旋转 + 双指捏合缩放） ---
+    // --- 触摸支持（单指旋转 + 双指缩放 + 三指平移） ---
     let touchStartDist = 0;
     let touchStartCameraDist = 0;
+    let touchPanStartX = 0;
+    let touchPanStartY = 0;
+    let isTouchPanning = false;
     const handleTouchStart = (event: TouchEvent) => {
       if (event.touches.length === 1) {
         isDragging = true;
+        isTouchPanning = false;
         dragMoved = false;
         dragStartX = event.touches[0].clientX;
         dragStartY = event.touches[0].clientY;
@@ -911,7 +977,17 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
         touchStartDist = Math.sqrt(dx * dx + dy * dy);
         touchStartCameraDist = cameraDistance;
         isDragging = false;
+        isTouchPanning = false;
         dragMoved = true; // 双指时不触发点击
+      } else if (event.touches.length === 3) {
+        // 三指 → 平移
+        isDragging = false;
+        isTouchPanning = true;
+        dragMoved = true;
+        // 以三指中心为平移参考点
+        touchPanStartX = (event.touches[0].clientX + event.touches[1].clientX + event.touches[2].clientX) / 3;
+        touchPanStartY = (event.touches[0].clientY + event.touches[1].clientY + event.touches[2].clientY) / 3;
+        panTargetStart.copy(cameraTarget);
       }
     };
 
@@ -932,11 +1008,25 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
           cameraDistance = Math.max(MIN_DISTANCE, Math.min(MAX_DISTANCE, touchStartCameraDist * (touchStartDist / dist)));
           updateCameraFromSpherical();
         }
+      } else if (event.touches.length === 3 && isTouchPanning) {
+        // 三指平移
+        const cx = (event.touches[0].clientX + event.touches[1].clientX + event.touches[2].clientX) / 3;
+        const cy = (event.touches[0].clientY + event.touches[1].clientY + event.touches[2].clientY) / 3;
+        const dx = cx - touchPanStartX;
+        const dy = cy - touchPanStartY;
+        cameraTarget.copy(panTargetStart);
+        panCamera(dx, dy);
       }
     };
 
     const handleTouchEnd = () => {
       isDragging = false;
+      isTouchPanning = false;
+    };
+
+    // 阻止右键菜单（右键用于平移）
+    const handleContextMenu = (event: MouseEvent) => {
+      event.preventDefault();
     };
 
     // 对外暴露的相机控制方法（供 flipped 切换等使用）
@@ -965,6 +1055,8 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
 
     (cameraRef.current as any)._getAngle = () => cameraAngleX;
     (cameraRef.current as any)._resetView = (flipped: boolean) => {
+      // 重置目标点到棋盘中心
+      cameraTarget.set(0, 0.2, 0);
       // 重置到默认视角
       const w = container.clientWidth;
       const h = container.clientHeight;
@@ -979,12 +1071,20 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
     // 绑定相机控制事件
     renderer.domElement.style.cursor = 'grab';
     renderer.domElement.addEventListener('mousedown', handleMouseDown);
+    renderer.domElement.addEventListener('contextmenu', handleContextMenu);
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
     renderer.domElement.addEventListener('wheel', handleWheel, { passive: false });
     renderer.domElement.addEventListener('touchstart', handleTouchStart, { passive: false });
     renderer.domElement.addEventListener('touchmove', handleTouchMove, { passive: false });
     renderer.domElement.addEventListener('touchend', handleTouchEnd);
+
+    // 初始化完成，对外暴露 API
+    if (onReady) {
+      onReady({
+        resetView: () => (cameraRef.current as any)._resetView?.(flippedRef.current),
+      });
+    }
 
     // ---- 渲染循环（按需 + 悬停动画）----
     let isMounted = true;
@@ -1110,6 +1210,7 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
       container.removeEventListener('pointerup', onPointerUp);
       // 清理相机控制事件
       renderer.domElement.removeEventListener('mousedown', handleMouseDown);
+      renderer.domElement.removeEventListener('contextmenu', handleContextMenu);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
       renderer.domElement.removeEventListener('wheel', handleWheel);

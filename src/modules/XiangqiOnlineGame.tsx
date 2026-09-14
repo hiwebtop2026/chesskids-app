@@ -110,6 +110,7 @@ export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
   const [copied, setCopied] = useState(false);
   const [viewMode, setViewMode] = useState<'3d' | '2d'>(supportsWebGL() ? '3d' : '2d');
   const chatListRef = useRef<HTMLDivElement>(null);
+  const board3dRef = useRef<any>(null);
 
   // 浮动窗口状态
   const [isFloating, setIsFloating] = useState(false);
@@ -665,10 +666,11 @@ export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
             </span>
           </div>
 
-          {/* 2D/3D 切换 + 沉浸模式 */}
+          {/* 2D/3D 切换 + 沉浸模式 + 复位视角 */}
           <div className="view-toggle">
             <button className={`action-btn ${viewMode === '3d' ? 'primary' : ''}`} onClick={() => setViewMode('3d')}>🎲 3D</button>
             <button className={`action-btn ${viewMode === '2d' ? 'primary' : ''}`} onClick={() => setViewMode('2d')}>▦ 2D</button>
+            <button className="action-btn reset-view-btn" onClick={() => board3dRef.current?.resetView?.()} title="复位视角">↺ 复位</button>
             <button className="action-btn immersive-btn" onClick={toggleImmersive} title={isImmersive ? '退出沉浸模式' : '沉浸模式'}>
               {isImmersive ? '⛶ 退出' : '⛶ 沉浸'}
             </button>
@@ -686,6 +688,7 @@ export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
                 onSquareClick={selectSquare}
                 readOnly={boardReadOnly}
                 flipped={color === 'b'}
+                onReady={(api) => { board3dRef.current = api; }}
               />
             ) : (
               <XiangqiBoard2D

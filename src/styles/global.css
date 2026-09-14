@@ -4647,6 +4647,19 @@ ul {
   border-color: var(--primary);
 }
 
+/* 复位视角按钮 */
+.view-toggle .action-btn.reset-view-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.view-toggle .action-btn.reset-view-btn:hover {
+  background: var(--accent);
+  color: var(--text-white);
+  border-color: var(--accent);
+}
+
 /* 玩家信息栏中的沉浸按钮（国际象棋） */
 .online-player-bar .immersive-toggle-btn {
   margin-left: auto;
