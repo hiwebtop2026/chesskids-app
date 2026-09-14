@@ -171,13 +171,29 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => {
   }
 
   /** 发送消息给对手 */
-  function sendMessage(data: Record<string, unknown>) {
-    if (conn && conn.open) {
+  function sendMessage(data: Record<string, unknown>): boolean {
+    // 双重校验：conn.open + DataChannel.readyState === 'open'
+    // 移动网络下通道可能已进入 closing/closed 但 conn.open 仍为 true
+    if (!conn || !conn.open) {
+      console.warn(`[multiplayer] sendMessage failed: conn not open, type=${data.type}`);
+      return false;
+    }
+    // 检查底层 RTCDataChannel 实际状态
+    const channel = conn.dataChannel || conn.channel || conn._dc;
+    if (channel && channel.readyState !== 'open') {
+      console.warn(`[multiplayer] sendMessage failed: channel readyState=${channel.readyState}, type=${data.type}`);
+      set({ notification: '连接不稳定，消息发送失败，请检查网络' });
+      return false;
+    }
+    try {
       const dataSize = JSON.stringify(data).length;
       console.log(`[multiplayer] Sending ${data.type} message, ~${dataSize} bytes`);
       conn.send(data);
-    } else {
-      console.warn(`[multiplayer] sendMessage failed: conn not open, type=${data.type}`);
+      return true;
+    } catch (err) {
+      console.error(`[multiplayer] sendMessage error:`, err);
+      set({ notification: '消息发送失败，网络连接不稳定' });
+      return false;
     }
   }
 
@@ -357,15 +373,58 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => {
   function setupConnection(connection: any) {
     conn = connection;
 
+    // === 先注册所有事件监听器，再处理 open 状态 ===
+    // 这样可以确保：即使连接已经 open，对方发来的消息也不会丢失
+
+    // 接收消息
+    conn.on('data', (data: any) => {
+      handleMessage(data);
+    });
+
+    // 连接关闭
+    conn.on('close', () => {
+      handleOpponentLeft('left');
+    });
+
+    // 连接错误
+    conn.on('error', (err: any) => {
+      const errType = err?.type || '';
+      console.error('[multiplayer] Connection error:', errType, err);
+      if (errType === 'negotiation-failed' || errType === 'ice-connection-failed') {
+        handleOpponentLeft('error');
+      } else {
+        handleOpponentLeft('network');
+      }
+    });
+
     const onConnOpen = () => {
       const state = get();
       const myColor = state.color;
       if (!myColor) return;
 
+      // 二次确认 DataChannel 实际就绪
+      const channel = conn.dataChannel || conn.channel || conn._dc;
+      if (channel && channel.readyState !== 'open') {
+        const checkReady = setInterval(() => {
+          const ch = conn?.dataChannel || conn?.channel || conn?._dc;
+          if (ch && ch.readyState === 'open') {
+            clearInterval(checkReady);
+            finishConnOpen(myColor);
+          }
+        }, 200);
+        setTimeout(() => clearInterval(checkReady), 5000);
+        return;
+      }
+
+      finishConnOpen(myColor);
+    };
+
+    function finishConnOpen(myColor: PieceColor) {
       const opponentColor: PieceColor = myColor === 'w' ? 'b' : 'w';
 
       set({
         inGame: true,
+        connectionStatus: 'connected',
         opponent: { name: '对手', color: opponentColor },
         ...getInitialBoardState(),
         chatMessages: [],
@@ -374,39 +433,34 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => {
       addChatMessage('system', '对手已连接，对局开始！');
 
       sendMessage({ type: 'HELLO', name: myColor === 'w' ? '房主' : '玩家', color: myColor });
-    };
+    }
 
     if (conn.open) {
       onConnOpen();
     } else {
       conn.on('open', onConnOpen);
     }
-
-    conn.on('data', (data: any) => {
-      handleMessage(data);
-    });
-
-    conn.on('close', () => {
-      handleOpponentLeft();
-    });
-
-    conn.on('error', (err: any) => {
-      const errType = err?.type || '';
-      if (errType === 'negotiation-failed' || errType === 'ice-connection-failed') {
-        set({
-          notification: '连接中断，对方可能正在尝试重连，请稍候...',
-          connectionStatus: 'disconnected',
-        });
-      }
-      conn = null;
-      handleOpponentLeft();
-    });
   }
 
-  /** 对手离开 */
-  function handleOpponentLeft() {
-    set({ opponent: null, notification: '对手已断开连接' });
-    addChatMessage('system', '对手已断开连接');
+  /** 对手离开 / 连接断开 */
+  function handleOpponentLeft(reason: 'left' | 'error' | 'network' = 'left') {
+    // 清理连接引用，防止后续发送继续使用已关闭连接
+    if (connectTimeout) {
+      clearTimeout(connectTimeout);
+      connectTimeout = null;
+    }
+    conn = null;
+    const messages: Record<string, string> = {
+      left: '对手已断开连接',
+      error: '连接中断，对方可能正在尝试重连',
+      network: '网络不稳定，连接已断开',
+    };
+    set({
+      opponent: null,
+      notification: messages[reason],
+      connectionStatus: 'disconnected',
+    });
+    addChatMessage('system', messages[reason]);
   }
 
   /** 断开连接处理 */
@@ -676,7 +730,14 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => {
     sendVoiceMessage: (audioData, duration) => {
       const state = get();
       if (!state.color) return;
-      sendMessage({ type: 'VOICE', audioData, duration });
+      // 语音消息大小限制：最大 64KB，防止移动网络下 DataChannel 拥塞
+      const MAX_VOICE_SIZE = 64 * 1024;
+      if (audioData.length > MAX_VOICE_SIZE) {
+        set({ notification: '语音消息过长，发送失败（请缩短录音时间）' });
+        return;
+      }
+      const sent = sendMessage({ type: 'VOICE', audioData, duration });
+      if (!sent) return;
       set((s) => ({
         chatMessages: [...s.chatMessages, {
           from: state.color!,
