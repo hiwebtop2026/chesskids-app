@@ -3530,7 +3530,7 @@ ul {
 
 .xiangqi-board-wrapper {
   width: 100%;
-  max-width: 540px;
+  max-width: 100%;
   margin: 0 auto;
   aspect-ratio: 9 / 10;
   position: relative;
@@ -3744,7 +3744,7 @@ ul {
 
 .xiangqi-board-host {
   width: 100%;
-  max-width: 540px;
+  max-width: 100%;
   margin: 0 auto;
   aspect-ratio: 9 / 10;
   position: relative;
@@ -3754,7 +3754,7 @@ ul {
 }
 
 .xiangqi-board-host.view-2d {
-  max-width: 540px;
+  max-width: 100%;
 }
 
 .threejs-xiangqi-board {
@@ -3843,10 +3843,10 @@ ul {
   }
 }
 
-/* 防溢出：棋盘容器在任何窄屏都不超出列宽，桌面仍保持 540px 上限 */
+/* 防溢出：棋盘容器在任何窄屏都不超出列宽，桌面随容器自适应背景 */
 .xiangqi-board-wrapper,
 .xiangqi-board-host {
-  max-width: min(540px, 100%);
+  max-width: 100%;
 }
 
 .game-main-area {
@@ -4798,4 +4798,372 @@ ul {
     max-height: calc(100vh - 16px);
     aspect-ratio: 9 / 10;
   }
+}
+
+/* ================================================================
+   修复：联机对战移动端 2D 棋盘显示不全
+   根因一（纵向裁剪）：game-board-section 用 aspect-ratio 锁定整区高度，
+   但区内还包含对手栏 + 视图切换栏 + 己方栏（约 105px），棋盘 host(height:100%)
+   从栏目下方开始后底部溢出，被 overflow:hidden 裁掉棋盘下半部分（红方主力不可见）。
+   修复：棋盘区域高度改为内容自适应，棋盘按自身 9:10 比例完整显示，页面可滚动查看全部。
+   根因二（横向溢出）：.app-header 内容 min-content（约 441px）超出窄屏视口，
+   把 .app 撑宽导致整页横向滚动、棋盘被横向裁切。
+   修复：窄屏下顶部导航允许换行收缩，不再撑宽页面。
+   ================================================================ */
+
+/* 联机对战棋盘区域：高度由内容决定，棋盘永远完整显示 */
+.xiangqi-online-game .game-board-section {
+  aspect-ratio: auto;
+  height: auto;
+}
+
+.xiangqi-online-game .xiangqi-board-host {
+  height: auto;
+}
+
+/* 3D 棋盘在 host 高度自适应时需有明确高度（原 height:100% 依赖父级固定高度） */
+.xiangqi-online-game .threejs-xiangqi-board {
+  aspect-ratio: 9 / 10;
+  height: auto;
+}
+
+/* 沉浸模式同样保证棋盘完整显示 */
+.app-immersive .xiangqi-online-game .game-board-section {
+  aspect-ratio: auto;
+  height: auto;
+  width: 100vw;
+  max-width: 100%;
+}
+
+.app-immersive .xiangqi-online-game .xiangqi-board-host {
+  height: auto;
+}
+
+/* 桌面沉浸：棋盘以视口高度为基准（扣除信息栏高度），完整显示不裁剪 */
+@media (min-width: 600px) {
+  .app-immersive .xiangqi-online-game .game-board-section {
+    width: min(calc((85vh - 120px) * 9 / 10), 90vw);
+  }
+}
+
+/* 窄屏顶部导航：允许换行收缩，避免撑宽整页导致横向溢出 */
+@media (max-width: 599px) {
+  .app-header {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  .header-left {
+    min-width: 0;
+    flex-shrink: 1;
+  }
+
+  .header-right {
+    flex-shrink: 1;
+    min-width: 0;
+    gap: 6px;
+  }
+
+  .user-profile.compact .xp-bar {
+    width: 76px;
+  }
+
+  .home-back-btn {
+    padding: 6px 10px;
+    font-size: 0.8rem;
+  }
+}
+
+/* 侧面板聊天输入组允许收缩（input 默认 min-width:auto 会撑宽侧面板与整页） */
+.chat-input-group {
+  min-width: 0;
+}
+
+.chat-input {
+  min-width: 0;
+}
+
+/* 布局容器子元素允许收缩，防止任何内容把页面撑出横向滚动 */
+.module,
+.game-layout,
+.game-main-area,
+.game-side-panel,
+.game-board-section {
+  min-width: 0;
+}
+
+/* ================================================================
+   浮动棋盘窗口（腾讯棋牌风格：可拖拽、可缩放、可全屏）
+   ================================================================ */
+.board-float-window {
+  position: fixed;
+  z-index: 9998;
+  width: min(92vw, 540px);
+  height: auto;
+  min-width: 320px;
+  min-height: 380px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border-radius: 14px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  resize: both; /* 右下角原生缩放手柄 */
+}
+
+.board-float-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, #3b2e2a 0%, #4a3a33 100%);
+  color: #fff;
+  cursor: grab;
+  user-select: none;
+  flex-shrink: 0;
+  touch-action: none;
+}
+
+.board-float-titlebar:active {
+  cursor: grabbing;
+}
+
+.board-float-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.board-float-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.board-float-btn {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.board-float-btn:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.board-float-close:hover {
+  background: rgba(244, 67, 54, 0.75);
+}
+
+.board-float-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  overflow: auto;
+  background: radial-gradient(ellipse at center, #d8d8d8 0%, #c0c0c0 70%, #a8a8a8 100%);
+  /* 容器查询：让内部棋盘按 body 可用尺寸等比缩放，填满窗口 */
+  container-type: size;
+}
+
+/* 浮动窗口内：棋盘不锁固定尺寸，按窗口可用宽高等比缩放（宽高取小者） */
+.board-float-window .xiangqi-board-host {
+  max-width: none;
+  width: min(100cqw, calc(100cqh * 0.9));
+  aspect-ratio: 9 / 10;
+  margin: auto;
+  flex-shrink: 0;
+}
+
+.board-float-window .xiangqi-board-host .xiangqi-board-wrapper {
+  max-width: 100%;
+}
+
+.board-float-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  height: 18px;
+  cursor: nwse-resize;
+  background: linear-gradient(135deg, transparent 0 55%, rgba(255, 255, 255, 0.4) 55% 62%, transparent 62% 78%, rgba(255, 255, 255, 0.4) 78% 85%, transparent 85%);
+  pointer-events: none;
+}
+
+/* 浏览器全屏状态：窗口铺满整个屏幕，标题栏可自动隐藏（hover 显示） */
+.board-float-window:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  min-width: 0;
+  min-height: 0;
+  border-radius: 0;
+  resize: none;
+}
+
+.board-float-window:fullscreen .board-float-titlebar {
+  opacity: 1;
+  transition: opacity 0.3s;
+}
+
+.board-float-window:fullscreen:hover .board-float-titlebar {
+  opacity: 1;
+}
+
+.board-float-window:fullscreen .board-float-body {
+  padding: 12px;
+}
+
+/* 软件全屏降级：全屏 API 被浏览器拒绝时铺满视口（同样脱离浏览器窗口限制） */
+.board-float-max {
+  left: 0 !important;
+  top: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  min-width: 0;
+  min-height: 0;
+  border-radius: 0;
+  resize: none;
+}
+
+/* 全屏/铺满模式：背景加深增强沉浸感，棋盘随视口自适应填满 */
+.board-float-window:fullscreen .board-float-body,
+.board-float-max .board-float-body {
+  background: radial-gradient(ellipse at center, #322c28 0%, #221e1b 75%, #171412 100%);
+}
+
+.board-float-window:fullscreen .board-float-body .xiangqi-board-host,
+.board-float-max .board-float-body .xiangqi-board-host {
+  width: min(100cqw, calc(100cqh * 0.92));
+}
+
+/* 移动端 / 窄屏：浮动窗口自动铺满视口，脱离浏览器窗口限制 */
+@media (max-width: 767px) {
+  .board-float-window {
+    left: 0 !important;
+    top: 0 !important;
+    width: 100vw;
+    height: 100vh;
+    min-width: 0;
+    min-height: 0;
+    border-radius: 0;
+    resize: none;
+  }
+}
+
+/* 横屏窄窗口（手机横屏）：同样铺满视口，棋盘最大化 */
+@media (orientation: landscape) and (max-height: 520px) {
+  .board-float-window {
+    left: 0 !important;
+    top: 0 !important;
+    width: 100vw;
+    height: 100vh;
+    border-radius: 0;
+    resize: none;
+  }
+
+  .board-float-titlebar {
+    padding: 4px 12px;
+  }
+}
+
+/* ================================================================
+   棋盘容器内悬浮控制条（功能按钮集成到棋盘，参考腾讯棋牌）
+   ================================================================ */
+.board-view-controls {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+.board-view-controls .view-ctrl-btn {
+  pointer-events: auto;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: rgba(30, 26, 24, 0.62);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  font-size: 0.8rem;
+  line-height: 1;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  transition: background 0.2s, transform 0.1s;
+  user-select: none;
+}
+
+.board-view-controls .view-ctrl-btn:hover:not(:disabled) {
+  background: rgba(56, 48, 44, 0.85);
+}
+
+.board-view-controls .view-ctrl-btn:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.board-view-controls .view-ctrl-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.board-view-controls .view-ctrl-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+/* 浮动/沉浸/全屏模式下棋盘控制条保持可点 */
+.board-float-body .board-view-controls,
+.app-immersive .board-view-controls {
+  z-index: 40;
+}
+
+/* 浮动窗口内的迷你状态条（回合 / 对手信息） */
+.float-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+  flex-shrink: 0;
+  font-size: 0.85rem;
+}
+
+.float-status-bar .float-status-turn {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.float-status-bar .float-status-room {
+  color: var(--primary);
+  font-weight: 700;
 }

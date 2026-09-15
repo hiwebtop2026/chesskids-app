@@ -1,5 +1,58 @@
 # 中国象棋模块优化记录（2026-09-05）
 
+## 2026-09-16：浮动棋盘窗口 + 棋盘自适应全屏（参考腾讯棋牌）
+### 新增：可拖拽浮动棋盘窗口
+- 新增 `src/components/BoardFloatingWindow.tsx`（腾讯棋牌风格独立对局窗口）：
+  - `position: fixed` 脱离页面布局流，标题栏拖拽移动（pointer capture + window 级降级监听）、右下角 CSS resize 缩放、边界钳制视口内
+  - 标题栏内置「浏览器全屏」与「还原」按钮；ESC 退出浮动
+  - 浏览器全屏 API 被拒绝/挂起时自动降级为**软件全屏**（`board-float-max` 铺满视口，500ms 超时保护）
+  - 移动端（≤767px）与横屏窄窗（landscape ≤520px 高）自动铺满视口
+- `XiangqiAIGame.tsx` / `XiangqiOnlineGame.tsx` 浮动模式改为该窗口（原 fixed 全屏 overlay + 自动 requestFullscreen 逻辑移除），标题栏显示对局类型 / 房间号
+### 功能按钮集成到棋盘容器
+- 新增 `.board-view-controls`：3D/2D 切换、复位视角、翻转棋盘、沉浸、浮动窗口等按钮以半透明毛玻璃悬浮条置于棋盘右上角（不占独立工具栏行）
+- 人机对战状态栏瘦身（移除 3D/2D/最大化/翻转入棋盘内）；联机删除外部 `.view-toggle` 工具栏
+### 棋盘自适应（取消固定 540px 限制）
+- `.xiangqi-board-host` 与 `.xiangqi-board-wrapper` 移除 `max-width: 540px` 固定上限 → `max-width: 100%`，2D/3D 棋盘随容器背景自动撑满（内嵌、双人、联机全部生效）
+- 浮动窗口 body 设 `container-type: size`，棋盘用 `width: min(100cqw, 100cqh*0.9)` + `aspect-ratio: 9/10` 等比缩放，任意窗口/全屏尺寸下填满可用空间且不变形
+- 全屏/铺满模式背景加深（深棕径向渐变），增强沉浸感
+### 验证
+- `npx tsc --noEmit` 通过；`npm run build` 通过
+- 浏览器实测：浮动窗口渲染/拖拽（窗口跟随指针移动）/软件全屏降级（1365×1243 与 880×1242 下棋盘 860×956 等比填满）/退出全屏还原/还原按钮回内嵌均正常
+- 内嵌模式 2D 棋盘 `host.width === 容器宽度`（552/552，双人；461/461 人机），不再有固定 540 四周留白
+
+## 2026-09-15：联机对战移动端 2D 棋盘显示不全修复
+### 根因分析（浏览器 375×667 实测定位）
+- **纵向裁剪（主因）**：`.xiangqi-online-game .game-board-section` 用 `aspect-ratio: 9/10` 锁定整区高度，但区内还含对手栏 + 视图切换栏 + 己方栏（约 105px），棋盘 host `height:100%` 从栏目下方开始后底部溢出约 70px，被 `overflow:hidden` 裁掉棋盘下半部分（红方主力棋子不可见）
+- **横向溢出**：`.app-header` 内容 min-content 约 441px 超出窄屏视口，把 `.app` 撑宽（457px）导致整页横向滚动、棋盘被横向裁切；侧面板聊天输入组（input 默认 min-width:auto）亦将页面撑宽约 10px
+### 修复（`src/styles/global.css`）
+- 联机对战棋盘区域改为**高度内容自适应**：section `aspect-ratio: auto` + host `height: auto`，棋盘按自身 9:10 比例完整显示，页面可滚动查看全部
+- 3D 棋盘容器补 `aspect-ratio: 9/10`（host 高度自适应后 height:100% 失效，保证 3D 不塌陷）
+- 沉浸模式同步处理（普通 + 桌面沉浸以视口高度为基准）
+- 窄屏顶部导航 `flex-wrap` 换行收缩，消除页头撑宽
+- 聊天输入组与布局容器 `min-width: 0`，防止任何内容撑出横向滚动
+### 验证（真实浏览器移动视口实测）
+- 375×667：页面滚动宽 457→375（无横向溢出）；section 无内部裁剪；棋盘 9:10 完整、32 子全可见
+- 320×568：同样无溢出、无裁剪、棋盘完整
+- `npx tsc --noEmit` 通过；`npm run build` 通过
+
+## 2026-09-15：稳定性与健壮性全面优化（闪退/重启修复）
+### 一、闪退根因修复
+- **WebGL 渲染器创建保护**：`ThreeJSXiangqiBoard` / `ThreeJSChessBoard` 渲染器创建加 try/catch，WebGL 不可用或 context 耗尽时不再抛异常崩溃
+  - 国际象棋 3D 棋盘失败时**自动无感回退到 2D 棋盘**（ChessBoard，props 完全一致）
+  - 中国象棋 3D 棋盘失败时显示降级提示（模块已有 2D 切换）
+- **国际象棋 3D 棋盘补齐 WebGL context lost/restored 处理**：GPU 切换/后台休眠恢复后不再黑屏/停滞（对齐象棋版）
+- **国际象棋 3D 棋盘消除翻转重建**：`flipped`/`readOnly` 变化时不再重建整个 Three.js 场景与渲染器（此前频繁翻转会耗尽移动端 WebGL context 导致崩溃），改为只旋转组 + readOnly 走 ref
+- **3D 切换按钮 WebGL 校验**：XiangqiAI/Local/Online/RulesLearning 四个模块在无 WebGL 环境禁用 3D 按钮
+- **全局错误兜底**：`main.tsx` 增加 `error` / `unhandledrejection` 全局捕获，未捕获异常显示可刷新的提示条（不静默白屏）
+### 二、卡死/重启根因修复
+- **AI 计算移入 Web Worker**（新增 `src/engine/xiangqiAI.worker.ts` + `src/utils/xiangqiAIAsync.ts`）：困难/大师难度不再冻结主线程（此前同步搜索最长阻塞 5 秒，移动端易判定无响应）；Worker 不可用时自动回退主线程计算；失败不影响对局
+- **AI 结果防串局**：`XiangqiAIGame` 增加世代号（aiGenRef），新对局/换边后使在途 AI 计算结果失效
+- **渲染循环挂载保护**：`ThreeJSChessBoard` 动画循环加 isMounted 守卫 + 卸载后 ref 置空，消除 rAF 竞态访问已释放渲染器
+- **服务器异常保护**：`server/index.js` 增加 uncaughtException / unhandledRejection 处理，单条消息异常不再导致整个服务器崩溃（全员掉线）
+### 三、其他
+- 清理 `__CHESS_DEBUG` 调试 API 随组件卸载释放，避免场景/渲染器残留引用
+- 验证：`npx tsc --noEmit` 通过；`npm run build` 通过（Worker 独立打包 8.21 kB）
+
 ## 2026-09-15：三指/右键平移方向修复
 - `src/components/ThreeJSXiangqiBoard.tsx`：`panCamera()` 水平平移方向取反
   - 修复前：平移为"推相机"语义，手指向右滑时棋盘向左移动（左右反向），与垂直方向语义不一致

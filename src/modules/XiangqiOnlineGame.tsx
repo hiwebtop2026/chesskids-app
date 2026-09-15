@@ -4,8 +4,9 @@
  * 房主执红（先手），加入者执黑；支持 2D/3D 棋盘切换、语音消息、角色聊天
  */
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { ThreeJSXiangqiBoard } from '../components/ThreeJSXiangqiBoard';
+import { BoardFloatingWindow } from '../components/BoardFloatingWindow';
 import { XiangqiBoard2D } from '../components/XiangqiBoard2D';
 import { useXiangqiMultiplayerStore } from '../store/xiangqiMultiplayerStore';
 import { findXiangqiKing, isXiangqiInCheck } from '../engine/xiangqi';
@@ -109,12 +110,12 @@ export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [copied, setCopied] = useState(false);
   const [viewMode, setViewMode] = useState<'3d' | '2d'>(supportsWebGL() ? '3d' : '2d');
+  const webglOk = useMemo(() => supportsWebGL(), []); // 3D 按钮可用性
   const chatListRef = useRef<HTMLDivElement>(null);
   const board3dRef = useRef<any>(null);
 
   // 浮动窗口状态
   const [isFloating, setIsFloating] = useState(false);
-  const floatRef = useRef<HTMLDivElement>(null);
 
   // 沉浸模式（移动端隐藏导航，最大化棋盘）
   const [isImmersive, setIsImmersive] = useState(false);
@@ -515,30 +516,10 @@ export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
     audio.play().catch(() => setPlayingId(null));
   };
 
-  /** 切换浮动最大化 */
+  /** 切换浮动窗口（腾讯棋牌风格：独立可拖拽窗口，不再自动占用浏览器全屏） */
   const toggleFloat = () => {
-    if (!isFloating) {
-      setIsFloating(true);
-      if (floatRef.current?.requestFullscreen) {
-        floatRef.current.requestFullscreen().catch(() => {});
-      }
-    } else {
-      setIsFloating(false);
-      if (document.fullscreenElement) {
-        document.exitFullscreen().catch(() => {});
-      }
-    }
+    setIsFloating((prev) => !prev);
   };
-
-  useEffect(() => {
-    const onFsChange = () => {
-      if (!document.fullscreenElement && isFloating) {
-        setIsFloating(false);
-      }
-    };
-    document.addEventListener('fullscreenchange', onFsChange);
-    return () => document.removeEventListener('fullscreenchange', onFsChange);
-  }, [isFloating]);
 
   /** 状态文案映射 */
   const statusText: Record<string, string> = {
@@ -632,19 +613,54 @@ export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
     );
   }
 
+  // 棋盘区域（含悬浮控制条），正常模式与浮动窗口共用
+  const boardArea = (
+    <div className={`xiangqi-board-host view-${viewMode}`}>
+      <div className="board-view-controls">
+        <button className={`view-ctrl-btn ${viewMode === '3d' ? 'active' : ''}`} onClick={() => setViewMode('3d')} disabled={!webglOk} title={webglOk ? '3D 视图' : '当前设备不支持 3D 渲染'}>🎲 3D</button>
+        <button className={`view-ctrl-btn ${viewMode === '2d' ? 'active' : ''}`} onClick={() => setViewMode('2d')} title="2D 视图">▦ 2D</button>
+        <button className="view-ctrl-btn" onClick={() => board3dRef.current?.resetView?.()} disabled={viewMode !== '3d'} title="复位视角">↺</button>
+        <button className={`view-ctrl-btn ${isImmersive ? 'active' : ''}`} onClick={toggleImmersive} title={isImmersive ? '退出沉浸模式' : '沉浸模式'}>
+          ⛶
+        </button>
+        <button className={`view-ctrl-btn ${isFloating ? 'active' : ''}`} onClick={toggleFloat} title={isFloating ? '退出浮动窗口' : '浮动窗口'}>
+          {isFloating ? '🗗' : '⛶'}
+        </button>
+      </div>
+      {viewMode === '3d' ? (
+        <ThreeJSXiangqiBoard
+          board={board}
+          selectedSquare={selection?.from || null}
+          legalTargets={legalTargets}
+          lastMove={lastMove}
+          checkSquare={checkSquare}
+          hint={null}
+          onSquareClick={selectSquare}
+          readOnly={boardReadOnly}
+          flipped={color === 'b'}
+          onReady={(api) => { board3dRef.current = api; }}
+        />
+      ) : (
+        <XiangqiBoard2D
+          board={board}
+          selectedSquare={selection?.from || null}
+          legalTargets={legalTargets}
+          lastMove={lastMove}
+          checkSquare={checkSquare}
+          hint={null}
+          onSquareClick={selectSquare}
+          readOnly={boardReadOnly}
+          flipped={color === 'b'}
+        />
+      )}
+    </div>
+  );
+
   // ================================================================
   // 对局界面（已进入房间）
   // ================================================================
   const gameContent = (
     <>
-      {isFloating && (
-        <div className="float-toolbar">
-          <span className="float-title">🌐 象棋联网对战 · 房间 {displayRoomCode}</span>
-          <button className="float-restore-btn" onClick={toggleFloat} title="退出最大化">
-            退出最大化
-          </button>
-        </div>
-      )}
 
       {notification && (
         <div className="notification-banner" onClick={clearNotification}>
@@ -666,44 +682,8 @@ export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
             </span>
           </div>
 
-          {/* 2D/3D 切换 + 沉浸模式 + 复位视角 */}
-          <div className="view-toggle">
-            <button className={`action-btn ${viewMode === '3d' ? 'primary' : ''}`} onClick={() => setViewMode('3d')}>🎲 3D</button>
-            <button className={`action-btn ${viewMode === '2d' ? 'primary' : ''}`} onClick={() => setViewMode('2d')}>▦ 2D</button>
-            <button className="action-btn reset-view-btn" onClick={() => board3dRef.current?.resetView?.()} title="复位视角">↺ 复位</button>
-            <button className="action-btn immersive-btn" onClick={toggleImmersive} title={isImmersive ? '退出沉浸模式' : '沉浸模式'}>
-              {isImmersive ? '⛶ 退出' : '⛶ 沉浸'}
-            </button>
-          </div>
-
-          <div className={`xiangqi-board-host view-${viewMode}`}>
-            {viewMode === '3d' ? (
-              <ThreeJSXiangqiBoard
-                board={board}
-                selectedSquare={selection?.from || null}
-                legalTargets={legalTargets}
-                lastMove={lastMove}
-                checkSquare={checkSquare}
-                hint={null}
-                onSquareClick={selectSquare}
-                readOnly={boardReadOnly}
-                flipped={color === 'b'}
-                onReady={(api) => { board3dRef.current = api; }}
-              />
-            ) : (
-              <XiangqiBoard2D
-                board={board}
-                selectedSquare={selection?.from || null}
-                legalTargets={legalTargets}
-                lastMove={lastMove}
-                checkSquare={checkSquare}
-                hint={null}
-                onSquareClick={selectSquare}
-                readOnly={boardReadOnly}
-                flipped={color === 'b'}
-              />
-            )}
-          </div>
+          {/* 棋盘 + 悬浮控制条 */}
+          {boardArea}
 
           {/* 自己的信息栏 */}
           <div className="online-player-bar me">
@@ -994,8 +974,25 @@ export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
     </>
   );
 
+  // 浮动窗口模式（腾讯棋牌风格：独立可拖拽窗口，可缩放、可全屏）
   if (isFloating) {
-    return <div ref={floatRef} className="online-game-floating-overlay">{gameContent}</div>;
+    return (
+      <BoardFloatingWindow title={`🌐 象棋联机 · 房间 ${displayRoomCode}`} onClose={toggleFloat}>
+        <div className="float-status-bar">
+          <span className="float-status-turn">
+            {!opponent
+              ? '等待对手加入...'
+              : isMyTurn
+                ? '轮到你走棋'
+                : '等待对手走棋...'}
+          </span>
+          <span className="float-status-room">
+            {opponent ? `${opponent.color === 'r' ? '房主 · 红方' : '黑方'}：${opponent.name}` : `房间 ${displayRoomCode}`}
+          </span>
+        </div>
+        {boardArea}
+      </BoardFloatingWindow>
+    );
   }
 
   return (

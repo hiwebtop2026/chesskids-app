@@ -15,7 +15,7 @@ import {
   findXiangqiKing,
   isXiangqiRed,
 } from '../engine/xiangqi';
-import { xiangqiBestMove } from '../engine/xiangqiAI';
+import { xiangqiBestMoveAsync } from '../utils/xiangqiAIAsync';
 import type { XiangqiAIDifficulty } from '../engine/xiangqiAI';
 import { isXiangqiGameOver } from '../types/xiangqi';
 import type {
@@ -27,6 +27,7 @@ import type {
   XiangqiMoveHistoryEntry,
 } from '../types/xiangqi';
 import { supportsWebGL } from '../utils/webgl';
+import { BoardFloatingWindow } from '../components/BoardFloatingWindow';
 
 const PLAYER_NAMES: Record<XiangqiColor, string> = { r: '红方', b: '黑方' };
 const STATUS_TEXT: Record<XiangqiGameStatus, (turn: XiangqiColor) => string> = {
@@ -54,22 +55,13 @@ export const XiangqiAIGame: React.FC = () => {
   const [moveHistory, setMoveHistory] = useState<XiangqiMoveHistoryEntry[]>([]);
   const [moves, setMoves] = useState<XiangqiMove[]>([]);
   const [viewMode, setViewMode] = useState<'3d' | '2d'>(supportsWebGL() ? '3d' : '2d');
+  const webglOk = useMemo(() => supportsWebGL(), []); // 3D 按钮可用性（避免切 3D 后崩溃）
   const [isFloating, setIsFloating] = useState(false);
-  const floatRef = useRef<HTMLDivElement>(null);
+  const board3dRef = useRef<any>(null);
 
-  /** 切换浮动全屏模式 */
+  /** 切换浮动窗口（腾讯棋牌风格：独立可拖拽窗口，不再自动占用浏览器全屏） */
   const toggleFloat = () => {
-    if (!isFloating) {
-      setIsFloating(true);
-      if (floatRef.current?.requestFullscreen) {
-        floatRef.current.requestFullscreen().catch(() => {});
-      }
-    } else {
-      setIsFloating(false);
-      if (document.fullscreenElement) {
-        document.exitFullscreen().catch(() => {});
-      }
-    }
+    setIsFloating((prev) => !prev);
   };
 
   /** ESC 键退出浮动模式 */
@@ -82,22 +74,12 @@ export const XiangqiAIGame: React.FC = () => {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [isFloating]);
-
-  /** 监听浏览器全屏变化 */
-  useEffect(() => {
-    const onFsChange = () => {
-      if (!document.fullscreenElement && isFloating) {
-        setIsFloating(false);
-      }
-    };
-    document.addEventListener('fullscreenchange', onFsChange);
-    return () => document.removeEventListener('fullscreenchange', onFsChange);
-  }, [isFloating]);
   const [thinking, setThinking] = useState(false);
   const [hint, setHint] = useState<XiangqiSquare[] | null>(null);
   const [boardFlipped, setBoardFlipped] = useState(false);
   const aiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const aiCancelledRef = useRef(false);
+  const aiGenRef = useRef(0); // AI 请求世代号：重置/换边后使在途计算结果失效，防止串局
 
   // refs 同步最新状态，供 AI 定时器读取
   const boardRef = useRef(board);
@@ -161,17 +143,26 @@ export const XiangqiAIGame: React.FC = () => {
   }, []);
 
   // 让 AI 走一步（显式传入棋盘与走方，避免依赖未同步的 ref）
+  // 计算放在 Web Worker 中异步执行，困难/大师难度不再冻结主线程（防止"卡死/闪退"）
   const scheduleAI = useCallback((b: XiangqiBoard, t: XiangqiColor) => {
     if (aiTimerRef.current) clearTimeout(aiTimerRef.current);
     if (isXiangqiGameOver(getXiangqiGameStatus(b, t))) return;
+    const gen = ++aiGenRef.current;
     setThinking(true);
-    aiTimerRef.current = setTimeout(() => {
-      if (aiCancelledRef.current) return;
-      const mv = xiangqiBestMove(b, t, diffRef.current);
-      if (aiCancelledRef.current) return;
+    aiTimerRef.current = setTimeout(async () => {
+      if (aiCancelledRef.current || gen !== aiGenRef.current) return;
+      let mv: XiangqiSquare[] | null = null;
+      try {
+        mv = await xiangqiBestMoveAsync(b, t, diffRef.current);
+      } catch (err) {
+        console.error('[XiangqiAI] AI 计算失败:', err);
+      }
+      if (aiCancelledRef.current || gen !== aiGenRef.current) return;
       setThinking(false);
       if (mv) {
         commitMove(b, mv[0] as XiangqiSquare, mv[1] as XiangqiSquare, t);
+      } else {
+        setThinking(false);
       }
     }, 140);
   }, [commitMove]);
@@ -209,6 +200,7 @@ export const XiangqiAIGame: React.FC = () => {
 
   const handleReset = (side?: XiangqiColor) => {
     if (aiTimerRef.current) clearTimeout(aiTimerRef.current);
+    aiGenRef.current++; // 使在途 AI 计算结果失效，避免串到新对局
     const human = side ?? humanRef.current;
     const b = cloneXiangqiBoard(XIANGQI_INITIAL_BOARD);
     setBoard(b);
@@ -261,10 +253,17 @@ export const XiangqiAIGame: React.FC = () => {
     setMoveHistory(history);
   };
 
-  const handleHint = () => {
+  const handleHint = async () => {
     if (thinking || gameOver) return;
-    const mv = xiangqiBestMove(board, turn, 'hard');
-    if (mv) setHint([mv[0] as XiangqiSquare, mv[1] as XiangqiSquare]);
+    setThinking(true);
+    try {
+      const mv = await xiangqiBestMoveAsync(board, turn, 'hard');
+      if (mv) setHint([mv[0] as XiangqiSquare, mv[1] as XiangqiSquare]);
+    } catch (err) {
+      console.error('[XiangqiAI] 提示计算失败:', err);
+    } finally {
+      setThinking(false);
+    }
   };
 
   const newGameDialog = () => {
@@ -272,21 +271,75 @@ export const XiangqiAIGame: React.FC = () => {
     handleReset(sideChoice ? 'r' : 'b');
   };
 
+  // 棋盘内悬浮控制条（功能按钮集成到棋盘容器，参考腾讯棋牌）
+  const viewControls = (
+    <div className="board-view-controls">
+      <button className={`view-ctrl-btn ${viewMode === '3d' ? 'active' : ''}`} onClick={() => setViewMode('3d')} disabled={!webglOk} title={webglOk ? '3D 视图' : '当前设备不支持 3D 渲染'}>🎲 3D</button>
+      <button className={`view-ctrl-btn ${viewMode === '2d' ? 'active' : ''}`} onClick={() => setViewMode('2d')} title="2D 视图">▦ 2D</button>
+      <button className="view-ctrl-btn" onClick={() => board3dRef.current?.resetView?.()} disabled={viewMode !== '3d'} title="复位视角">↺</button>
+      <button className="view-ctrl-btn" onClick={() => setBoardFlipped(f => !f)} disabled={viewMode === '3d'} title="翻转棋盘视角">⇅</button>
+      <button className={`view-ctrl-btn ${isFloating ? 'active' : ''}`} onClick={toggleFloat} title={isFloating ? '退出浮动窗口' : '浮动窗口'}>
+        {isFloating ? '🗗' : '⛶'}
+      </button>
+    </div>
+  );
+
+  // 棋盘区域（含悬浮控制条），正常模式与浮动窗口共用
+  const boardArea = (
+    <div className={`xiangqi-board-host view-${viewMode}`}>
+      {viewControls}
+      {viewMode === '3d' ? (
+        <ThreeJSXiangqiBoard
+          board={board}
+          selectedSquare={selection}
+          legalTargets={legalTargets}
+          lastMove={lastMove}
+          checkSquare={checkSquare}
+          hint={hint}
+          onSquareClick={handleSquareClick}
+          onReady={(api) => { board3dRef.current = api; }}
+        />
+      ) : (
+        <XiangqiBoard2D
+          board={board}
+          selectedSquare={selection}
+          legalTargets={legalTargets}
+          lastMove={lastMove}
+          checkSquare={checkSquare}
+          hint={hint}
+          onSquareClick={handleSquareClick}
+          flipped={boardFlipped}
+          zoomable={true}
+        />
+      )}
+    </div>
+  );
+
+  // 对局结果弹窗（正常模式与浮动窗口共用）
+  const resultModal = gameOver ? (
+    <div className="game-result-modal">
+      <div className="result-content">
+        <div className="result-icon">
+          {status === 'checkmate' && (turn !== humanColor ? '🏆' : '😔')}
+          {status === 'stalemate' && '🤝'}
+          {status === 'draw' && '🤝'}
+        </div>
+        <h3 className="result-title">
+          {status === 'checkmate' && (turn !== humanColor ? '你获胜了！' : '电脑获胜')}
+          {status === 'stalemate' && (turn === humanColor ? '你被困毙，判负' : '电脑被困毙，你获胜！')}
+          {status === 'draw' && '和棋'}
+        </h3>
+        <p className="result-detail">共走了 {moves.length} 步</p>
+        <button className="play-again-btn" onClick={() => handleReset()}>再来一局</button>
+      </div>
+    </div>
+  ) : null;
+
   // ================================================================
   // 对局内容
   // ================================================================
   const gameContent = (
     <>
-      {/* 浮动模式顶部工具栏 */}
-      {isFloating && (
-        <div className="float-toolbar">
-          <span className="float-title">🤖 中国象棋 · 人机对战</span>
-          <button className="float-restore-btn" onClick={toggleFloat} title="退出最大化">
-            退出最大化
-          </button>
-        </div>
-      )}
-
       <div className={`game-layout ${isFloating ? 'game-layout-floating' : ''}`}>
         <div className="game-main-area">
           <div className="game-status-bar">
@@ -305,46 +358,12 @@ export const XiangqiAIGame: React.FC = () => {
                   <option key={k} value={k}>{label}</option>
                 ))}
               </select>
-              <button className={`action-btn ${viewMode === '3d' ? 'primary' : ''}`} onClick={() => setViewMode('3d')}>🎲 3D</button>
-              <button className={`action-btn ${viewMode === '2d' ? 'primary' : ''}`} onClick={() => setViewMode('2d')}>▦ 2D</button>
-              <button
-                className={`action-btn float-toggle-btn ${isFloating ? 'active' : ''}`}
-                onClick={toggleFloat}
-                title={isFloating ? '退出最大化' : '最大化棋盘'}
-              >
-                {isFloating ? '退出最大化' : '⬜ 最大化'}
-              </button>
-              <button className="action-btn" onClick={() => setBoardFlipped(f => !f)} disabled={viewMode === '3d'} title="翻转棋盘视角">⇅ 翻转</button>
               <button className="action-btn" onClick={handleUndo} disabled={moves.length === 0 || thinking}>↩ 悔棋</button>
               <button className="action-btn" onClick={handleHint} disabled={thinking || gameOver}>💡 提示</button>
               <button className="action-btn primary" onClick={newGameDialog}>🔄 新对局</button>
             </div>
           </div>
-          <div className={`xiangqi-board-host view-${viewMode}`}>
-            {viewMode === '3d' ? (
-              <ThreeJSXiangqiBoard
-                board={board}
-                selectedSquare={selection}
-                legalTargets={legalTargets}
-                lastMove={lastMove}
-                checkSquare={checkSquare}
-                hint={hint}
-                onSquareClick={handleSquareClick}
-              />
-            ) : (
-              <XiangqiBoard2D
-                board={board}
-                selectedSquare={selection}
-                legalTargets={legalTargets}
-                lastMove={lastMove}
-                checkSquare={checkSquare}
-                hint={hint}
-                onSquareClick={handleSquareClick}
-                flipped={boardFlipped}
-                zoomable={true}
-              />
-            )}
-          </div>
+          {boardArea}
           {thinking && <div className="thinking-bar">🤔 电脑思考中，请稍候…</div>}
         </div>
         <div className="game-side-panel">
@@ -369,36 +388,24 @@ export const XiangqiAIGame: React.FC = () => {
           </div>
         </div>
       </div>
-      {gameOver && (
-        <div className="game-result-modal">
-          <div className="result-content">
-            <div className="result-icon">
-              {status === 'checkmate' && (turn !== humanColor ? '🏆' : '😔')}
-              {status === 'stalemate' && '🤝'}
-              {status === 'draw' && '🤝'}
-            </div>
-            <h3 className="result-title">
-              {status === 'checkmate' && (turn !== humanColor ? '你获胜了！' : '电脑获胜')}
-              {status === 'stalemate' && (turn === humanColor ? '你被困毙，判负' : '电脑被困毙，你获胜！')}
-              {status === 'draw' && '和棋'}
-            </h3>
-            <p className="result-detail">共走了 {moves.length} 步</p>
-            <button className="play-again-btn" onClick={() => handleReset()}>再来一局</button>
-          </div>
-        </div>
-      )}
+      {resultModal}
     </>
   );
 
-  // 浮动窗口模式
+  // 浮动窗口模式（腾讯棋牌风格：独立可拖拽窗口，可缩放、可全屏）
   if (isFloating) {
     return (
-      <div
-        ref={floatRef}
-        className="online-game-floating-overlay xiangqi-floating-overlay"
-      >
-        {gameContent}
-      </div>
+      <BoardFloatingWindow title="🤖 中国象棋 · 人机对战" onClose={toggleFloat}>
+        <div className="float-status-bar">
+          <span className="float-status-turn">
+            {thinking ? '🤔 电脑思考中…' : STATUS_TEXT[status](turn)}
+          </span>
+          <span className="float-status-diff">难度：{DIFF_LABELS[difficulty]}</span>
+        </div>
+        {boardArea}
+        {thinking && <div className="thinking-bar">🤔 电脑思考中，请稍候…</div>}
+        {resultModal}
+      </BoardFloatingWindow>
     );
   }
 
