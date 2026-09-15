@@ -9,7 +9,7 @@
  *   世界坐标: x = (col - 4) * CELL, z = (row - 4.5) * CELL
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import type {
   XiangqiBoard,
@@ -628,6 +628,7 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
   onReady,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [glFailed, setGlFailed] = useState(false); // WebGL 初始化失败时回退提示（防止白屏/闪退）
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -665,11 +666,19 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
     // 斜俯视，距离按容器宽高比自动取景（完整显示棋盘与棋子）；黑方时相机移至对侧
     fitCameraToBoard(camera, width, height, flippedRef.current);
 
-    const renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      alpha: false,
-      logarithmicDepthBuffer: true,
-    });
+    // 渲染器创建失败（WebGL 不可用 / context 耗尽）时回退提示，而不是抛异常导致模块崩溃
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: false,
+        logarithmicDepthBuffer: true,
+      });
+    } catch (err) {
+      console.error('[XiangqiBoard] WebGL 初始化失败，请切换到 2D 视图:', err);
+      setGlFailed(true);
+      return;
+    }
     (renderer as any).autoClear = true;
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -1414,6 +1423,29 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
 
     needsRenderRef.current = true;
   }, [legalTargets, lastMove, hint, board]);
+
+  if (glFailed) {
+    return (
+      <div
+        className="threejs-xiangqi-board gl-fallback"
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: '#B8A888',
+          color: '#fff',
+          fontSize: 15,
+          textAlign: 'center',
+          padding: 16,
+          boxSizing: 'border-box',
+        }}
+      >
+        <span>当前设备不支持 3D 渲染，请切换到 2D 视图继续对局</span>
+      </div>
+    );
+  }
 
   return (
     <div

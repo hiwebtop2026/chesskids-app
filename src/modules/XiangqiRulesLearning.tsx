@@ -137,6 +137,7 @@ const RULE_ITEMS: RuleItem[] = [
 export const XiangqiRulesLearning: React.FC = () => {
   const [activeRule, setActiveRule] = useState(0);
   const [viewMode, setViewMode] = useState<'3d' | '2d'>(supportsWebGL() ? '3d' : '2d');
+  const webglOk = useMemo(() => supportsWebGL(), []); // 3D 按钮可用性
   const [isFloating, setIsFloating] = useState(false);
   const floatRef = useRef<HTMLDivElement>(null);
 
@@ -220,6 +221,8 @@ export const XiangqiRulesLearning: React.FC = () => {
         <button
           className={`action-btn ${viewMode === '3d' ? 'primary' : ''}`}
           onClick={() => setViewMode('3d')}
+          disabled={!webglOk}
+          title={webglOk ? '3D 视图' : '当前设备不支持 3D 渲染'}
         >
           🎲 3D
         </button>

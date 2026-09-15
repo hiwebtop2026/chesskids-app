@@ -4,7 +4,8 @@
  * 通过 CDN importmap 加载 three.js，无需本地安装
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { ChessBoard } from './ChessBoard';
 import * as THREE from 'three';
 import type { Board, PieceType, PieceColor } from '../types/chess';
 
@@ -1023,11 +1024,13 @@ export const ThreeJSChessBoard: React.FC<ThreeJSChessBoardProps> = ({
   lastMove,
   checkSquare,
   hint,
+  highlightSquares,
   onSquareClick,
   flipped = false,
   readOnly = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [glFailed, setGlFailed] = useState(false); // WebGL 初始化失败时回退提示（防止白屏/闪退）
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -1039,10 +1042,12 @@ export const ThreeJSChessBoard: React.FC<ThreeJSChessBoardProps> = ({
   const mouseRef = useRef<THREE.Vector2 | null>(null);
   const needsRenderRef = useRef(true); // 按需渲染标志
   const onSquareClickRef = useRef(onSquareClick);
+  const readOnlyRef = useRef(readOnly);
 
-  // 始终保持 ref 指向最新的 onSquareClick，避免 stale closure
+  // 始终保持 ref 指向最新的 onSquareClick / readOnly，避免 stale closure
   useEffect(() => {
     onSquareClickRef.current = onSquareClick;
+    readOnlyRef.current = readOnly;
   });
 
   // --- 初始化 Three.js 场景 ---
@@ -1063,11 +1068,19 @@ export const ThreeJSChessBoard: React.FC<ThreeJSChessBoardProps> = ({
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
 
     // 创建渲染器（alpha:false + logarithmicDepthBuffer 解决 Z-fighting 花屏）
-    const renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      alpha: false,
-      logarithmicDepthBuffer: true,
-    });
+    // 创建失败（WebGL 不可用 / context 耗尽）时回退提示，而不是抛异常导致模块崩溃/闪退
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: false,
+        logarithmicDepthBuffer: true,
+      });
+    } catch (err) {
+      console.error('[ChessBoard] WebGL 初始化失败，请切换到 2D 视图:', err);
+      setGlFailed(true);
+      return;
+    }
     (renderer as any).autoClear = true; // TS 类型缺失但实际存在
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -1077,6 +1090,19 @@ export const ThreeJSChessBoard: React.FC<ThreeJSChessBoardProps> = ({
     renderer.toneMappingExposure = 1.3; // 提亮整体场景，突出白棋光影
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     container.appendChild(renderer.domElement);
+
+    // WebGL context loss 处理：GPU 切换/后台休眠恢复后不崩溃、不黑屏（与 3D 象棋棋盘一致）
+    const handleContextLost = (e: Event) => {
+      e.preventDefault();
+      console.warn('[ChessBoard] WebGL context lost');
+      needsRenderRef.current = false;
+    };
+    const handleContextRestored = () => {
+      console.info('[ChessBoard] WebGL context restored');
+      needsRenderRef.current = true;
+    };
+    renderer.domElement.addEventListener('webglcontextlost', handleContextLost);
+    renderer.domElement.addEventListener('webglcontextrestored', handleContextRestored);
 
     // --- 程序化环境反射贴图（增强高光塑料质感）---
     const pmremGenerator = new (THREE as any).PMREMGenerator(renderer);
@@ -1258,7 +1284,7 @@ export const ThreeJSChessBoard: React.FC<ThreeJSChessBoardProps> = ({
 
     // --- 鼠标点击处理（区分拖拽和点击） ---
     const handleCanvasClick = (event: MouseEvent) => {
-      if (readOnly) return;
+      if (readOnlyRef.current) return;
       // 如果是拖拽结束（移动距离>5px），不触发点击
       const dx = event.clientX - dragStartX;
       const dy = event.clientY - dragStartY;
@@ -1364,8 +1390,9 @@ export const ThreeJSChessBoard: React.FC<ThreeJSChessBoardProps> = ({
     // --- 渲染循环（按需渲染：仅在场景变化时渲染，降低GPU占用）---
     let autoRotateSpeed = 0;       // 调试用：每帧绕Y轴角度增量（弧度）
     let autoRotateTarget = 0;      // 调试用：自动旋转到指定角度（角度制），-1 表示持续自由旋转
+    let isMounted = true;          // 组件卸载后停止渲染，防止 rAF 竞态访问已释放的渲染器
     const animate = () => {
-      if (!cameraRef.current || !rendererRef.current || !sceneRef.current) return;
+      if (!isMounted || !cameraRef.current || !rendererRef.current || !sceneRef.current) return;
       // ===== 调试自动旋转控制 =====
       if (autoRotateSpeed !== 0) {
         if (autoRotateTarget === -1) {
@@ -1442,8 +1469,10 @@ export const ThreeJSChessBoard: React.FC<ThreeJSChessBoardProps> = ({
 
     // --- 清理 ---
     return () => {
+      isMounted = false;
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
       }
       renderer.domElement.removeEventListener('mousedown', handleMouseDown);
       renderer.domElement.removeEventListener('mousemove', handleMouseMove);
@@ -1454,8 +1483,15 @@ export const ThreeJSChessBoard: React.FC<ThreeJSChessBoardProps> = ({
       renderer.domElement.removeEventListener('touchstart', handleTouchStart);
       renderer.domElement.removeEventListener('touchmove', handleTouchMove);
       renderer.domElement.removeEventListener('touchend', handleTouchEnd);
+      renderer.domElement.removeEventListener('webglcontextlost', handleContextLost);
+      renderer.domElement.removeEventListener('webglcontextrestored', handleContextRestored);
       window.removeEventListener('resize', handleResize);
       resizeObserver.disconnect();
+
+      // 清理调试 API，避免残留引用泄漏场景/渲染器
+      if ((window as any).__CHESS_DEBUG) {
+        delete (window as any).__CHESS_DEBUG;
+      }
 
       // 释放 boardGroup 资源（64 格子 + 边框 + 坐标标签纹理）
       const disposed = new Set<any>();
@@ -1479,9 +1515,28 @@ export const ThreeJSChessBoard: React.FC<ThreeJSChessBoardProps> = ({
       container.removeChild(renderer.domElement);
       renderer.dispose();
       disposePieceCache();
+      // 置空所有 ref，防止卸载后 rAF/异步竞态访问已释放的渲染器与场景
+      rendererRef.current = null;
+      sceneRef.current = null;
+      cameraRef.current = null;
+      piecesGroupRef.current = null;
+      highlightsGroupRef.current = null;
+      boardGroupRef.current = null;
+      raycasterRef.current = null;
+      mouseRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flipped, readOnly]);
+  }, []);
+
+  // --- 翻转视角：仅旋转组，避免重建整个 WebGL 场景/渲染器 ---
+  // （重建会频繁创建/销毁 WebGL context，移动端 context 数量有限，耗尽后新渲染器创建抛异常 → 闪退）
+  useEffect(() => {
+    const rot = flipped ? Math.PI : 0;
+    if (boardGroupRef.current) boardGroupRef.current.rotation.y = rot;
+    if (piecesGroupRef.current) piecesGroupRef.current.rotation.y = rot;
+    if (highlightsGroupRef.current) highlightsGroupRef.current.rotation.y = rot;
+    if (needsRenderRef.current !== undefined) needsRenderRef.current = true;
+  }, [flipped]);
 
   // --- 更新棋子（使用缓存克隆，避免重建几何体/材质） ---
   useEffect(() => {
@@ -1557,6 +1612,24 @@ export const ThreeJSChessBoard: React.FC<ThreeJSChessBoardProps> = ({
     }
     needsRenderRef.current = true;
   }, [selectedSquare, legalTargets, lastMove, checkSquare, hint]);
+
+  // WebGL 初始化失败时自动回退到 2D 棋盘（无感降级，防止崩溃/白屏）
+  if (glFailed) {
+    return (
+      <ChessBoard
+        board={board}
+        selectedSquare={selectedSquare}
+        legalTargets={legalTargets}
+        lastMove={lastMove}
+        checkSquare={checkSquare}
+        hint={hint}
+        highlightSquares={highlightSquares}
+        onSquareClick={onSquareClick}
+        flipped={flipped}
+        readOnly={readOnly}
+      />
+    );
+  }
 
   return (
     <div

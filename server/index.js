@@ -14,6 +14,14 @@
 
 import { WebSocketServer, WebSocket } from 'ws';
 
+// 防止单个消息处理异常 / Promise 拒绝导致整个服务器崩溃（否则所有在线玩家同时闪退掉线）
+process.on('uncaughtException', (err) => {
+  console.error('[ChessKids] 未捕获异常（服务器继续运行）:', err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[ChessKids] 未处理的 Promise 拒绝（服务器继续运行）:', reason);
+});
+
 const PORT = 3001;
 
 // ===== 房间管理 =====
