@@ -3773,6 +3773,19 @@ ul {
 
 .xiangqi-board-host.view-2d {
   max-width: 100%;
+  /* 底部预留控制条空间：2D 模式下功能按钮移到棋盘下方，不遮挡任何棋子 */
+  padding-bottom: 54px;
+}
+
+/* 2D 模式：控制条从棋盘右上角移到下方预留区（棋子不再被遮挡） */
+.xiangqi-board-host.view-2d .board-view-controls {
+  position: absolute;
+  top: auto;
+  right: 0;
+  bottom: 6px;
+  left: 0;
+  justify-content: center;
+  flex-wrap: wrap;
 }
 
 /* 3D 棋盘：手势（单指旋转/双指缩放/平移）全部交给 WebGL 交互，阻止 iOS 双击缩放与滚动穿透 */
@@ -5032,10 +5045,20 @@ ul {
 
 /* 浮动窗口内：棋盘不锁固定尺寸，按窗口可用宽高等比缩放（宽高取小者）
    默认使用 vh 回退方案（兼容不支持容器查询的浏览器 / iOS 15 及以下苹果手机）；
-   支持 container queries 的现代浏览器（Safari 16+ / Chrome 105+）在 @supports 中覆盖为精确 cq 尺寸 */
-.board-float-window .xiangqi-board-host {
+   支持 container queries 的现代浏览器（Safari 16+ / Chrome 105+）在 @supports 中覆盖为精确 cq 尺寸
+   3D：控制条悬浮棋盘上，棋盘按全部可用高度计算；
+   2D：控制条占棋盘下方一行，棋盘可用高度扣除 54px */
+.board-float-window .xiangqi-board-host.view-3d {
   max-width: none;
   width: min(100%, calc((100vh - 140px) * 0.9));
+  aspect-ratio: 9 / 10;
+  margin: auto;
+  flex-shrink: 0;
+}
+
+.board-float-window .xiangqi-board-host.view-2d {
+  max-width: none;
+  width: min(100%, calc((100vh - 196px) * 0.9));
   aspect-ratio: 9 / 10;
   margin: auto;
   flex-shrink: 0;
@@ -5045,8 +5068,11 @@ ul {
   .board-float-body {
     container-type: size;
   }
-  .board-float-window .xiangqi-board-host {
+  .board-float-window .xiangqi-board-host.view-3d {
     width: min(100cqw, calc(100cqh * 0.9));
+  }
+  .board-float-window .xiangqi-board-host.view-2d {
+    width: min(100cqw, calc((100cqh - 56px) * 0.9));
   }
 }
 
@@ -5106,16 +5132,26 @@ ul {
   background: radial-gradient(ellipse at center, #322c28 0%, #221e1b 75%, #171412 100%);
 }
 
-/* 全屏棋盘尺寸：vh 回退 + 容器查询精确覆盖（同上，兼容 iOS Safari <16） */
-.board-float-window:fullscreen .board-float-body .xiangqi-board-host,
-.board-float-max .board-float-body .xiangqi-board-host {
+/* 全屏棋盘尺寸：vh 回退 + 容器查询精确覆盖（同上，兼容 iOS Safari <16）；
+   2D 模式扣除棋盘下方控制条占用的 54px */
+.board-float-window:fullscreen .board-float-body .xiangqi-board-host.view-3d,
+.board-float-max .board-float-body .xiangqi-board-host.view-3d {
   width: min(100%, calc((100vh - 80px) * 0.92));
 }
 
+.board-float-window:fullscreen .board-float-body .xiangqi-board-host.view-2d,
+.board-float-max .board-float-body .xiangqi-board-host.view-2d {
+  width: min(100%, calc((100vh - 136px) * 0.92));
+}
+
 @supports (container-type: size) {
-  .board-float-window:fullscreen .board-float-body .xiangqi-board-host,
-  .board-float-max .board-float-body .xiangqi-board-host {
+  .board-float-window:fullscreen .board-float-body .xiangqi-board-host.view-3d,
+  .board-float-max .board-float-body .xiangqi-board-host.view-3d {
     width: min(100cqw, calc(100cqh * 0.92));
+  }
+  .board-float-window:fullscreen .board-float-body .xiangqi-board-host.view-2d,
+  .board-float-max .board-float-body .xiangqi-board-host.view-2d {
+    width: min(100cqw, calc((100cqh - 56px) * 0.92));
   }
 }
 
