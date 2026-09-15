@@ -8,6 +8,8 @@
  * 棋子：红方大写（K A B N R C P），黑方小写（k a b n r c p）
  */
 import type { XiangqiBoard, XiangqiColor, XiangqiSquare } from '../types/xiangqi';
+import { isXiangqiMoveLegal } from './xiangqi';
+import { getOpeningMove } from './xiangqiLearning';
 
 const COLS = 9;
 const ROWS = 10;
@@ -25,6 +27,19 @@ const PIECE_VALUE: Record<string, number> = {
   k: 10000, a: 120, b: 120, n: 350, r: 900, c: 450, p: 100,
   K: 10000, A: 120, B: 120, N: 350, R: 900, C: 450, P: 100,
 };
+
+// ===== 可学习权重（自我对弈反哺）=====
+// 按棋子类型（小写）保存的评估偏置分，来自 xiangqiLearning 的自对弈学习；
+// 主线程从 localStorage 读取后通过 setLearnedBias / xiangqiBestMove 第 4 参传入（Worker 无 localStorage）。
+let learnedBias: Record<string, number> | null = null;
+
+export function setLearnedBias(bias: Record<string, number> | null) {
+  learnedBias = bias;
+}
+
+export function getLearnedBias(): Record<string, number> | null {
+  return learnedBias;
+}
 
 // ===== 位置价值表 (红方视角，黑方镜像) =====
 // 值越大位置越好
@@ -347,7 +362,8 @@ function evaluate(b: FlatBoard, c: 'r' | 'b'): number {
     if (!p) continue;
     const x = i % COLS, y = (i / COLS) | 0;
     const mine = isRed(p) === (c === 'r');
-    const baseVal = PIECE_VALUE[p] || 0;
+    // 基础价值 + 自我对弈学习的偏置（同类型棋子对红黑双方一致生效）
+    const baseVal = (PIECE_VALUE[p] || 0) + (learnedBias?.[p.toLowerCase()] || 0);
     const pstVal = getPST(p, y, x);
     material += mine ? baseVal : -baseVal;
     positional += mine ? pstVal : -pstVal;
@@ -538,7 +554,17 @@ export function xiangqiBestMove(
   board: XiangqiBoard,
   color: XiangqiColor,
   difficulty: XiangqiAIDifficulty = 'medium',
+  weights?: Record<string, number> | null,
+  ply?: number | null,
 ): XiangqiSquare[] | null {
+  if (weights) learnedBias = weights;
+  // 开局阶段优先走开局库着法（规范开局，孩子可学到标准套路）；着法不合法自动回退搜索
+  if (ply != null && ply < 8) {
+    const book = getOpeningMove(ply, color, board);
+    if (book && isXiangqiMoveLegal(board, book[0], book[1], color)) {
+      return book;
+    }
+  }
   const cfg = DIFFICULTY[difficulty] || DIFFICULTY.medium;
   deadline = Date.now() + cfg.timeMs;
   nodeCount = 0;

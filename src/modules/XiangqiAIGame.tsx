@@ -28,6 +28,16 @@ import type {
 } from '../types/xiangqi';
 import { supportsWebGL } from '../utils/webgl';
 import { BoardFloatingWindow } from '../components/BoardFloatingWindow';
+import {
+  getLearningProfile,
+  recordGameResult,
+  getRank,
+  resolveAiDifficulty,
+  getLearnedPieceBias,
+  saveLearningProfile,
+  type XiangqiGameResult,
+} from '../engine/xiangqiLearning';
+import { initEngineWeights, trainSelfPlayAsync } from '../utils/xiangqiAIAsync';
 
 const PLAYER_NAMES: Record<XiangqiColor, string> = { r: '红方', b: '黑方' };
 const STATUS_TEXT: Record<XiangqiGameStatus, (turn: XiangqiColor) => string> = {
@@ -37,18 +47,22 @@ const STATUS_TEXT: Record<XiangqiGameStatus, (turn: XiangqiColor) => string> = {
   stalemate: () => '困毙（无子可动，判负）',
   draw: () => '和棋',
 };
-const DIFF_LABELS: Record<XiangqiAIDifficulty, string> = {
+const DIFF_LABELS: Record<XiangqiAIDifficulty | 'auto', string> = {
   easy: '入门',
   medium: '中级',
   hard: '高级',
   master: '大师',
+  auto: '🤖 自适应',
 };
 
 export const XiangqiAIGame: React.FC = () => {
   const [board, setBoard] = useState<XiangqiBoard>(() => cloneXiangqiBoard(XIANGQI_INITIAL_BOARD));
   const [turn, setTurn] = useState<XiangqiColor>('r');
   const [humanColor, setHumanColor] = useState<XiangqiColor>('r');
-  const [difficulty, setDifficulty] = useState<XiangqiAIDifficulty>('medium');
+  // 难度：手动四档 + 「🤖 自适应」（默认自适应：AI 随玩家水平自动升降）
+  const [difficulty, setDifficulty] = useState<XiangqiAIDifficulty | 'auto'>('auto');
+  // 玩家学习画像（ELO/段位/胜率，用于展示与自适应）
+  const [profile, setProfile] = useState(() => getLearningProfile());
   const [selection, setSelection] = useState<XiangqiSquare | null>(null);
   const [legalTargets, setLegalTargets] = useState<XiangqiSquare[]>([]);
   const [lastMove, setLastMove] = useState<{ from: XiangqiSquare; to: XiangqiSquare } | null>(null);
@@ -90,8 +104,17 @@ export const XiangqiAIGame: React.FC = () => {
   movesRef.current = moves;
   const humanRef = useRef(humanColor);
   humanRef.current = humanColor;
-  const diffRef = useRef(difficulty);
+  const diffRef = useRef<XiangqiAIDifficulty | 'auto'>(difficulty);
   diffRef.current = difficulty;
+  const profileRef = useRef(profile);
+  profileRef.current = profile;
+  /** 本局 AI 实际使用的难度（对局结束用于 ELO 结算） */
+  const aiUsedDiffRef = useRef<XiangqiAIDifficulty>('medium');
+
+  // 启动时：注入自我对弈学习权重（AI 越下越聪明的"记忆"）
+  useEffect(() => {
+    initEngineWeights(getLearnedPieceBias());
+  }, []);
 
   const status = useMemo<XiangqiGameStatus>(
     () => getXiangqiGameStatus(board, turn),
@@ -103,6 +126,38 @@ export const XiangqiAIGame: React.FC = () => {
   }, [board, status, turn]);
   const gameOver = isXiangqiGameOver(status);
   const isHumanTurn = turn === humanColor;
+
+  // ===== AI 越下越聪明：对局结束学习（ELO 结算 + 后台自对弈训练）=====
+  const lastGameResultRef = useRef<XiangqiGameResult | null>(null);
+  useEffect(() => {
+    if (!gameOver) return;
+    let res: XiangqiGameResult;
+    if (status === 'draw') {
+      res = 'draw';
+    } else if (status === 'checkmate' || status === 'stalemate') {
+      // 被将死/困毙方是当前行棋方 → 对方获胜
+      res = turn === humanRef.current ? 'loss' : 'win';
+    } else {
+      res = 'draw';
+    }
+    if (lastGameResultRef.current === res) return;
+    lastGameResultRef.current = res;
+    // 1) 更新玩家 ELO / 段位（自适应难度据此自动升降）
+    const p = recordGameResult(res, diffRef.current);
+    setProfile(p);
+    // 2) 节流触发 AI 自我对弈学习：每完成 3 局让 AI 与自己下 2 局，把胜负经验存进评估权重
+    if (p.gamesPlayed % 3 === 0) {
+      trainSelfPlayAsync(2, getLearnedPieceBias())
+        .then((r) => {          const cur = getLearningProfile();
+          cur.pieceBias = { ...(r.bias || {}) };
+          cur.selfPlayRounds += r.rounds;
+          saveLearningProfile(cur);
+          setProfile(cur);
+          initEngineWeights(cur.pieceBias);
+        })
+        .catch((e) => console.warn('[XiangqiAI] 自对弈学习失败:', e));
+    }
+  }, [gameOver, status, turn]);
 
   useEffect(() => {
     aiCancelledRef.current = false;
@@ -134,6 +189,7 @@ export const XiangqiAIGame: React.FC = () => {
     });
     setBoard(nb);
     setMoves(newMoves);
+    movesRef.current = newMoves; // 同步 ref，保证 AI 调度时能拿到最新步数（开局库 ply）
     setLastMove({ from, to });
     setTurn(movingColor === 'r' ? 'b' : 'r');
     setSelection(null);
@@ -144,16 +200,22 @@ export const XiangqiAIGame: React.FC = () => {
 
   // 让 AI 走一步（显式传入棋盘与走方，避免依赖未同步的 ref）
   // 计算放在 Web Worker 中异步执行，困难/大师难度不再冻结主线程（防止"卡死/闪退"）
-  const scheduleAI = useCallback((b: XiangqiBoard, t: XiangqiColor) => {
+  const scheduleAI = useCallback((b: XiangqiBoard, t: XiangqiColor, ply: number) => {
     if (aiTimerRef.current) clearTimeout(aiTimerRef.current);
     if (isXiangqiGameOver(getXiangqiGameStatus(b, t))) return;
     const gen = ++aiGenRef.current;
     setThinking(true);
+    // 自适应难度：按玩家 ELO 解析本次实际 AI 强度
+    const resolved = resolveAiDifficulty(diffRef.current, profileRef.current.playerElo);
+    aiUsedDiffRef.current = resolved.actual;
     aiTimerRef.current = setTimeout(async () => {
       if (aiCancelledRef.current || gen !== aiGenRef.current) return;
       let mv: XiangqiSquare[] | null = null;
       try {
-        mv = await xiangqiBestMoveAsync(b, t, diffRef.current);
+        mv = await xiangqiBestMoveAsync(b, t, resolved.actual, {
+          ply,
+          weights: getLearnedPieceBias(),
+        });
       } catch (err) {
         console.error('[XiangqiAI] AI 计算失败:', err);
       }
@@ -171,10 +233,10 @@ export const XiangqiAIGame: React.FC = () => {
   const makeHumanMove = (from: XiangqiSquare, to: XiangqiSquare) => {
     if (thinking || gameOver || !isHumanTurn) return;
     const nb = commitMove(board, from, to, turn);
-    // AI 应战
+    // AI 应战（ply = 当前总步数）
     const nextTurn: XiangqiColor = turn === 'r' ? 'b' : 'r';
     if (!isXiangqiGameOver(getXiangqiGameStatus(nb, nextTurn)) && nextTurn !== humanColor) {
-      scheduleAI(nb, nextTurn);
+      scheduleAI(nb, nextTurn, movesRef.current.length);
     }
   };
 
@@ -201,6 +263,7 @@ export const XiangqiAIGame: React.FC = () => {
   const handleReset = (side?: XiangqiColor) => {
     if (aiTimerRef.current) clearTimeout(aiTimerRef.current);
     aiGenRef.current++; // 使在途 AI 计算结果失效，避免串到新对局
+    lastGameResultRef.current = null; // 新对局重置结算标记
     const human = side ?? humanRef.current;
     const b = cloneXiangqiBoard(XIANGQI_INITIAL_BOARD);
     setBoard(b);
@@ -216,7 +279,7 @@ export const XiangqiAIGame: React.FC = () => {
     // 人类执黑时，AI（红）先走
     if (human === 'b') {
       setTurn('r');
-      scheduleAI(b, 'r');
+      scheduleAI(b, 'r', 0); // AI 先手：第 0 步（开局库第一步）
     }
   };
 
@@ -323,6 +386,7 @@ export const XiangqiAIGame: React.FC = () => {
   );
 
   // 对局结果弹窗（正常模式与浮动窗口共用）
+  const rank = getRank(profile.playerElo);
   const resultModal = gameOver ? (
     <div className="game-result-modal">
       <div className="result-content">
@@ -337,6 +401,12 @@ export const XiangqiAIGame: React.FC = () => {
           {status === 'draw' && '和棋'}
         </h3>
         <p className="result-detail">共走了 {moves.length} 步</p>
+        <div className="result-learning">
+          <span className="result-rank">{rank.icon} {rank.label} · ELO {profile.playerElo}</span>
+          {difficulty === 'auto' && (
+            <span className="result-ai-note">🤖 AI 会根据你的表现自动调整难度，越下越聪明</span>
+          )}
+        </div>
         <button className="play-again-btn" onClick={() => handleReset()}>再来一局</button>
       </div>
     </div>
@@ -353,11 +423,14 @@ export const XiangqiAIGame: React.FC = () => {
             <span className={`turn-indicator turn-${turn}`}>
               {thinking ? '🤔 电脑思考中…' : STATUS_TEXT[status](turn)}
             </span>
+            <span className="rank-badge" title="你的棋力等级（AI 会随你的进步自动调整难度）">
+              {rank.icon} {rank.label} · {profile.playerElo}
+            </span>
             <div className="game-actions">
               <select
                 className="difficulty-select"
                 value={difficulty}
-                onChange={(e) => setDifficulty(e.target.value as XiangqiAIDifficulty)}
+                onChange={(e) => setDifficulty(e.target.value as XiangqiAIDifficulty | 'auto')}
                 disabled={thinking}
                 title="AI 难度"
               >
@@ -408,12 +481,15 @@ export const XiangqiAIGame: React.FC = () => {
             {thinking ? '🤔 电脑思考中…' : STATUS_TEXT[status](turn)}
           </span>
           <span className="float-status-diff">你执：{PLAYER_NAMES[humanColor]} · 难度：{DIFF_LABELS[difficulty]}</span>
+          <span className="float-status-rank" title="你的棋力等级（AI 会随你的进步自动调整难度）">
+            {rank.icon} {rank.label} · {profile.playerElo}
+          </span>
         </div>
         <div className="float-action-bar">
           <select
             className="difficulty-select"
             value={difficulty}
-            onChange={(e) => setDifficulty(e.target.value as XiangqiAIDifficulty)}
+            onChange={(e) => setDifficulty(e.target.value as XiangqiAIDifficulty | 'auto')}
             disabled={thinking}
             title="AI 难度"
           >

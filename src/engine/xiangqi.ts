@@ -449,8 +449,13 @@ export function getXiangqiMoveNotation(
     ? { K: '帅', A: '仕', B: '相', N: '马', R: '车', C: '炮', P: '兵' }
     : { K: '将', A: '士', B: '象', N: '马', R: '车', C: '炮', P: '卒' };
   const name = pieceMap[piece.toUpperCase()] || piece;
-  const fromCol = colNames[from[1]];
-  const toCol = colNames[to[1]];
+  // 黑方路名从黑方视角编号：黑在顶部，红视角 col0 = 黑方9路，col8 = 黑方1路
+  const redCol = from[1];
+  const blackCol = COLS - 1 - from[1];
+  const redToCol = to[1];
+  const blackToCol = COLS - 1 - to[1];
+  const fromCol = colNames[isRed ? redCol : blackCol];
+  const toCol = colNames[isRed ? redToCol : blackToCol];
   const rowDiff = to[0] - from[0];
   const forward = isRed ? rowDiff < 0 : rowDiff > 0;
   let action = '平';
