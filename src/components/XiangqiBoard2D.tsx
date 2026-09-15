@@ -32,6 +32,15 @@ interface XiangqiBoard2DProps {
   flipped?: boolean;
   /** 是否启用缩放和拖动 */
   zoomable?: boolean;
+  /** 是否显示棋盘内缩放控件（+ / ⟳ / −）；false 时由外部工具栏提供缩放 */
+  zoomControls?: boolean;
+}
+
+/** 外部缩放控制句柄（配合 zoomControls={false} 在工具栏提供缩放按钮） */
+export interface XiangqiBoard2DHandle {
+  zoomIn: () => void;
+  zoomOut: () => void;
+  resetZoom: () => void;
 }
 
 // ===== 棋盘几何常量（唯一数据源）=====
@@ -56,18 +65,22 @@ const LINE_COLOR = '#5D4037';
 const MIN_SCALE = 0.6;
 const MAX_SCALE = 2.5;
 
-export const XiangqiBoard2D: React.FC<XiangqiBoard2DProps> = ({
-  board,
-  selectedSquare,
-  legalTargets,
-  lastMove,
-  checkSquare,
-  hint,
-  onSquareClick,
-  readOnly = false,
-  flipped = false,
-  zoomable = true,
-}) => {
+export const XiangqiBoard2D = React.forwardRef<XiangqiBoard2DHandle, XiangqiBoard2DProps>(function XiangqiBoard2D(
+  {
+    board,
+    selectedSquare,
+    legalTargets,
+    lastMove,
+    checkSquare,
+    hint,
+    onSquareClick,
+    readOnly = false,
+    flipped = false,
+    zoomable = true,
+    zoomControls = true,
+  }: XiangqiBoard2DProps,
+  ref,
+) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
@@ -108,6 +121,13 @@ export const XiangqiBoard2D: React.FC<XiangqiBoard2DProps> = ({
     setScale(1);
     setOffset({ x: 0, y: 0 });
   }, []);
+
+  // 外部缩放控制（工具栏按钮 / 组件被 zoomControls=false 隐藏时使用）
+  React.useImperativeHandle(ref, () => ({
+    zoomIn: () => setScale((s) => Math.min(MAX_SCALE, s + 0.2)),
+    zoomOut: () => setScale((s) => Math.max(MIN_SCALE, s - 0.2)),
+    resetZoom: () => resetView(),
+  }), [resetView]);
 
   // 滚轮缩放
   const handleWheel = useCallback((e: React.WheelEvent) => {
@@ -390,8 +410,8 @@ export const XiangqiBoard2D: React.FC<XiangqiBoard2DProps> = ({
         </div>
       </div>
 
-      {/* 缩放控制按钮 */}
-      {zoomable && (
+      {/* 缩放控制按钮（默认显示在棋盘右下角；zoomControls=false 时由外部工具栏提供） */}
+      {zoomable && zoomControls && (
         <div className="xiangqi-zoom-controls">
           <button
             className="zoom-btn"
@@ -418,4 +438,6 @@ export const XiangqiBoard2D: React.FC<XiangqiBoard2DProps> = ({
       )}
     </div>
   );
-};
+});
+
+export default XiangqiBoard2D;

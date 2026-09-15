@@ -3,7 +3,7 @@
  * 参考国际象棋"人机对局"设计：难度可选、走子提示、悔棋（含AI一步）、思考提示
  */
 import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react';
-import { XiangqiBoard2D } from '../components/XiangqiBoard2D';
+import { XiangqiBoard2D, type XiangqiBoard2DHandle } from '../components/XiangqiBoard2D';
 import { ThreeJSXiangqiBoard } from '../components/ThreeJSXiangqiBoard';
 import {
   XIANGQI_INITIAL_BOARD,
@@ -72,6 +72,7 @@ export const XiangqiAIGame: React.FC = () => {
   const webglOk = useMemo(() => supportsWebGL(), []); // 3D 按钮可用性（避免切 3D 后崩溃）
   const [isFloating, setIsFloating] = useState(false);
   const board3dRef = useRef<any>(null);
+  const board2dRef = useRef<XiangqiBoard2DHandle>(null);
 
   /** 切换浮动窗口（腾讯棋牌风格：独立可拖拽窗口，不再自动占用浏览器全屏） */
   const toggleFloat = () => {
@@ -341,23 +342,63 @@ export const XiangqiAIGame: React.FC = () => {
     setBoardFlipped(next === 'b');
   };
 
-  // 棋盘内悬浮控制条（功能按钮集成到棋盘容器，参考腾讯棋牌）
-  const viewControls = (
-    <div className="board-view-controls">
-      <button className={`view-ctrl-btn ${viewMode === '3d' ? 'active' : ''}`} onClick={() => setViewMode('3d')} disabled={!webglOk} title={webglOk ? '3D 视图' : '当前设备不支持 3D 渲染'}>🎲 3D</button>
-      <button className={`view-ctrl-btn ${viewMode === '2d' ? 'active' : ''}`} onClick={() => setViewMode('2d')} title="2D 视图">▦ 2D</button>
-      <button className="view-ctrl-btn" onClick={() => board3dRef.current?.resetView?.()} disabled={viewMode !== '3d'} title="复位视角">↺</button>
-      <button className="view-ctrl-btn" onClick={() => setBoardFlipped(f => !f)} title="翻转棋盘视角">⇅</button>
-      <button className={`view-ctrl-btn ${isFloating ? 'active' : ''}`} onClick={toggleFloat} title={isFloating ? '退出浮动窗口' : '浮动窗口'}>
-        {isFloating ? '🗗' : '⛶'}
-      </button>
+  // 棋盘功能按钮栏（与上方功能按钮分区排列，不再悬浮遮挡棋盘）
+  // 分区：① 视图切换（3D/2D）② 视角（翻转/复位）③ 缩放（2D）④ 浮动窗口
+  const viewActions = (
+    <div className="view-actions-bar">
+      <div className="view-action-group">
+        <button
+          className={`view-tab-btn ${viewMode === '3d' ? 'active' : ''}`}
+          onClick={() => setViewMode('3d')}
+          disabled={!webglOk}
+          title={webglOk ? '3D 视图' : '当前设备不支持 3D 渲染'}
+        >
+          🎲 3D
+        </button>
+        <button
+          className={`view-tab-btn ${viewMode === '2d' ? 'active' : ''}`}
+          onClick={() => setViewMode('2d')}
+          title="2D 视图"
+        >
+          ▦ 2D
+        </button>
+      </div>
+      <div className="view-action-group">
+        <button className="view-tab-btn" onClick={() => setBoardFlipped((f) => !f)} title="翻转棋盘视角">
+          ⇅ 翻转
+        </button>
+        <button
+          className="view-tab-btn"
+          onClick={() => {
+            if (viewMode === '3d') board3dRef.current?.resetView?.();
+            else board2dRef.current?.resetZoom();
+          }}
+          title="复位视角"
+        >
+          ↺ 复位
+        </button>
+      </div>
+      <div className="view-action-group">
+        <button className="view-tab-btn" onClick={() => board2dRef.current?.zoomIn()} disabled={viewMode !== '2d'} title="放大棋盘">
+          ＋
+        </button>
+        <button className="view-tab-btn" onClick={() => board2dRef.current?.zoomOut()} disabled={viewMode !== '2d'} title="缩小棋盘">
+          －
+        </button>
+      </div>
+      {!isFloating && (
+        <div className="view-action-group">
+          <button className="view-tab-btn" onClick={toggleFloat} title="浮动窗口">
+            ⛶ 浮动
+          </button>
+        </div>
+      )}
     </div>
   );
 
-  // 棋盘区域（含悬浮控制条），正常模式与浮动窗口共用
+  // 棋盘区域（功能按钮已移入上方工具栏，棋盘内不再悬浮任何控件）
   const boardArea = (
     <div className={`xiangqi-board-host view-${viewMode}`}>
-      {viewControls}
       {viewMode === '3d' ? (
         <ThreeJSXiangqiBoard
           board={board}
@@ -372,6 +413,7 @@ export const XiangqiAIGame: React.FC = () => {
         />
       ) : (
         <XiangqiBoard2D
+          ref={board2dRef}
           board={board}
           selectedSquare={selection}
           legalTargets={legalTargets}
@@ -381,6 +423,7 @@ export const XiangqiAIGame: React.FC = () => {
           onSquareClick={handleSquareClick}
           flipped={boardFlipped}
           zoomable={true}
+          zoomControls={false}
         />
       )}
     </div>
@@ -444,6 +487,7 @@ export const XiangqiAIGame: React.FC = () => {
               <button className="action-btn primary" onClick={newGameDialog}>🔄 新对局</button>
             </div>
           </div>
+          {viewActions}
           {boardArea}
           {thinking && <div className="thinking-bar">🤔 电脑思考中，请稍候…</div>}
         </div>
@@ -503,6 +547,7 @@ export const XiangqiAIGame: React.FC = () => {
           <button className="float-action-btn" onClick={handleHint} disabled={thinking || gameOver}>💡 提示</button>
           <button className="float-action-btn float-action-primary" onClick={newGameDialog}>🔄 新对局</button>
         </div>
+        {viewActions}
         {boardArea}
         {thinking && <div className="thinking-bar">🤔 电脑思考中，请稍候…</div>}
         {resultModal}
