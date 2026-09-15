@@ -116,6 +116,8 @@ export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
 
   // 浮动窗口状态
   const [isFloating, setIsFloating] = useState(false);
+  // 浮动窗口内聊天面板展开/收起
+  const [floatChatOpen, setFloatChatOpen] = useState(false);
 
   // 沉浸模式（移动端隐藏导航，最大化棋盘）
   const [isImmersive, setIsImmersive] = useState(false);
@@ -657,6 +659,135 @@ export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
   );
 
   // ================================================================
+  // 聊天面板内容（消息列表 + 表情选择 + 输入组），正常模式与浮动窗口共用
+  // ================================================================
+  const chatPanelContent = (
+    <>
+      <div className="chat-messages" ref={chatListRef}>
+        {chatMessages.length === 0 ? (
+          <p className="empty-text">暂无消息，和对手打个招呼吧！</p>
+        ) : (
+          chatMessages.map((msg, i) => {
+            const mine = isMyMessage(msg.from);
+            const host = isHostMessage(msg.from);
+            const roleLabel = host ? '房主' : '对手';
+
+            if (msg.from === 'system') {
+              return (
+                <div key={i} className="chat-message chat-message-system">
+                  <span className="chat-text">{msg.message}</span>
+                </div>
+              );
+            }
+
+            return (
+              <div
+                key={i}
+                className={`chat-message chat-bubble ${mine ? 'chat-bubble-mine' : 'chat-bubble-other'} ${host ? 'chat-bubble-host' : 'chat-bubble-guest'}`}
+              >
+                <div className="chat-bubble-header">
+                  <span className="chat-role-badge">{mine ? '我' : roleLabel}</span>
+                  <span className="chat-time">{formatTime(msg.timestamp)}</span>
+                </div>
+                {msg.isVoice ? (
+                  <div className="chat-voice-message">
+                    <button
+                      className="voice-play-btn"
+                      onClick={() => msg.audioData && togglePlayVoice(i, msg.audioData)}
+                      aria-label={playingId === i ? '暂停语音' : '播放语音'}
+                    >
+                      {playingId === i ? '⏸' : '▶'}
+                    </button>
+                    <span className="voice-duration">{formatDuration(msg.duration || 0)}</span>
+                    <span className="voice-wave">~</span>
+                  </div>
+                ) : (
+                  <span className="chat-text">{msg.message}</span>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {showEmojiPicker && !isRecording && (
+        <div className="emoji-picker-panel">
+          {EMOJI_LIST.map((emoji, idx) => (
+            <button
+              key={idx}
+              className="emoji-item"
+              onClick={() => setChatInput((prev) => (prev + emoji).slice(0, 200))}
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="chat-input-group">
+        <button
+          className="chat-emoji-btn"
+          onClick={() => setShowEmojiPicker((v) => !v)}
+          disabled={!opponent || isRecording}
+          title="表情"
+          aria-label="表情"
+        >
+          😊
+        </button>
+        <button
+          className={`chat-voice-btn ${isRecording ? (isCancelling ? 'voice-btn-cancel' : 'voice-btn-recording') : ''}`}
+          onMouseDown={(e) => { e.preventDefault(); handleRecordStart(e.clientY); }}
+          onMouseMove={(e) => handleRecordMove(e.clientY)}
+          onMouseUp={() => handleRecordEnd()}
+          onMouseLeave={() => { if (isRecordingRef.current) handleRecordEnd(); }}
+          onTouchStart={(e) => { e.preventDefault(); handleRecordStart(e.touches[0].clientY); }}
+          onTouchMove={(e) => { e.preventDefault(); handleRecordMove(e.touches[0].clientY); }}
+          onTouchEnd={(e) => { e.preventDefault(); handleRecordEnd(); }}
+          disabled={!opponent}
+          title="按住说话"
+          aria-label="按住说话"
+        >
+          {isRecording ? <span className="voice-btn-timer">{recordSeconds}</span> : '🎤'}
+        </button>
+        {isRecording ? (
+          <div className={`chat-recording-inline ${isCancelling ? 'recording-cancel-mode' : ''}`}>
+            <div className="recording-wave-inline">
+              {[...Array(5)].map((_, i) => (
+                <span
+                  key={i}
+                  className="wave-bar-inline"
+                  style={{ height: `${Math.max(3, recordVolume * 24 * (0.5 + i * 0.15))}px` }}
+                />
+              ))}
+            </div>
+            <span className="recording-hint-inline">
+              {isCancelling ? '松开取消' : '松开发送'}
+            </span>
+          </div>
+        ) : (
+          <input
+            type="text"
+            className="chat-input"
+            placeholder="输入消息..."
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleSendChat(); }}
+            maxLength={200}
+          />
+        )}
+        {!isRecording && (
+          <button
+            className="chat-send-btn"
+            onClick={handleSendChat}
+            disabled={!chatInput.trim() || !opponent}
+          >
+            发送
+          </button>
+        )}
+      </div>
+    </>
+  );
+
+  // ================================================================
   // 对局界面（已进入房间）
   // ================================================================
   // 游戏结束弹窗（正常模式与浮动窗口共用）
@@ -847,127 +978,7 @@ export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
           {/* 聊天面板 */}
           <div className="online-chat">
             <h3>聊天</h3>
-            <div className="chat-messages" ref={chatListRef}>
-              {chatMessages.length === 0 ? (
-                <p className="empty-text">暂无消息，和对手打个招呼吧！</p>
-              ) : (
-                chatMessages.map((msg, i) => {
-                  const mine = isMyMessage(msg.from);
-                  const host = isHostMessage(msg.from);
-                  const roleLabel = host ? '房主' : '对手';
-
-                  if (msg.from === 'system') {
-                    return (
-                      <div key={i} className="chat-message chat-message-system">
-                        <span className="chat-text">{msg.message}</span>
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div
-                      key={i}
-                      className={`chat-message chat-bubble ${mine ? 'chat-bubble-mine' : 'chat-bubble-other'} ${host ? 'chat-bubble-host' : 'chat-bubble-guest'}`}
-                    >
-                      <div className="chat-bubble-header">
-                        <span className="chat-role-badge">{mine ? '我' : roleLabel}</span>
-                        <span className="chat-time">{formatTime(msg.timestamp)}</span>
-                      </div>
-                      {msg.isVoice ? (
-                        <div className="chat-voice-message">
-                          <button
-                            className="voice-play-btn"
-                            onClick={() => msg.audioData && togglePlayVoice(i, msg.audioData)}
-                            aria-label={playingId === i ? '暂停语音' : '播放语音'}
-                          >
-                            {playingId === i ? '⏸' : '▶'}
-                          </button>
-                          <span className="voice-duration">{formatDuration(msg.duration || 0)}</span>
-                          <span className="voice-wave">~</span>
-                        </div>
-                      ) : (
-                        <span className="chat-text">{msg.message}</span>
-                      )}
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            {showEmojiPicker && !isRecording && (
-              <div className="emoji-picker-panel">
-                {EMOJI_LIST.map((emoji, idx) => (
-                  <button
-                    key={idx}
-                    className="emoji-item"
-                    onClick={() => setChatInput((prev) => (prev + emoji).slice(0, 200))}
-                  >
-                    {emoji}
-                  </button>
-                ))}
-              </div>
-            )}
-            <div className="chat-input-group">
-              <button
-                className="chat-emoji-btn"
-                onClick={() => setShowEmojiPicker((v) => !v)}
-                disabled={!opponent || isRecording}
-                title="表情"
-                aria-label="表情"
-              >
-                😊
-              </button>
-              <button
-                className={`chat-voice-btn ${isRecording ? (isCancelling ? 'voice-btn-cancel' : 'voice-btn-recording') : ''}`}
-                onMouseDown={(e) => { e.preventDefault(); handleRecordStart(e.clientY); }}
-                onMouseMove={(e) => handleRecordMove(e.clientY)}
-                onMouseUp={() => handleRecordEnd()}
-                onMouseLeave={() => { if (isRecordingRef.current) handleRecordEnd(); }}
-                onTouchStart={(e) => { e.preventDefault(); handleRecordStart(e.touches[0].clientY); }}
-                onTouchMove={(e) => { e.preventDefault(); handleRecordMove(e.touches[0].clientY); }}
-                onTouchEnd={(e) => { e.preventDefault(); handleRecordEnd(); }}
-                disabled={!opponent}
-                title="按住说话"
-                aria-label="按住说话"
-              >
-                {isRecording ? <span className="voice-btn-timer">{recordSeconds}</span> : '🎤'}
-              </button>
-              {isRecording ? (
-                <div className={`chat-recording-inline ${isCancelling ? 'recording-cancel-mode' : ''}`}>
-                  <div className="recording-wave-inline">
-                    {[...Array(5)].map((_, i) => (
-                      <span
-                        key={i}
-                        className="wave-bar-inline"
-                        style={{ height: `${Math.max(3, recordVolume * 24 * (0.5 + i * 0.15))}px` }}
-                      />
-                    ))}
-                  </div>
-                  <span className="recording-hint-inline">
-                    {isCancelling ? '松开取消' : '松开发送'}
-                  </span>
-                </div>
-              ) : (
-                <input
-                  type="text"
-                  className="chat-input"
-                  placeholder="输入消息..."
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleSendChat(); }}
-                  maxLength={200}
-                />
-              )}
-              {!isRecording && (
-                <button
-                  className="chat-send-btn"
-                  onClick={handleSendChat}
-                  disabled={!chatInput.trim() || !opponent}
-                >
-                  发送
-                </button>
-              )}
-            </div>
+            {chatPanelContent}
           </div>
 
           {/* 游戏结束弹窗 */}
@@ -1009,6 +1020,24 @@ export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
           </button>
         </div>
         {boardArea}
+        {/* 浮动窗口底部聊天：先开关，展开后消息列表 + 表情 + 文字/按住说话语音输入 */}
+        <div className="float-chat-bar">
+          <button
+            className={`float-chat-toggle ${floatChatOpen ? 'active' : ''}`}
+            onClick={() => setFloatChatOpen((v) => !v)}
+            disabled={!opponent}
+            title={floatChatOpen ? '收起聊天' : '展开聊天'}
+          >
+            💬 聊天
+            {chatMessages.length > 0 && <span className="float-chat-count">{chatMessages.length}</span>}
+            <span className="float-chat-caret">{floatChatOpen ? '▾' : '▴'}</span>
+          </button>
+        </div>
+        {floatChatOpen && (
+          <div className="float-chat-panel">
+            {chatPanelContent}
+          </div>
+        )}
         {gameResultModal}
         {leaveConfirmModal}
       </BoardFloatingWindow>
