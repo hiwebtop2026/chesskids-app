@@ -271,6 +271,13 @@ export const XiangqiAIGame: React.FC = () => {
     handleReset(sideChoice ? 'r' : 'b');
   };
 
+  /** 换边：切换执子方并重置对局，执黑时自动翻转棋盘视角（黑方在下、AI 红方先手） */
+  const handleSwitchSide = () => {
+    const next = humanColor === 'r' ? 'b' : 'r';
+    handleReset(next);
+    setBoardFlipped(next === 'b');
+  };
+
   // 棋盘内悬浮控制条（功能按钮集成到棋盘容器，参考腾讯棋牌）
   const viewControls = (
     <div className="board-view-controls">
@@ -369,7 +376,7 @@ export const XiangqiAIGame: React.FC = () => {
         <div className="game-side-panel">
           <div className="side-badge">
             <span>你执：{PLAYER_NAMES[humanColor]}</span>
-            <button className="action-btn" onClick={() => handleReset(humanColor === 'r' ? 'b' : 'r')}>
+            <button className="action-btn" onClick={handleSwitchSide}>
               换边
             </button>
           </div>
@@ -400,7 +407,7 @@ export const XiangqiAIGame: React.FC = () => {
           <span className="float-status-turn">
             {thinking ? '🤔 电脑思考中…' : STATUS_TEXT[status](turn)}
           </span>
-          <span className="float-status-diff">难度：{DIFF_LABELS[difficulty]}</span>
+          <span className="float-status-diff">你执：{PLAYER_NAMES[humanColor]} · 难度：{DIFF_LABELS[difficulty]}</span>
         </div>
         <div className="float-action-bar">
           <select
@@ -414,6 +421,7 @@ export const XiangqiAIGame: React.FC = () => {
               <option key={k} value={k}>{label}</option>
             ))}
           </select>
+          <button className="float-action-btn" onClick={handleSwitchSide} disabled={thinking} title="换边（执黑时 AI 红方先手，棋盘自动翻转）">⇄ 换边</button>
           <button className="float-action-btn" onClick={handleUndo} disabled={moves.length === 0 || thinking}>↩ 悔棋</button>
           <button className="float-action-btn" onClick={handleHint} disabled={thinking || gameOver}>💡 提示</button>
           <button className="float-action-btn float-action-primary" onClick={newGameDialog}>🔄 新对局</button>

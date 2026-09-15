@@ -296,13 +296,17 @@ export const XiangqiBoard2D: React.FC<XiangqiBoard2DProps> = ({
     return [...lines, ...markers];
   }, []);
 
-  // 缩放变换样式
+  // 缩放变换样式（注意：翻转 180° 时需与缩放合成，避免 inline transform 覆盖翻转类导致视角不翻转）
   const boardTransformStyle = zoomable
     ? {
-        transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
+        transform: flipped
+          ? `rotate(180deg) translate(${-offset.x}px, ${-offset.y}px) scale(${scale})`
+          : `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
         cursor: dragRef.current.active ? 'grabbing' : 'grab',
       }
-    : {};
+    : flipped
+      ? { transform: 'rotate(180deg)' }
+      : {};
 
   return (
     <div
