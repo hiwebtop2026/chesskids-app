@@ -1096,6 +1096,8 @@ export const ThreeJSChessBoard: React.FC<ThreeJSChessBoardProps> = ({
       e.preventDefault();
       console.warn('[ChessBoard] WebGL context lost');
       needsRenderRef.current = false;
+      // 直接降级提示，避免黑屏后用户误以为 3D/浮动窗口卡死
+      setGlFailed(true);
     };
     const handleContextRestored = () => {
       console.info('[ChessBoard] WebGL context restored');
@@ -1414,8 +1416,17 @@ export const ThreeJSChessBoard: React.FC<ThreeJSChessBoardProps> = ({
       }
       // 仅在需要时渲染
       if (needsRenderRef.current) {
-        rendererRef.current.render(sceneRef.current, cameraRef.current);
-        needsRenderRef.current = false;
+        try {
+          rendererRef.current.render(sceneRef.current, cameraRef.current);
+          needsRenderRef.current = false;
+        } catch (err) {
+          // WebGL context 被浏览器回收/丢失后渲染会抛异常：降级提示，不崩溃、不刷错误
+          console.warn('[ChessBoard] 3D 渲染失败，已降级为 2D 提示:', err);
+          if (isMounted) {
+            setGlFailed(true);
+            needsRenderRef.current = false;
+          }
+        }
       }
       animationFrameRef.current = requestAnimationFrame(animate);
     };

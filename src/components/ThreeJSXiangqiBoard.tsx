@@ -18,6 +18,23 @@ import type {
 import { XIANGQI_PIECE_CHARS } from '../types/xiangqi';
 import { isXiangqiRed } from '../engine/xiangqi';
 
+// 模块级：全局活跃 WebGL 渲染器注册表。
+// 同一时刻页面只保留一个 3D 上下文（当前只玩一局棋），新渲染器挂载前先释放旧的，
+// 避免浏览器 "Too many active WebGL contexts. Oldest context will be lost." 报警，
+// 以及最旧 context 被丢弃后 3D 棋盘黑屏/渲染抛错导致浮动窗口无法使用。
+const activeRenderers = new Set<THREE.WebGLRenderer>();
+
+/** 释放并移除一个 WebGL 渲染器（防御式，绝不抛异常） */
+function disposeRendererSafe(r: THREE.WebGLRenderer | null | undefined) {
+  if (!r) return;
+  try { r.dispose(); } catch {}
+  try {
+    if (r.domElement && r.domElement.parentNode) {
+      r.domElement.parentNode.removeChild(r.domElement);
+    }
+  } catch {}
+}
+
 // ============ 棋盘几何常量（单一数据源）============
 const CELL = 1.0;                 // 一格的长度
 const COLS = 9;                   // 竖线数
@@ -689,11 +706,20 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     container.appendChild(renderer.domElement);
 
+    // 全局只保留一个活跃 3D context：新挂载先释放旧的（浮动窗口开关/切视图/切模块都不再堆积 context）
+    for (const old of activeRenderers) {
+      disposeRendererSafe(old);
+    }
+    activeRenderers.clear();
+    activeRenderers.add(renderer);
+
     // WebGL context loss 处理：防止 GPU 切换/休眠恢复后崩溃
     const handleContextLost = (e: Event) => {
       e.preventDefault();
       console.warn('[XiangqiBoard] WebGL context lost');
       needsRenderRef.current = false;
+      // 直接降级提示，避免黑屏后用户误以为浮动窗口/3D 卡死
+      setGlFailed(true);
     };
     const handleContextRestored = () => {
       console.info('[XiangqiBoard] WebGL context restored');
@@ -1130,8 +1156,18 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
       });
 
       if (need) {
-        renderer.render(scene, camera);
-        needsRenderRef.current = false;
+        try {
+          renderer.render(scene, camera);
+          needsRenderRef.current = false;
+        } catch (err) {
+          // WebGL context 被浏览器回收/丢失后渲染会抛异常：
+          // 降级提示并停止继续刷错误，保证模块与浮动窗口不崩溃
+          console.warn('[XiangqiBoard] 3D 渲染失败，已降级为 2D 提示:', err);
+          if (isMounted) {
+            setGlFailed(true);
+            needsRenderRef.current = false;
+          }
+        }
       }
     };
     const animationFrameRef = { current: 0 as number } as any;
@@ -1246,10 +1282,9 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
       // 清理棋子缓存
       pieceCache.clear();
       sideTexCache.clear();
-      renderer.dispose();
-      if (renderer.domElement.parentNode) {
-        renderer.domElement.parentNode.removeChild(renderer.domElement);
-      }
+      // 从全局注册表移除并释放 WebGL 资源
+      activeRenderers.delete(renderer);
+      disposeRendererSafe(renderer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

@@ -51,6 +51,18 @@
 - 浏览器实测：浮动窗口点「⇄ 换边」→ 状态条「轮到 黑方 走棋 / 你执：黑方 · 难度：中级」，AI（红）先行一步后轮到玩家；棋盘 `matrix(-1,0,0,-1,0,0)` 翻转，截图中红方「帥」在顶、黑方「將」在底，玩家视角正确
 - `npx tsc --noEmit` 通过；`npm run build` 通过
 
+### 追加：人机浮动窗口无法打开 + 运行报警修复（WebGL context 堆积）
+- **现象**：频繁切换 3D/2D/浮动窗口后，控制台堆积 `WARNING: Too many active WebGL contexts. Oldest context will be lost.`，最旧 context 被浏览器回收后 3D 渲染 `renderer.render()` 抛未捕获异常 → `main.tsx` 全局 error 兜底弹出「页面出现异常」报警 → 模块异常/浮动窗口无法再打开
+- **根因**：`ThreeJSXiangqiBoard.tsx` / `ThreeJSChessBoard.tsx` 每次挂载（进出浮动窗口、3D↔2D 切换、模块切换）都新建一个 WebGL context；渲染循环对 `renderer.render()` 无任何 try/catch 保护，context 丢失后异常直接冒泡
+- **修复**：
+  - 两组件均新增**模块级全局活跃渲染器注册表** `activeRenderers` + `disposeRendererSafe()`：新渲染器挂载前先释放旧的，**同一时刻全局只保留一个活跃 3D context**，从源头消除 context 堆积
+  - 渲染循环 `renderer.render(scene, camera)` 包 **try/catch**：失败时 `setGlFailed(true)` 显示降级提示并停止继续刷错误，异常不再冒泡到全局 error 兜底
+  - `webglcontextlost` 事件处理增强：直接 `setGlFailed(true)` 降级提示（避免黑屏后误以为浮动窗口/3D 卡死）
+  - 卸载改为 `activeRenderers.delete(renderer) + disposeRendererSafe()` 防御式释放（绝不抛异常）
+### 追加验证
+- 浏览器实测：人机对战 3D↔2D↔浮动窗口反复切换 **4 轮 × 各视图**，`Too many active WebGL contexts` 警告 **0 新增**，控制台无任何 warning/error，浮动窗口每次均可正常打开（`win open: 1`）
+- `npx tsc --noEmit` 通过
+
 ## 2026-09-15：联机对战移动端 2D 棋盘显示不全修复
 ### 根因分析（浏览器 375×667 实测定位）
 - **纵向裁剪（主因）**：`.xiangqi-online-game .game-board-section` 用 `aspect-ratio: 9/10` 锁定整区高度，但区内还含对手栏 + 视图切换栏 + 己方栏（约 105px），棋盘 host `height:100%` 从栏目下方开始后底部溢出约 70px，被 `overflow:hidden` 裁掉棋盘下半部分（红方主力棋子不可见）
