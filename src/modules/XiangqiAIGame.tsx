@@ -392,7 +392,7 @@ export const XiangqiAIGame: React.FC = () => {
     </>
   );
 
-  // 浮动窗口模式（腾讯棋牌风格：独立可拖拽窗口，可缩放、可全屏）
+  // 浮动窗口模式（腾讯棋牌风格：独立可拖拽窗口，可缩放、可全屏，功能按钮集成在窗口内）
   if (isFloating) {
     return (
       <BoardFloatingWindow title="🤖 中国象棋 · 人机对战" onClose={toggleFloat}>
@@ -401,6 +401,22 @@ export const XiangqiAIGame: React.FC = () => {
             {thinking ? '🤔 电脑思考中…' : STATUS_TEXT[status](turn)}
           </span>
           <span className="float-status-diff">难度：{DIFF_LABELS[difficulty]}</span>
+        </div>
+        <div className="float-action-bar">
+          <select
+            className="difficulty-select"
+            value={difficulty}
+            onChange={(e) => setDifficulty(e.target.value as XiangqiAIDifficulty)}
+            disabled={thinking}
+            title="AI 难度"
+          >
+            {Object.entries(DIFF_LABELS).map(([k, label]) => (
+              <option key={k} value={k}>{label}</option>
+            ))}
+          </select>
+          <button className="float-action-btn" onClick={handleUndo} disabled={moves.length === 0 || thinking}>↩ 悔棋</button>
+          <button className="float-action-btn" onClick={handleHint} disabled={thinking || gameOver}>💡 提示</button>
+          <button className="float-action-btn float-action-primary" onClick={newGameDialog}>🔄 新对局</button>
         </div>
         {boardArea}
         {thinking && <div className="thinking-bar">🤔 电脑思考中，请稍候…</div>}

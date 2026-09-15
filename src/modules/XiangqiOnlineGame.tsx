@@ -659,6 +659,56 @@ export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
   // ================================================================
   // 对局界面（已进入房间）
   // ================================================================
+  // 游戏结束弹窗（正常模式与浮动窗口共用）
+  const gameResultModal = isGameOver ? (
+    <div className="game-result-modal">
+      <div className="result-content">
+        <div className="result-icon">
+          {status === 'checkmate' && (turn === color ? '😢' : '🎉')}
+          {status === 'stalemate' && (turn === color ? '😢' : '🎉')}
+          {status === 'draw' && '🤝'}
+        </div>
+        <h3 className="result-title">
+          {status === 'checkmate' && (turn === color ? '你输了' : '你赢了！')}
+          {status === 'stalemate' && (turn === color ? '你被困毙，判负' : '对手被困毙，你赢了！')}
+          {status === 'draw' && '和棋'}
+        </h3>
+        <p className="result-detail">共走了 {moves.length} 步</p>
+        <button className="play-again-btn" onClick={requestReset}>再来一局</button>
+      </div>
+    </div>
+  ) : null;
+
+  // 离开房间确认弹窗（正常模式与浮动窗口共用）
+  const leaveConfirmModal = showLeaveConfirm ? (
+    <div className="game-result-modal" onClick={() => setShowLeaveConfirm(false)}>
+      <div className="result-content" onClick={(e) => e.stopPropagation()}>
+        <button className="result-close-btn" onClick={() => setShowLeaveConfirm(false)}>✕</button>
+        <div className="result-icon">🚪</div>
+        <h3 className="result-title">确认离开房间？</h3>
+        <p className="result-detail">离开后当前对局将中断，确认离开吗？</p>
+        <div className="confirm-buttons">
+          <button className="control-btn cancel-btn" onClick={() => setShowLeaveConfirm(false)}>
+            取消
+          </button>
+          <button
+            className="control-btn confirm-reset-btn"
+            onClick={() => {
+              leaveRoom();
+              setShowLeaveConfirm(false);
+              setIsFloating(false);
+              // 退出沉浸模式
+              setIsImmersive(false);
+              document.body.classList.remove('app-immersive');
+            }}
+          >
+            确认离开
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   const gameContent = (
     <>
 
@@ -921,56 +971,11 @@ export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
           </div>
 
           {/* 游戏结束弹窗 */}
-          {isGameOver && (
-            <div className="game-result-modal">
-              <div className="result-content">
-                <div className="result-icon">
-                  {status === 'checkmate' && (turn === color ? '😢' : '🎉')}
-                  {status === 'stalemate' && (turn === color ? '😢' : '🎉')}
-                  {status === 'draw' && '🤝'}
-                </div>
-                <h3 className="result-title">
-                  {status === 'checkmate' && (turn === color ? '你输了' : '你赢了！')}
-                  {status === 'stalemate' && (turn === color ? '你被困毙，判负' : '对手被困毙，你赢了！')}
-                  {status === 'draw' && '和棋'}
-                </h3>
-                <p className="result-detail">共走了 {moves.length} 步</p>
-                <button className="play-again-btn" onClick={requestReset}>再来一局</button>
-              </div>
-            </div>
-          )}
+          {gameResultModal}
         </div>
       </div>
 
-      {/* 离开房间确认弹窗 */}
-      {showLeaveConfirm && (
-        <div className="game-result-modal" onClick={() => setShowLeaveConfirm(false)}>
-          <div className="result-content" onClick={(e) => e.stopPropagation()}>
-            <button className="result-close-btn" onClick={() => setShowLeaveConfirm(false)}>✕</button>
-            <div className="result-icon">🚪</div>
-            <h3 className="result-title">确认离开房间？</h3>
-            <p className="result-detail">离开后当前对局将中断，确认离开吗？</p>
-            <div className="confirm-buttons">
-              <button className="control-btn cancel-btn" onClick={() => setShowLeaveConfirm(false)}>
-                取消
-              </button>
-              <button
-                className="control-btn confirm-reset-btn"
-                onClick={() => {
-                  leaveRoom();
-                  setShowLeaveConfirm(false);
-                  setIsFloating(false);
-                  // 退出沉浸模式
-                  setIsImmersive(false);
-                  document.body.classList.remove('app-immersive');
-                }}
-              >
-                确认离开
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {leaveConfirmModal}
     </>
   );
 
@@ -990,7 +995,22 @@ export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
             {opponent ? `${opponent.color === 'r' ? '房主 · 红方' : '黑方'}：${opponent.name}` : `房间 ${displayRoomCode}`}
           </span>
         </div>
+        <div className="float-action-bar">
+          {color === 'r' && !opponent && (
+            <button className="float-action-btn" onClick={copyShareLink} title="复制房间号分享给好友">
+              📋 分享
+            </button>
+          )}
+          <button className="float-action-btn" onClick={requestReset} disabled={!opponent} title="重新开始对局">
+            🔄 重开游戏
+          </button>
+          <button className="float-action-btn float-action-danger" onClick={() => setShowLeaveConfirm(true)} title="离开房间">
+            🚪 离开
+          </button>
+        </div>
         {boardArea}
+        {gameResultModal}
+        {leaveConfirmModal}
       </BoardFloatingWindow>
     );
   }
