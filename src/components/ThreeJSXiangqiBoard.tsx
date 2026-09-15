@@ -859,11 +859,13 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
       const forwardX = Math.sin(cameraAngleX);
       const forwardZ = Math.cos(cameraAngleY) * Math.cos(cameraAngleX);
 
-      // 水平平移（右向量方向）
-      cameraTarget.x += rightX * deltaX * panScale;
-      cameraTarget.z += rightZ * deltaX * panScale;
+      // 水平平移：内容跟随手指（同向语义）
+      // 手指向右（deltaX>0）→ 目标点沿屏幕右向量的反方向移动 → 棋盘在屏幕上向右移动
+      cameraTarget.x -= rightX * deltaX * panScale;
+      cameraTarget.z -= rightZ * deltaX * panScale;
 
-      // 垂直平移（前方向量的反方向，屏幕上移=目标点前移）
+      // 垂直平移：内容跟随手指（同向语义）
+      // 手指向下（deltaY>0）→ 目标点沿前方向量的反方向（屏幕下方）移动 → 棋盘在屏幕上向下移动
       cameraTarget.x -= forwardX * deltaY * panScale;
       cameraTarget.z -= forwardZ * deltaY * panScale;
 
