@@ -3775,6 +3775,13 @@ ul {
   max-width: 100%;
 }
 
+/* 3D 棋盘：手势（单指旋转/双指缩放/平移）全部交给 WebGL 交互，阻止 iOS 双击缩放与滚动穿透 */
+.xiangqi-board-host.view-3d {
+  touch-action: none;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
 .threejs-xiangqi-board {
   display: block;
   width: 100%;
@@ -5020,17 +5027,27 @@ ul {
   padding: 10px;
   overflow: auto;
   background: radial-gradient(ellipse at center, #d8d8d8 0%, #c0c0c0 70%, #a8a8a8 100%);
-  /* 容器查询：让内部棋盘按 body 可用尺寸等比缩放，填满窗口 */
-  container-type: size;
+  /* container-type: size 见下方 @supports（iOS Safari <16 不支持，cq 单位会解析为 0 导致棋盘不渲染） */
 }
 
-/* 浮动窗口内：棋盘不锁固定尺寸，按窗口可用宽高等比缩放（宽高取小者） */
+/* 浮动窗口内：棋盘不锁固定尺寸，按窗口可用宽高等比缩放（宽高取小者）
+   默认使用 vh 回退方案（兼容不支持容器查询的浏览器 / iOS 15 及以下苹果手机）；
+   支持 container queries 的现代浏览器（Safari 16+ / Chrome 105+）在 @supports 中覆盖为精确 cq 尺寸 */
 .board-float-window .xiangqi-board-host {
   max-width: none;
-  width: min(100cqw, calc(100cqh * 0.9));
+  width: min(100%, calc((100vh - 140px) * 0.9));
   aspect-ratio: 9 / 10;
   margin: auto;
   flex-shrink: 0;
+}
+
+@supports (container-type: size) {
+  .board-float-body {
+    container-type: size;
+  }
+  .board-float-window .xiangqi-board-host {
+    width: min(100cqw, calc(100cqh * 0.9));
+  }
 }
 
 .board-float-window .xiangqi-board-host .xiangqi-board-wrapper {
@@ -5089,9 +5106,17 @@ ul {
   background: radial-gradient(ellipse at center, #322c28 0%, #221e1b 75%, #171412 100%);
 }
 
+/* 全屏棋盘尺寸：vh 回退 + 容器查询精确覆盖（同上，兼容 iOS Safari <16） */
 .board-float-window:fullscreen .board-float-body .xiangqi-board-host,
 .board-float-max .board-float-body .xiangqi-board-host {
-  width: min(100cqw, calc(100cqh * 0.92));
+  width: min(100%, calc((100vh - 80px) * 0.92));
+}
+
+@supports (container-type: size) {
+  .board-float-window:fullscreen .board-float-body .xiangqi-board-host,
+  .board-float-max .board-float-body .xiangqi-board-host {
+    width: min(100cqw, calc(100cqh * 0.92));
+  }
 }
 
 /* 移动端 / 窄屏：浮动窗口自动铺满视口，脱离浏览器窗口限制 */

@@ -347,7 +347,7 @@ export const XiangqiAIGame: React.FC = () => {
       <button className={`view-ctrl-btn ${viewMode === '3d' ? 'active' : ''}`} onClick={() => setViewMode('3d')} disabled={!webglOk} title={webglOk ? '3D 视图' : '当前设备不支持 3D 渲染'}>🎲 3D</button>
       <button className={`view-ctrl-btn ${viewMode === '2d' ? 'active' : ''}`} onClick={() => setViewMode('2d')} title="2D 视图">▦ 2D</button>
       <button className="view-ctrl-btn" onClick={() => board3dRef.current?.resetView?.()} disabled={viewMode !== '3d'} title="复位视角">↺</button>
-      <button className="view-ctrl-btn" onClick={() => setBoardFlipped(f => !f)} disabled={viewMode === '3d'} title="翻转棋盘视角">⇅</button>
+      <button className="view-ctrl-btn" onClick={() => setBoardFlipped(f => !f)} title="翻转棋盘视角">⇅</button>
       <button className={`view-ctrl-btn ${isFloating ? 'active' : ''}`} onClick={toggleFloat} title={isFloating ? '退出浮动窗口' : '浮动窗口'}>
         {isFloating ? '🗗' : '⛶'}
       </button>
@@ -366,6 +366,7 @@ export const XiangqiAIGame: React.FC = () => {
           lastMove={lastMove}
           checkSquare={checkSquare}
           hint={hint}
+          flipped={boardFlipped}
           onSquareClick={handleSquareClick}
           onReady={(api) => { board3dRef.current = api; }}
         />

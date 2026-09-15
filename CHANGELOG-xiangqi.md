@@ -79,6 +79,15 @@
 - **顺带修复历史 BUG**：`getXiangqiMoveNotation` 黑方路名未做 9-col 镜像（红视角 col1 被记成黑方"２"路），导致黑方所有着法记谱错误（如"马8进7"记成"马２进３"）——直接影响孩子学习开局，已修复
 - **验证**：新增 `scripts/xiangqi_learning_test.ts` 单测 **26/26 通过**（ELO 结算/段位/难度映射/开局库/记谱镜像/自对弈学习信号/5 步开局全命中）；浏览器实测：AI 执黑应手「马８进７」（标准屏风马）、状态条「🥉 初级 · 1000 · 自适应」、控制台零告警；`tsc` + `npm run build` 通过
 
+### 追加：3D 换边自动翻转视角 + iOS 移动端 3D 浮动窗口修复
+- **3D 换边自动翻转视角**：`ThreeJSXiangqiBoard` 本已内置 flipped 相机旋转（`fitCameraToBoard(flipped)` + `_setAngle(π)` 平滑动画），但 `XiangqiAIGame` 3D 分支未传 `flipped` prop → 换边后视角不翻转。修复：3D 分支接入 `flipped={boardFlipped}`，同时解锁 3D 模式下「⇅ 翻转棋盘视角」按钮（原 disabled）
+- **iOS 苹果手机无法进入 3D 浮动窗口（根因排查）**：
+  - **主因**：浮动窗口内棋盘宽度使用容器查询单位 `min(100cqw, calc(100cqh*0.9))`（`container-type: size`），**iOS Safari 16 以下不支持容器查询** → cq 解析为 0 → 浮动窗口内棋盘尺寸为 0、不渲染（用户看到"进不去 3D 浮动窗口"，实际是窗口打开了但棋盘空白）
+  - 修复：棋盘尺寸改为**默认 vh 回退方案** `min(100%, calc((100vh-140px)*0.9))`；支持容器查询的现代浏览器（Safari 16+ / Chrome 105+）用 `@supports (container-type: size)` 覆盖为精确 cq 尺寸——新旧 iOS 全覆盖
+  - **iOS 手势干扰**：3D 棋盘容器新增 `touch-action: none` + `-webkit-touch-callout: none`，阻止 iOS 双击缩放/长按菜单干扰 WebGL 单指旋转与双指缩放
+  - 既有防线（前轮已加固）：WebGL context 全局单例（iOS Safari context 上限更严）、全屏 API 被拒自动软件全屏降级、context lost 降级提示
+- **验证**：浏览器实测 3D 换边 → AI 红先手走炮二平五、视角自动翻转（楚河汉界镜像、黑方在下）、⇅ 按钮 3D 可用；3D 浮动窗口棋盘完整渲染（窗口 540×780 / 棋盘 520×578 / canvas 780×867）；`tsc` + `npm run build` 通过
+
 ## 2026-09-15：联机对战移动端 2D 棋盘显示不全修复
 ### 根因分析（浏览器 375×667 实测定位）
 - **纵向裁剪（主因）**：`.xiangqi-online-game .game-board-section` 用 `aspect-ratio: 9/10` 锁定整区高度，但区内还含对手栏 + 视图切换栏 + 己方栏（约 105px），棋盘 host `height:100%` 从栏目下方开始后底部溢出约 70px，被 `overflow:hidden` 裁掉棋盘下半部分（红方主力棋子不可见）
