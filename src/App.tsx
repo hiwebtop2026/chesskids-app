@@ -17,6 +17,7 @@ import {
   XiangqiLocalGame,
   XiangqiAIGame,
   XiangqiOnlineGame,
+  XiangqiTacticsTraining,
 } from './modules';
 import { UserProfile, ErrorBoundary, WeChatGuide } from './components';
 import { useProgressStore } from './store';
@@ -24,7 +25,7 @@ import { isWeChatBrowser } from './utils/wechat';
 
 type GameType = 'chess' | 'xiangqi';
 type ChessTabKey = 'learn' | 'rules' | 'tactics' | 'game' | 'local' | 'online' | 'progress';
-type XiangqiTabKey = 'xq-rules' | 'xq-ai' | 'xq-local' | 'xq-online' | 'progress';
+type XiangqiTabKey = 'xq-rules' | 'xq-tactics' | 'xq-ai' | 'xq-local' | 'xq-online' | 'progress';
 type TabKey = ChessTabKey | XiangqiTabKey;
 
 const CHESS_TABS: { key: ChessTabKey; label: string; icon: string }[] = [
@@ -39,6 +40,7 @@ const CHESS_TABS: { key: ChessTabKey; label: string; icon: string }[] = [
 
 const XIANGQI_TABS: { key: XiangqiTabKey; label: string; icon: string }[] = [
   { key: 'xq-rules', label: '规则学习', icon: '📖' },
+  { key: 'xq-tactics', label: '战术训练', icon: '🧩' },
   { key: 'xq-ai', label: '人机对战', icon: '🤖' },
   { key: 'xq-local', label: '双人对战', icon: '👥' },
   { key: 'xq-online', label: '联机对战', icon: '🌐' },
@@ -174,6 +176,8 @@ const App: React.FC = () => {
         return <ProgressSystem />;
       case 'xq-rules':
         return <XiangqiRulesLearning />;
+      case 'xq-tactics':
+        return <XiangqiTacticsTraining />;
       case 'xq-ai':
         return <XiangqiAIGame />;
       case 'xq-local':
@@ -229,7 +233,7 @@ const App: React.FC = () => {
                 <span className="game-card-icon">帥</span>
                 <span className="game-card-title">中国象棋</span>
                 <span className="game-card-desc">
-                  规则学习 · 人机对战 · 双人对战 · 在线联机
+                  规则学习 · 战术训练 · 人机对战 · 双人对战 · 在线联机
                 </span>
                 <span className="game-card-btn">进入游戏 →</span>
               </button>

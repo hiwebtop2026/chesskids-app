@@ -15,3 +15,4 @@ export { XiangqiRulesLearning } from './XiangqiRulesLearning';
 export { XiangqiLocalGame } from './XiangqiLocalGame';
 export { XiangqiAIGame } from './XiangqiAIGame';
 export { XiangqiOnlineGame } from './XiangqiOnlineGame';
+export { XiangqiTacticsTraining } from './XiangqiTacticsTraining';

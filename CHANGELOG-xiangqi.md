@@ -1,5 +1,32 @@
 # 中国象棋模块优化记录（2026-09-05）
 
+## 2026-09-16：中国象棋战术训练模块（15 题经典一步杀，引擎审计合法唯一解）
+
+### 背景
+- 参考国际象棋战术训练模块（`src/modules/TacticsTraining.tsx`），为小孩新增中国象棋实战杀法训练
+- 儿童学棋调研结论：杀法练习应「多频次反复练、积累杀形，每天 5-10 题」；儿童必学杀法 = 马后炮 / 双车错 / 铁门栓 / 卧槽马 / 闷宫 等
+
+### 题库（`src/data/xiangqiPuzzles.ts` 全文件重写）
+- **15 题全部经引擎审计**（`scripts/xiangqi_puzzle_builder.ts` 的 `analyze()`：红方未被将军 + 唯一一步杀）
+- 难度 1（5 题杀形明显）：白脸将·车锁肋道 / 闷宫·炮打闷宫 / 重炮·双炮叠将 / 马后炮·经典马后炮 / 闷宫·双马锁宫
+- 难度 2（5 题稍隐蔽）：马后炮·横线马后炮 / 双车错·双车交替 / 挂角马·马挂士角 / 钓鱼马·钓鱼马配车 / 重炮·重炮破防
+- 难度 3（5 题子力多杀形深）：双车错·双车错杀满盘 / 卧槽马·卧槽马跃将 / 大刀剜心·车剜中心士 / 大刀剜心·双车穿心 / 马后炮·三马环伺马后炮
+- 新增 `getXiangqiPuzzlesByDifficulty(difficulty)`；保留 `XIANGQI_TACTIC_TYPES`（11 种杀法科普文案，含调研信源依据）
+
+### UI 模块（`src/modules/XiangqiTacticsTraining.tsx`）
+- 难度 tabs（1-3 ⭐）；左侧 `XiangqiBoard2D`（10×9）+ 右侧题目信息/提示/下一题/跳过/杀法讲解
+- 点击只允许选红方棋子；走法目标用引擎 `getAllXiangqiLegalMoves` 过滤真实合法点
+- 答对 → `solvePuzzle(id, elapsed<30)`：XP + 已解开计数 + ✅ 反馈（30s 内快解加成）；答错 ❌ 反馈 1.5s；跳过 = 先计错后下一题
+- 提示按钮高亮正解 from/to 格（`point-hint`）
+
+### 注册
+- `src/App.tsx`：`XiangqiTabKey` 加 `'xq-tactics'`、`XIANGQI_TABS` 插「🧩 战术训练」于规则学习后、`renderContent` 加 case、首页中国象棋棋卡 desc 更新
+- `src/modules/index.ts` 导出 `XiangqiTacticsTraining`
+
+### 验证
+- `npx tsc --noEmit` 通过；`npx vite build` 通过（99 modules）
+- 浏览器实测全链路通过：难度1 第1题渲染（俥/帥/將/士 + 楚河汉界）→ 显示提示 → 选俥（point-selected + hint 高亮 8,3）→ 走 8,3 → 「✅ 太棒了！」+ XP 0→15 + 已解开 1/15 → 下一题切第2题闷宫 → 难度 3 切换显示双车错杀满盘
+
 ## 2026-09-16：联机对战双通道中继（聊天/语音/走棋国内网络可用化）
 
 ### 背景
