@@ -21,6 +21,7 @@ export const XiangqiTacticsTraining: React.FC = () => {
   const [selectedFrom, setSelectedFrom] = useState<XiangqiSquare | null>(null);
   const [showHint, setShowHint] = useState(false);
   const [feedback, setFeedback] = useState<'none' | 'correct' | 'wrong'>('none');
+  const [showEncyclopedia, setShowEncyclopedia] = useState(false);
   const [startTime, setStartTime] = useState<number>(Date.now());
   const { progress, solvePuzzle } = useProgressStore();
 
@@ -39,6 +40,15 @@ export const XiangqiTacticsTraining: React.FC = () => {
     setShowHint(false);
     setFeedback('none');
   }, [currentIndex, difficulty]);
+
+  /** 随机挑战：从全部题库随机抽一题 */
+  const handleRandomChallenge = () => {
+    const all = XIANGQI_PUZZLES;
+    const pick = all[Math.floor(Math.random() * all.length)];
+    setDifficulty(pick.difficulty);
+    const idx = getXiangqiPuzzlesByDifficulty(pick.difficulty).findIndex((p) => p.id === pick.id);
+    setCurrentIndex(Math.max(0, idx));
+  };
 
   /** 选中棋子的合法走法（引擎计算，真实可走目标点） */
   const legalTargets: XiangqiSquare[] = useMemo(() => {
@@ -109,7 +119,7 @@ export const XiangqiTacticsTraining: React.FC = () => {
         <p>一步杀经典杀法练习，提升你的实战能力</p>
       </div>
 
-      {/* 难度选择 */}
+      {/* 难度选择 + 随机挑战 */}
       <div className="difficulty-tabs">
         {([1, 2, 3] as const).map((d) => (
           <button
@@ -120,6 +130,9 @@ export const XiangqiTacticsTraining: React.FC = () => {
             难度 {d} {d === 1 ? '⭐' : d === 2 ? '⭐⭐' : '⭐⭐⭐'}
           </button>
         ))}
+        <button className="random-challenge-btn" onClick={handleRandomChallenge}>
+          🎲 随机挑战
+        </button>
       </div>
 
       {/* 谜题主区域 */}
@@ -156,6 +169,9 @@ export const XiangqiTacticsTraining: React.FC = () => {
             <span className="puzzle-number">
               第 {currentIndex + 1} / {puzzles.length} 题
             </span>
+            {solvedPuzzles.has(currentPuzzle.id) && (
+              <span className="puzzle-solved-badge">✅ 已掌握</span>
+            )}
           </div>
 
           <h3 className="puzzle-title">{currentPuzzle.title}</h3>
@@ -175,32 +191,31 @@ export const XiangqiTacticsTraining: React.FC = () => {
             )}
           </div>
 
-          {/* 操作按钮 */}
+          {/* 操作按钮：答对只显示「下一题」，未答只显示「跳过」 */}
           <div className="puzzle-actions">
-            <button
-              className="next-btn"
-              onClick={handleNext}
-              disabled={feedback !== 'correct' || (currentIndex >= puzzles.length - 1 && difficulty >= 3)}
-            >
-              下一题 →
-            </button>
-            <button
-              className="skip-btn"
-              onClick={() => {
-                if (feedback !== 'correct') {
+            {feedback === 'correct' ? (
+              <button
+                className="next-btn"
+                onClick={handleNext}
+                disabled={currentIndex >= puzzles.length - 1 && difficulty >= 3}
+              >
+                下一题 →
+              </button>
+            ) : (
+              <button
+                className="skip-btn"
+                onClick={() => {
                   setFeedback('wrong');
                   setTimeout(() => {
                     setFeedback('none');
                     handleNext();
                   }, 1000);
-                } else {
-                  handleNext();
-                }
-              }}
-              disabled={currentIndex >= puzzles.length - 1 && difficulty >= 3}
-            >
-              {feedback === 'correct' ? '下一题 →' : '跳过 →'}
-            </button>
+                }}
+                disabled={currentIndex >= puzzles.length - 1 && difficulty >= 3}
+              >
+                跳过 →
+              </button>
+            )}
           </div>
 
           {/* 战术类型说明 */}
@@ -211,9 +226,34 @@ export const XiangqiTacticsTraining: React.FC = () => {
         </div>
       </div>
 
+      {/* 杀法大全（教学图鉴） */}
+      <div className="tactic-encyclopedia">
+        <button
+          className="encyclopedia-toggle"
+          onClick={() => setShowEncyclopedia(!showEncyclopedia)}
+        >
+          {showEncyclopedia ? '📕 收起杀法大全' : '📕 杀法大全（11 种经典杀法）'}
+        </button>
+        {showEncyclopedia && (
+          <div className="encyclopedia-grid">
+            {Object.entries(XIANGQI_TACTIC_TYPES).map(([key, info]) => (
+              <div key={key} className="encyclopedia-item">
+                <span className="enc-icon">{info.icon}</span>
+                <div className="enc-body">
+                  <strong>{info.name}</strong>
+                  <p>{info.description}</p>
+                  <p className="enc-chant">🎵 {info.chant}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* 进度提示 */}
       <div className="module-progress">
         已解开 {solvedPuzzles.size} / {XIANGQI_PUZZLES.length} 道谜题
+        {solvedPuzzles.size === XIANGQI_PUZZLES.length && ' 🏆 全部掌握，太厉害啦！'}
       </div>
     </div>
   );
