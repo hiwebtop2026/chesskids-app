@@ -204,7 +204,7 @@ const App: React.FC = () => {
           <div className="header-left">
             <h1 className="app-title">
               <span className="app-logo">♔</span>
-              ChessKids
+              棋乐园
             </h1>
             <span className="app-subtitle">少儿棋类学堂</span>
           </div>
@@ -268,10 +268,10 @@ const App: React.FC = () => {
         <div className="header-left">
           <h1 className="app-title" onClick={goHome} style={{ cursor: 'pointer' }} title="返回首页">
             <span className="app-logo">{gameType === 'chess' ? '♔' : '帥'}</span>
-            ChessKids
+            棋乐园
           </h1>
           <span className="app-subtitle">
-            {gameType === 'chess' ? '国际象棋少儿学堂' : '中国象棋少儿学堂'}
+            {gameType === 'chess' ? '国际象棋' : '中国象棋'}
           </span>
         </div>
         <div className="header-right">
