@@ -337,10 +337,19 @@ export const XiangqiAIGame: React.FC = () => {
 
   /** 换边：切换执子方并重置对局，执黑时自动翻转棋盘视角（黑方在下、AI 红方先手） */
   const handleSwitchSide = () => {
+    // 换边会重置当前对局，先向用户确认（儿童友好文案）
     const next = humanColor === 'r' ? 'b' : 'r';
+    const ok = window.confirm(
+      `换边后你将执${PLAYER_NAMES[next]}，当前对局将重新开始。\n\n确定换边吗？`,
+    );
+    if (!ok) return;
     handleReset(next);
     setBoardFlipped(next === 'b');
   };
+
+  // 对局统计（侧栏棋力卡片使用）
+  const winRate = profile.gamesPlayed > 0 ? Math.round((profile.wins / profile.gamesPlayed) * 100) : 0;
+  const eloProgress = Math.min(100, Math.max(0, Math.round(((profile.playerElo - 200) / (2600 - 200)) * 100)));
 
   // 棋盘功能按钮栏（与上方功能按钮分区排列，不再悬浮遮挡棋盘）
   // 分区：① 视图切换（3D/2D）② 视角（翻转/复位）③ 缩放（2D）④ 浮动窗口
@@ -463,14 +472,29 @@ export const XiangqiAIGame: React.FC = () => {
     <>
       <div className={`game-layout ${isFloating ? 'game-layout-floating' : ''}`}>
         <div className="game-main-area">
-          <div className="game-status-bar">
-            <span className={`turn-indicator turn-${turn}`}>
+          {/* 对战信息条：回合状态 + 段位徽章 + 执子/换边（换边会重置对局） */}
+          <div className="battle-status-bar">
+            <span className={`battle-status ${turn === humanColor ? 'battle-status-mine' : ''} ${thinking ? 'battle-status-thinking' : ''}`}>
+              <span className="status-pulse-dot" />
               {thinking ? '🤔 电脑思考中…' : STATUS_TEXT[status](turn)}
             </span>
             <span className="rank-badge" title="你的棋力等级（AI 会随你的进步自动调整难度）">
               {rank.icon} {rank.label} · {profile.playerElo}
             </span>
-            <div className="game-actions">
+            <div className="side-switch">
+              <span className="side-switch-label">
+                你执 <b className={`side-color-${humanColor}`}>{PLAYER_NAMES[humanColor]}</b>
+              </span>
+              <button className="side-switch-btn" onClick={handleSwitchSide} disabled={thinking} title="换边（执黑时 AI 红方先手，棋盘自动翻转）">
+                ⇄ 换边
+              </button>
+            </div>
+          </div>
+
+          {/* 功能操作栏：难度 + 悔棋 / 提示 / 新对局 */}
+          <div className="game-toolbar">
+            <div className="toolbar-left">
+              <span className="toolbar-label">难度</span>
               <select
                 className="difficulty-select"
                 value={difficulty}
@@ -482,6 +506,8 @@ export const XiangqiAIGame: React.FC = () => {
                   <option key={k} value={k}>{label}</option>
                 ))}
               </select>
+            </div>
+            <div className="toolbar-actions">
               <button className="action-btn" onClick={handleUndo} disabled={moves.length === 0 || thinking}>↩ 悔棋</button>
               <button className="action-btn" onClick={handleHint} disabled={thinking || gameOver}>💡 提示</button>
               <button className="action-btn primary" onClick={newGameDialog}>🔄 新对局</button>
@@ -489,14 +515,45 @@ export const XiangqiAIGame: React.FC = () => {
           </div>
           {viewActions}
           {boardArea}
-          {thinking && <div className="thinking-bar">🤔 电脑思考中，请稍候…</div>}
         </div>
         <div className="game-side-panel">
-          <div className="side-badge">
-            <span>你执：{PLAYER_NAMES[humanColor]}</span>
-            <button className="action-btn" onClick={handleSwitchSide}>
-              换边
-            </button>
+          {/* 棋力卡片：段位 / ELO / 胜率 */}
+          <div className="profile-card">
+            <div className="profile-card-head">
+              <span className="profile-rank-icon">{rank.icon}</span>
+              <span className="profile-rank-label">{rank.label}</span>
+              <span className="profile-elo">ELO {profile.playerElo}</span>
+            </div>
+            <div className="profile-stats">
+              <div className="profile-stat">
+                <span className="profile-stat-num">{profile.gamesPlayed}</span>
+                <span className="profile-stat-label">对局</span>
+              </div>
+              <div className="profile-stat">
+                <span className="profile-stat-num profile-stat-win">{profile.wins}</span>
+                <span className="profile-stat-label">胜</span>
+              </div>
+              <div className="profile-stat">
+                <span className="profile-stat-num profile-stat-lose">{profile.losses}</span>
+                <span className="profile-stat-label">负</span>
+              </div>
+              <div className="profile-stat">
+                <span className="profile-stat-num">{winRate}%</span>
+                <span className="profile-stat-label">胜率</span>
+              </div>
+            </div>
+            <div className="profile-progress">
+              <div className="profile-progress-track">
+                <div className="profile-progress-bar" style={{ width: `${eloProgress}%` }} />
+              </div>
+              <div className="profile-progress-labels">
+                <span>初学</span>
+                <span>大师</span>
+              </div>
+            </div>
+            {difficulty === 'auto' && (
+              <p className="profile-note">🤖 AI 会根据你的表现自动调整难度，越下越聪明</p>
+            )}
           </div>
           <div className="move-history-panel">
             <h3>走棋记录</h3>
@@ -549,7 +606,6 @@ export const XiangqiAIGame: React.FC = () => {
         </div>
         {viewActions}
         {boardArea}
-        {thinking && <div className="thinking-bar">🤔 电脑思考中，请稍候…</div>}
         {resultModal}
       </BoardFloatingWindow>
     );

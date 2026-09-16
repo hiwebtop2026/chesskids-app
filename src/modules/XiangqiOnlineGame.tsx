@@ -859,8 +859,18 @@ export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
               {opponent ? (opponent.color === 'r' ? '红' : '黑') : '?'}
             </span>
             <span className="player-name">
-              {opponent ? `${opponent.color === 'r' ? '房主 · 红方' : '黑方'} · ${opponent.name}` : '等待对手加入...'}
+              {opponent ? `${opponent.color === 'r' ? '房主 · 红方' : '黑方'} · ${opponent.name}` : `等待对手加入 · 房间 ${displayRoomCode}`}
             </span>
+            {!opponent && (
+              <button
+                className="wait-copy-btn"
+                onClick={copyShareLink}
+                title="复制分享链接发给好友"
+                aria-label="复制分享链接"
+              >
+                {copied ? '✓ 已复制' : '📋 复制邀请'}
+              </button>
+            )}
           </div>
 
           {/* 棋盘 + 悬浮控制条 */}
@@ -874,11 +884,11 @@ export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
             <span className="player-name">
               {color === 'r' ? '房主 · 你（红）' : '你（黑）'}
             </span>
-            <span className="turn-indicator">
+            <span className={`turn-indicator ${isMyTurn ? 'turn-indicator-mine' : ''}`}>
               {!opponent
                 ? '等待对手...'
                 : isMyTurn
-                  ? '轮到你走棋'
+                  ? '🔴 轮到你走棋'
                   : '等待对手走棋...'}
             </span>
           </div>
@@ -944,17 +954,17 @@ export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
             </div>
 
             <div className="control-group">
-              <button className="control-btn reset-btn" onClick={requestReset} disabled={!opponent}>
+              <button className="control-btn reset-btn" onClick={requestReset} disabled={!opponent} title="重新开始对局">
                 重开游戏
               </button>
               <button
                 className={`control-btn float-toggle-btn ${isFloating ? 'active' : ''}`}
                 onClick={toggleFloat}
-                title={isFloating ? '退出最大化' : '最大化棋盘'}
+                title={isFloating ? '退出浮动窗口' : '浮动窗口'}
               >
-                {isFloating ? '退出最大化' : '最大化'}
+                {isFloating ? '退出浮动' : '浮动窗口'}
               </button>
-              <button className="control-btn reset-btn" onClick={() => setShowLeaveConfirm(true)}>
+              <button className="control-btn reset-btn" onClick={() => setShowLeaveConfirm(true)} title="离开当前房间">
                 离开房间
               </button>
             </div>

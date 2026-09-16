@@ -5727,3 +5727,330 @@ ul {
   color: #fff;
   border-color: rgba(255, 255, 255, 0.28);
 }
+
+/* ================================================================
+   人机/联机对战 UI 全面优化（2026-09-16）
+   ================================================================ */
+
+/* ---- 对战信息条（状态 + 段位 + 执子/换边）---- */
+.battle-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 14px;
+  background: var(--bg-card);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 10px;
+}
+
+.battle-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text);
+}
+
+.battle-status.battle-status-mine {
+  background: rgba(46, 125, 50, 0.12);
+  color: #2e7d32;
+}
+
+.battle-status.battle-status-thinking {
+  background: rgba(255, 152, 0, 0.14);
+  color: #e65100;
+}
+
+.battle-status.battle-status-mine .status-pulse-dot {
+  background: #2e7d32;
+  animation: pulse 1s infinite;
+}
+
+.battle-status.battle-status-thinking .status-pulse-dot {
+  background: #ff9800;
+  animation: pulse 0.8s infinite;
+}
+
+.status-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.3);
+  flex-shrink: 0;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(1.35); }
+}
+
+.side-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.side-switch-label {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.side-switch-label b {
+  font-weight: 700;
+}
+
+.side-color-r { color: #d32f2f; }
+.side-color-b { color: #212121; }
+
+.side-switch-btn {
+  min-height: 30px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.side-switch-btn:hover:not(:disabled) {
+  background: var(--primary-dark);
+}
+
+.side-switch-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.side-switch-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---- 功能操作栏（难度 + 悔棋/提示/新对局）---- */
+.game-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 12px;
+  margin-bottom: 10px;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toolbar-label {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.game-toolbar .difficulty-select {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: #fff;
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.game-toolbar .action-btn {
+  min-height: 34px;
+  padding: 0 16px;
+  border-radius: 9px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+/* ---- 侧栏棋力卡片 ---- */
+.profile-card {
+  background: linear-gradient(150deg, #fff8f0 0%, #fff3e0 60%, #ffe8c8 100%);
+  border: 1px solid #ffd9a8;
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.profile-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.profile-rank-icon {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.profile-rank-label {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #b2651b;
+}
+
+.profile-elo {
+  margin-left: auto;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #8d4a13;
+  background: rgba(255, 255, 255, 0.7);
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid #f3c98a;
+}
+
+.profile-stats {
+  display: flex;
+  justify-content: space-around;
+  gap: 6px;
+}
+
+.profile-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 48px;
+}
+
+.profile-stat-num {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.profile-stat-win { color: #2e7d32; }
+.profile-stat-lose { color: #c62828; }
+
+.profile-stat-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.profile-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.profile-progress-track {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+.profile-progress-bar {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ffb74d, #ff8f00);
+  transition: width 0.5s ease;
+}
+
+.profile-progress-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.profile-note {
+  font-size: 0.75rem;
+  color: #b2651b;
+  line-height: 1.4;
+  margin: 0;
+}
+
+/* ---- 联机：轮到自己走棋高亮 ---- */
+.turn-indicator.turn-indicator-mine {
+  color: #d32f2f;
+  font-weight: 700;
+  animation: mineBlink 1.2s ease-in-out infinite;
+}
+
+@keyframes mineBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+/* ---- 联机：等待对手时复制邀请按钮 ---- */
+.wait-copy-btn {
+  margin-left: auto;
+  min-height: 28px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s;
+}
+
+.wait-copy-btn:hover {
+  background: var(--primary-dark);
+}
+
+/* 窄屏：对战信息条与操作栏更紧凑 */
+@media (max-width: 767px) {
+  .battle-status-bar {
+    gap: 8px;
+    padding: 8px 10px;
+  }
+  .side-switch-label {
+    display: none;
+  }
+  .game-toolbar {
+    padding: 8px 10px;
+  }
+  .game-toolbar .action-btn {
+    padding: 0 12px;
+    font-size: 0.8rem;
+  }
+  .battle-status {
+    font-size: 0.85rem;
+  }
+}
