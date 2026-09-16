@@ -61,12 +61,15 @@ function getRoomPlayers(room) {
   return Array.from(room.players.keys());
 }
 
-/** 向房间内所有玩家广播消息（可排除某个 socket） */
+/** 向房间内所有玩家广播消息（可排除某个 socket）；单客户端异常不影响其他玩家 */
 function broadcast(room, message, exclude = null) {
   const data = JSON.stringify(message);
   for (const client of room.players.keys()) {
-    if (client !== exclude && client.readyState === WebSocket.OPEN) {
+    if (client === exclude || client.readyState !== WebSocket.OPEN) continue;
+    try {
       client.send(data);
+    } catch (err) {
+      console.error('[ChessKids] 广播单客户端失败（已隔离）:', err.message);
     }
   }
 }
@@ -74,13 +77,18 @@ function broadcast(room, message, exclude = null) {
 /** 向单个客户端发送消息 */
 function sendTo(client, message) {
   if (client.readyState === WebSocket.OPEN) {
-    client.send(JSON.stringify(message));
+    try {
+      client.send(JSON.stringify(message));
+    } catch (err) {
+      console.error('[ChessKids] 发送失败（已隔离）:', err.message);
+    }
   }
 }
 
 // ===== WebSocket 服务器 =====
 
-const wss = new WebSocketServer({ port: PORT });
+// maxPayload：限制单条消息大小（语音 base64 上限 96KB + 余量），防止恶意超大消息撑爆内存
+const wss = new WebSocketServer({ port: PORT, maxPayload: 128 * 1024 });
 
 console.log(`[ChessKids] 联网对战服务器已启动，端口 ${PORT}`);
 
@@ -238,10 +246,14 @@ wss.on('connection', (ws) => {
         const player = room.players.get(ws);
         if (!player) break;
 
+        // 文本长度限制（防止刷屏/内存膨胀），超长自动截断
+        const text = typeof msg.message === 'string' ? msg.message.slice(0, 500) : '';
+        if (!text) break;
+
         broadcast(room, {
           type: 'CHAT',
           from: player.color,
-          message: msg.message || '',
+          message: text,
           timestamp: Date.now(),
         }, ws); // 排除发起者（发起者已本地渲染）
         break;

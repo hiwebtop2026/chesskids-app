@@ -28,13 +28,16 @@ ctx.onmessage = (e: MessageEvent) => {
   // 自对弈训练请求：后台低深度对弈，产出新的评估偏置
   if (data.type === 'train') {
     const { requestId, games = 2, trainingDepth = 4, weights = null } = data;
+    // 防御：限制训练局数与深度，防止异常入参导致 Worker 长时间卡死
+    const safeGames = Math.min(Math.max(1, Math.floor(games) || 1), 10);
+    const safeDepth = Math.min(Math.max(2, Math.floor(trainingDepth) || 4), 6);
     try {
       const result = runSelfPlayLearning(
-        games,
+        safeGames,
         (b, c, w) => {
           setLearnedBias(w);
           // 训练用 medium（深度4）保证对局有实质胜负，产生有效学习信号
-          return xiangqiBestMove(b, c, trainingDepth >= 4 ? 'medium' : 'easy', w, null);
+          return xiangqiBestMove(b, c, safeDepth >= 4 ? 'medium' : 'easy', w, null);
         },
         weights || {},
       );

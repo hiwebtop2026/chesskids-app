@@ -20,6 +20,7 @@ import {
   getAllXiangqiLegalMoves,
   getXiangqiGameStatus,
   getXiangqiMoveNotation,
+  isXiangqiMoveLegal,
   isXiangqiRed,
 } from '../engine/xiangqi';
 
@@ -107,6 +108,9 @@ let useRelay = false;
 /** 中继模式房间号（服务器生成，无 X- 前缀） */
 let relayRoomCode: string | null = null;
 
+/** 房主等待对手的 30s 提示计时器（模块级，避免多次创建房间时闭包泄漏累积） */
+let hostWaitTimer: ReturnType<typeof setTimeout> | null = null;
+
 /** 连接超时计时器 */
 let connectTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -156,10 +160,16 @@ export const useXiangqiMultiplayerStore = create<XiangqiMultiplayerState>((set, 
   }
 
   /** 在当前棋盘上应用一步走法 */
-  function applyMoveToState(from: XiangqiSquare, to: XiangqiSquare) {
+  function applyMoveToState(from: XiangqiSquare, to: XiangqiSquare, verifyTurn: boolean = true) {
     const state = get();
     if (!isValidSquare(from) || !isValidSquare(to)) {
       console.error('[xq-multiplayer] applyMoveToState: invalid square', from, to);
+      return;
+    }
+    // 健壮性：接收到的走法必须经引擎校验合法（防损坏/恶意消息破坏棋盘状态）
+    if (verifyTurn && !isXiangqiMoveLegal(state.board, from, to, state.turn)) {
+      console.warn('[xq-multiplayer] applyMoveToState: 拒绝非法走法（可能是网络脏数据）', from, to, 'turn=', state.turn);
+      set({ notification: '收到异常走法，已忽略（请双方确认网络稳定）' });
       return;
     }
     const piece = state.board[from[0]][from[1]];
@@ -184,9 +194,11 @@ export const useXiangqiMultiplayerStore = create<XiangqiMultiplayerState>((set, 
     set({ board: newBoard, turn: newTurn, status: newStatus, moves: newMoves, history: newHistory, lastMove: { from, to }, selection: null });
   }
 
-  /** 添加聊天消息 */
+  /** 添加聊天消息（上限 200 条，防止长对局内存膨胀） */
   function addChatMessage(from: XiangqiColor | 'system', message: string) {
-    set((state) => ({ chatMessages: [...state.chatMessages, { from, message, timestamp: Date.now() }] }));
+    set((state) => ({
+      chatMessages: [...state.chatMessages, { from, message, timestamp: Date.now() }].slice(-200),
+    }));
   }
 
   // ================================================================
@@ -274,7 +286,15 @@ export const useXiangqiMultiplayerStore = create<XiangqiMultiplayerState>((set, 
           addChatMessage('system', `已加入房间 ${relayRoomCode}`);
           break;
         }
-        case 'JOIN_ERROR':
+        case 'JOIN_ERROR': {
+          // 加入失败：清理挂起的中继连接，避免 socket 泄漏
+          set({ notification: msg.message || '服务器错误', connectionStatus: 'disconnected' });
+          if (wsRelay) {
+            try { wsRelay.onmessage = null; wsRelay.close(); } catch { /* 忽略 */ }
+            wsRelay = null;
+          }
+          break;
+        }
         case 'ERROR': {
           set({ notification: msg.message || '服务器错误', connectionStatus: 'disconnected' });
           break;
@@ -690,7 +710,9 @@ export const useXiangqiMultiplayerStore = create<XiangqiMultiplayerState>((set, 
     /** 创建房间（房主执红） */
     createRoom: () => {
       const roomCode = generateRoomCode();
-      let hostWaitTimer: ReturnType<typeof setTimeout> | null = null;
+      // 模块级等待计时器：多次创建房间时先清理旧计时器，防止闭包泄漏累积
+      if (hostWaitTimer) clearTimeout(hostWaitTimer);
+      hostWaitTimer = null;
 
       const createWithMode = (relayOnly: boolean) => {
         initPeer(roomCode, roomCode, true, relayOnly)
@@ -708,6 +730,7 @@ export const useXiangqiMultiplayerStore = create<XiangqiMultiplayerState>((set, 
               if (!get().opponent && get().roomCode === roomCode) {
                 set({ notification: '等待时间较长，如对方连不上可尝试：1) 切换手机热点 2) 让对方点加入房间重试 3) 双方都关闭VPN' });
               }
+              hostWaitTimer = null;
             }, 30000);
           })
           .catch(() => {
@@ -942,8 +965,10 @@ export const useXiangqiMultiplayerStore = create<XiangqiMultiplayerState>((set, 
       if (!state.color) return;
       const text = message.trim();
       if (!text) return;
-      sendMessage({ type: 'CHAT', message: text });
-      addChatMessage(state.color, text);
+      // 长度限制：防止超长消息刷屏/内存膨胀
+      const trimmed = text.length > 500 ? text.slice(0, 500) : text;
+      sendMessage({ type: 'CHAT', message: trimmed });
+      addChatMessage(state.color, trimmed);
     },
 
     sendVoiceMessage: (audioData, duration) => {

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ChessKids - 中国象棋 AI 引擎（增强版）
  *
  * 算法：Negamax + Alpha-Beta 剪枝 + 迭代加深
@@ -135,7 +135,10 @@ const opp = (c: 'r' | 'b'): 'r' | 'b' => (c === 'r' ? 'b' : 'r');
 
 // ===== Zobrist 哈希 =====
 const ZOBRIST: number[][] = []; // [pieceIndex][squareIndex]
-const ZOBRIST_SIDE = [0, 0]; // 红方走棋=0, 黑方走棋=1
+// 走方标记（side to move）：黑方 hash 异或 SIDE[0]，每次走子异或一次 SIDE[0] 完成换边
+// 注意：历史上曾同时异或 SIDE[0]^SIDE[1] 导致哈希不随换边正确翻转、置换表命中率低，
+// 现统一为单一 SIDE[0] 语义（SIDE[1] 保留仅兼容旧引用）。
+const ZOBRIST_SIDE = [0, 0];
 
 // 简易随机数生成（Mulberry32）
 function mulberry32(seed: number) {
@@ -158,7 +161,7 @@ function mulberry32(seed: number) {
     }
   }
   ZOBRIST_SIDE[0] = Math.floor(rand() * 0x7FFFFFFF);
-  ZOBRIST_SIDE[1] = Math.floor(rand() * 0x7FFFFFFF);
+  ZOBRIST_SIDE[1] = ZOBRIST_SIDE[0]; // 兼容：旧代码引用 SIDE[1] 的地方与 SIDE[0] 同值
 })();
 
 function pieceZobristIndex(p: string): number {
@@ -469,8 +472,8 @@ function negamax(
 
   // 空着裁剪（只在优势局面且非底线时使用）
   if (allowNull && depth >= 3 && !isInCheck(b, c)) {
-    // 简单空着：跳过一步，让对手走
-    const nullHash = hash ^ ZOBRIST_SIDE[c === 'r' ? 0 : 1] ^ ZOBRIST_SIDE[c === 'b' ? 0 : 1];
+    // 简单空着：跳过一步，让对手走（换边只异或一次 SIDE[0]）
+    const nullHash = hash ^ ZOBRIST_SIDE[0];
     const R = 2; // 空着裁剪深度减 2
     const score = -negamax(b, opp(c), depth - 1 - R, -beta, -beta + 1, ply + 1, false, nullHash);
     if (score >= beta) {
@@ -500,7 +503,6 @@ function negamax(
     if (pi >= 0) newHash ^= ZOBRIST[pi][m.from];
     if (capPi >= 0) newHash ^= ZOBRIST[capPi][m.to];
     newHash ^= ZOBRIST_SIDE[0];
-    newHash ^= ZOBRIST_SIDE[1];
 
     let score: number;
     try {
@@ -608,7 +610,6 @@ export function xiangqiBestMove(
       if (pi >= 0) newHash ^= ZOBRIST[pi][m.from];
       if (capPi >= 0) newHash ^= ZOBRIST[capPi][m.to];
       newHash ^= ZOBRIST_SIDE[0];
-      newHash ^= ZOBRIST_SIDE[1];
 
       let score: number;
       try {
@@ -655,3 +656,4 @@ export function xiangqiBestMove(
     [(best.to / COLS) | 0, best.to % COLS],
   ];
 }
+

@@ -11,7 +11,7 @@
  * 交互：滚轮缩放、鼠标/触摸拖动、翻转视角
  */
 
-import React, { useMemo, useRef, useState, useCallback } from 'react';
+import React, { useMemo, useRef, useState, useCallback, useEffect } from 'react';
 import type {
   XiangqiBoard,
   XiangqiSquare,
@@ -129,15 +129,18 @@ export const XiangqiBoard2D = React.forwardRef<XiangqiBoard2DHandle, XiangqiBoar
     resetZoom: () => resetView(),
   }), [resetView]);
 
-  // 滚轮缩放
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    if (!zoomable) return;
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? -0.1 : 0.1;
-    setScale((s) => {
-      const ns = Math.min(MAX_SCALE, Math.max(MIN_SCALE, s + delta));
-      return ns;
-    });
+  // 滚轮缩放：必须用原生非被动监听，React 合成事件下 preventDefault 会被浏览器忽略
+  // （否则滚轮缩放失效且会同时滚动页面，移动端横屏尤为明显）
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (!el || !zoomable) return;
+    const onNativeWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.1 : 0.1;
+      setScale((s) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, s + delta)));
+    };
+    el.addEventListener('wheel', onNativeWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onNativeWheel);
   }, [zoomable]);
 
   // 拖动开始
@@ -332,7 +335,6 @@ export const XiangqiBoard2D = React.forwardRef<XiangqiBoard2DHandle, XiangqiBoar
     <div
       className="xiangqi-board-wrapper"
       ref={wrapperRef}
-      onWheel={handleWheel}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}

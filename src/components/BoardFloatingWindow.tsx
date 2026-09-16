@@ -88,13 +88,15 @@ export const BoardFloatingWindow: React.FC<BoardFloatingWindowProps> = ({
           if (ev.pointerId !== pid) return;
           onDragMove(ev as unknown as React.PointerEvent);
         };
-        const onWinUp = () => {
+        const cleanup = () => {
           dragRef.current.active = false;
           window.removeEventListener('pointermove', onWinMove);
-          window.removeEventListener('pointerup', onWinUp);
+          window.removeEventListener('pointerup', cleanup);
+          window.removeEventListener('pointercancel', cleanup);
         };
         window.addEventListener('pointermove', onWinMove);
-        window.addEventListener('pointerup', onWinUp);
+        window.addEventListener('pointerup', cleanup);
+        window.addEventListener('pointercancel', cleanup);
       }
     },
     [onDragMove],

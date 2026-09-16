@@ -289,6 +289,14 @@ export function applyXiangqiMove(
   from: XiangqiSquare,
   to: XiangqiSquare,
 ): { board: XiangqiBoard; captured: XiangqiPiece } {
+  // 健壮性防御：非法坐标/空起始格直接返回原棋盘（不抛异常，避免损坏棋盘状态导致崩溃）
+  if (
+    !xiangqiInBounds(from[0], from[1]) ||
+    !xiangqiInBounds(to[0], to[1]) ||
+    !board[from[0]]?.[from[1]]
+  ) {
+    return { board: cloneXiangqiBoard(board), captured: '' };
+  }
   const newBoard = cloneXiangqiBoard(board);
   const [fr, fc] = from;
   const [tr, tc] = to;

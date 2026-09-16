@@ -1,5 +1,33 @@
 # 中国象棋模块优化记录（2026-09-05）
 
+## 2026-09-16：稳定性全面加固——崩溃/卡死/资源泄漏专项修复
+
+### 目标
+用户反馈"游戏过程出现闪退和重启"，全面审查引擎、AI、联机、网络层后完成 12 项健壮性修复。
+
+### 真实缺陷修复
+1. **AI 异步 Promise 永不结算（可致"思考中"卡死）**：`xiangqiAIAsync.ts` 训练请求走独立 `addEventListener`，Worker 崩溃时收不到 reject 永久挂起。重构为统一 onmessage 分派（走子/训练共用 pending 表），Worker error 时一并 reject；走子请求加 15s 超时（超时回退主线程同步计算）、训练请求加 5min 超时兜底
+2. **Zobrist 哈希换边不一致（置换表命中率低）**：`xiangqiAI.ts` 走子更新异或 SIDE[0]^SIDE[1] 而黑方 hash 只异或 SIDE[1]，修复为单一 SIDE[0] 语义（走子/空着/黑方 hash 全部统一），自对弈 20 步回归验证通过
+3. **引擎走法应用无防御（非法坐标可崩溃）**：`xiangqi.ts` applyXiangqiMove 对越界坐标/空起始格返回原棋盘而非抛异常
+4. **联机走法未校验合法性（脏数据可损坏棋盘）**：`xiangqiMultiplayerStore.ts` applyMoveToState 增加 `isXiangqiMoveLegal` 引擎校验，收到非法走法拒绝并提示
+5. **autoRoom 残留导致重进联机误加旧房间**：`App.tsx` goHome 时清空 autoRoom
+6. **房主等待计时器闭包泄漏**：`xiangqiMultiplayerStore.ts` hostWaitTimer 提升为模块级，多次创建房间先清理旧计时器
+7. **JOIN_ERROR 后中继 socket 挂起**：加入失败时主动关闭 wsRelay 连接
+
+### 资源/网络层加固
+8. **服务器 maxPayload 未限制（恶意大消息可撑爆内存）**：`server/index.js` 设置 `maxPayload: 128KB`
+9. **服务器 CHAT 无长度上限（刷屏/膨胀）**：文本超 500 字自动截断；前端 sendChat 同步限制
+10. **广播/单发无异常隔离**：server broadcast/sendTo 增加 per-client try/catch，单客户端异常不影响其他玩家
+11. **聊天记录无限增长**：前端 chatMessages 上限 200 条自动裁剪
+12. **2D 棋盘滚轮 passive 问题**：`XiangqiBoard2D.tsx` 改原生非被动监听（React 合成事件 preventDefault 被浏览器忽略，滚轮缩放失效且页面同时滚动）；实测 preventDefault 生效、缩放正常
+13. **训练 Worker 入参无防御**：`xiangqiAI.worker.ts` 限制训练局数 1-10、深度 2-6，防异常入参长时间卡死
+14. **全屏 Promise 未捕获拒绝**：App 全屏调用补 catch；浮窗拖拽降级路径补 pointercancel 清理
+
+### 验证
+- `npx tsc --noEmit` 通过；`npx vite build` 通过
+- 引擎回归测试（esbuild+node）：初始红方 44 合法走法、越界/空格防御、AI 自对弈 20 步全合法、黑方先手、master 深度 8 均通过
+- 浏览器实测（2D + 浮动窗口）：炮八平五→马8进7、兵七进一→AI 应手正常，控制台零错误；滚轮缩放 preventDefault 生效且缩放正常
+
 ## 2026-09-16：战术训练增强——按钮修复 + 题库扩容 24 题 + 杀法大全/随机挑战
 
 ### 修复：答对后出现两个「下一题」按钮

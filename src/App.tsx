@@ -125,22 +125,27 @@ const App: React.FC = () => {
   /** 返回首页（重新选择棋类） */
   const goHome = () => {
     setGameType(null);
+    // 清除自动加入的房间，避免返回首页后再进联机时重复加入旧房间
+    setAutoRoom(null);
   };
 
   const toggleFullscreen = useCallback(() => {
+    const onRejected = () => {
+      // 全屏被拒绝时静默忽略，不产生未捕获的 Promise 拒绝
+    };
     if (!document.fullscreenElement && !(document as any).webkitFullscreenElement) {
       const docEl = document.documentElement as any;
       if (docEl.requestFullscreen) {
-        docEl.requestFullscreen();
+        Promise.resolve(docEl.requestFullscreen()).catch(onRejected);
       } else if (docEl.webkitRequestFullscreen) {
-        docEl.webkitRequestFullscreen();
+        Promise.resolve(docEl.webkitRequestFullscreen()).catch(onRejected);
       }
     } else {
       const doc = document as any;
       if (doc.exitFullscreen) {
-        doc.exitFullscreen();
+        Promise.resolve(doc.exitFullscreen()).catch(onRejected);
       } else if (doc.webkitExitFullscreen) {
-        doc.webkitExitFullscreen();
+        Promise.resolve(doc.webkitExitFullscreen()).catch(onRejected);
       }
     }
   }, []);
