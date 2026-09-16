@@ -100,6 +100,13 @@ let peer: any = null;
 /** 与对手的连接 */
 let conn: any = null;
 
+/** 本地服务器中继（P2P 信令不可达时自动降级，同机/局域网必通） */
+let wsRelay: WebSocket | null = null;
+/** 当前是否走中继模式 */
+let useRelay = false;
+/** 中继模式房间号（服务器生成，无 X- 前缀） */
+let relayRoomCode: string | null = null;
+
 /** 连接超时计时器 */
 let connectTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -182,8 +189,167 @@ export const useXiangqiMultiplayerStore = create<XiangqiMultiplayerState>((set, 
     set((state) => ({ chatMessages: [...state.chatMessages, { from, message, timestamp: Date.now() }] }));
   }
 
-  /** 发送消息给对手 */
+  // ================================================================
+  // 本地服务器中继（PeerJS 国际信令不可达时自动降级）
+  // ================================================================
+
+  /** 本地中继服务器地址：跟随页面协议与主机名，端口 3001 */
+  function relayUrl(): string {
+    const proto = typeof location !== 'undefined' && location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = typeof location !== 'undefined' ? location.hostname : '127.0.0.1';
+    return `${proto}//${host}:3001`;
+  }
+
+  /** 连接本地 WS 中继服务器（Promise 化，6s 超时） */
+  function connectRelay(): Promise<WebSocket> {
+    return new Promise((resolve, reject) => {
+      if (wsRelay && wsRelay.readyState === WebSocket.OPEN) {
+        resolve(wsRelay);
+        return;
+      }
+      try {
+        if (wsRelay) { wsRelay.onclose = null; wsRelay.onmessage = null; wsRelay.close(); }
+      } catch {}
+      let ws: WebSocket;
+      try {
+        ws = new WebSocket(relayUrl());
+      } catch (err) {
+        reject(err);
+        return;
+      }
+      wsRelay = ws;
+      const timer = setTimeout(() => {
+        try { ws.close(); } catch {}
+        reject(new Error('relay-timeout'));
+      }, 6000);
+      ws.onopen = () => {
+        clearTimeout(timer);
+        useRelay = true;
+        setupRelay(ws);
+        resolve(ws);
+      };
+      ws.onerror = () => {
+        clearTimeout(timer);
+        useRelay = false;
+        reject(new Error('relay-unreachable'));
+      };
+      ws.onclose = () => {
+        if (useRelay && get().inGame) handleOpponentLeft('network');
+      };
+    });
+  }
+
+  /** 注册中继消息处理 */
+  function setupRelay(ws: WebSocket) {
+    ws.onmessage = (ev: MessageEvent) => {
+      let msg: any;
+      try { msg = JSON.parse(String(ev.data)); } catch { return; }
+      if (!msg || !msg.type) return;
+
+      switch (msg.type) {
+        case 'ROOM_CREATED': {
+          relayRoomCode = String(msg.roomCode || '');
+          set({
+            color: 'r',
+            roomCode: relayRoomCode,
+            inGame: true,
+            connectionStatus: 'connected',
+            ...getInitialBoardState(),
+            chatMessages: [],
+            notification: `房间已创建，房间号：${relayRoomCode}，等待对手加入...`,
+          });
+          break;
+        }
+        case 'JOIN_SUCCESS': {
+          relayRoomCode = String(msg.roomCode || '');
+          set({
+            color: 'b',
+            roomCode: relayRoomCode,
+            inGame: true,
+            connectionStatus: 'connected',
+            ...getInitialBoardState(),
+            chatMessages: [],
+            notification: `已加入房间 ${relayRoomCode}`,
+          });
+          addChatMessage('system', `已加入房间 ${relayRoomCode}`);
+          break;
+        }
+        case 'JOIN_ERROR':
+        case 'ERROR': {
+          set({ notification: msg.message || '服务器错误', connectionStatus: 'disconnected' });
+          break;
+        }
+        case 'OPPONENT_JOINED': {
+          const op = msg.opponent || {};
+          const myColor = get().color;
+          const opponentColor: XiangqiColor =
+            op.color === 'r' || op.color === 'b' ? op.color : myColor === 'r' ? 'b' : 'r';
+          set({
+            opponent: { name: op.name || '对手', color: opponentColor },
+            inGame: true,
+            notification: '对手已连接，对局开始！',
+          });
+          addChatMessage('system', '对手已连接，对局开始！');
+          break;
+        }
+        case 'MOVE': {
+          handleMessage({ type: 'MOVE', from: msg.from, to: msg.to, by: msg.by });
+          break;
+        }
+        case 'GAME_RESET': {
+          handleMessage({ type: 'GAME_RESET' });
+          break;
+        }
+        case 'CHAT': {
+          handleMessage({ type: 'CHAT', message: msg.message, from: msg.from });
+          break;
+        }
+        case 'VOICE': {
+          handleMessage({ type: 'VOICE', audioData: msg.audioData, duration: msg.duration });
+          break;
+        }
+        case 'OPPONENT_LEFT': {
+          handleOpponentLeft('left');
+          break;
+        }
+        case 'PONG':
+        default:
+          break;
+      }
+    };
+  }
+
+  /** 中继模式发送（协议映射：前端内部消息 -> 服务器协议） */
+  function relaySend(data: Record<string, unknown>): boolean {
+    if (!wsRelay || wsRelay.readyState !== WebSocket.OPEN) return false;
+    let out: Record<string, unknown> | null = null;
+    switch (data.type) {
+      case 'MOVE': out = { type: 'MAKE_MOVE', from: data.from, to: data.to }; break;
+      case 'CHAT': out = { type: 'CHAT', message: data.message }; break;
+      case 'VOICE': out = { type: 'VOICE', audioData: data.audioData, duration: data.duration }; break;
+      case 'GAME_RESET': out = { type: 'RESET_GAME' }; break;
+      case 'LEAVE': out = { type: 'LEAVE_ROOM' }; break;
+      case 'HELLO': out = null; break; // 中继模式由服务器自动通知对手
+      default: out = null;
+    }
+    if (!out) return true;
+    try {
+      wsRelay.send(JSON.stringify(out));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** 发送消息给对手（P2P 或中继双通道） */
   function sendMessage(data: Record<string, unknown>): boolean {
+    // 中继模式：走本地服务器转发
+    if (useRelay) {
+      const ok = relaySend(data);
+      if (!ok) set({ notification: '连接不稳定，消息发送失败，请检查网络' });
+      return ok;
+    }
+
     // 双重校验：conn.open + DataChannel.readyState === 'open'
     // 移动网络下通道可能已进入 closing/closed 但 conn.open 仍为 true
     if (!conn || !conn.open) {
@@ -242,9 +408,9 @@ export const useXiangqiMultiplayerStore = create<XiangqiMultiplayerState>((set, 
 
         case 'CHAT': {
           if (typeof data.message !== 'string') return;
-          const opponentColor = get().opponent?.color;
-          if (opponentColor) {
-            addChatMessage(opponentColor, data.message);
+          const from = data.from === 'r' || data.from === 'b' ? data.from : get().opponent?.color;
+          if (from) {
+            addChatMessage(from, data.message);
           }
           break;
         }
@@ -488,6 +654,12 @@ export const useXiangqiMultiplayerStore = create<XiangqiMultiplayerState>((set, 
       connectTimeout = null;
     }
     isRetrying = false;
+    if (wsRelay) {
+      try { wsRelay.onclose = null; wsRelay.onmessage = null; wsRelay.close(); } catch {}
+      wsRelay = null;
+    }
+    useRelay = false;
+    relayRoomCode = null;
     set({
       connectionStatus: 'disconnected',
       inGame: false,
@@ -538,7 +710,23 @@ export const useXiangqiMultiplayerStore = create<XiangqiMultiplayerState>((set, 
               }
             }, 30000);
           })
-          .catch(() => {});
+          .catch(() => {
+            // P2P 信令不可达 → 自动降级本地服务器中继（同机/局域网必通）
+            connectRelay()
+              .then((ws) => {
+                set({
+                  connectionStatus: 'connecting',
+                  notification: '国际 P2P 信令不可达，已自动切换本地服务器模式…',
+                });
+                ws.send(JSON.stringify({ type: 'CREATE_ROOM', name: '房主' }));
+              })
+              .catch(() => {
+                set({
+                  notification: '网络连接失败：无法连接 P2P 信令与本地服务器，请检查网络后重试',
+                  connectionStatus: 'disconnected',
+                });
+              });
+          });
       };
 
       createWithMode(false);
@@ -644,7 +832,24 @@ export const useXiangqiMultiplayerStore = create<XiangqiMultiplayerState>((set, 
               }
             });
           })
-          .catch(() => {});
+          .catch(() => {
+            // P2P 信令不可达 → 自动降级本地服务器中继
+            connectRelay()
+              .then((ws) => {
+                set({
+                  connectionStatus: 'connecting',
+                  notification: 'P2P 连接不可达，已自动切换本地服务器模式…',
+                });
+                // 服务器房间码为 6 位无前缀
+                ws.send(JSON.stringify({ type: 'JOIN_ROOM', roomCode: code.replace('X-', '') }));
+              })
+              .catch(() => {
+                set({
+                  notification: '加入失败：无法连接 P2P 信令与本地服务器，请检查网络后重试',
+                  connectionStatus: 'disconnected',
+                });
+              });
+          });
       }
 
       attemptConnection(false);
@@ -657,6 +862,13 @@ export const useXiangqiMultiplayerStore = create<XiangqiMultiplayerState>((set, 
         connectTimeout = null;
       }
       isRetrying = false;
+      if (useRelay) {
+        try { relaySend({ type: 'LEAVE' }); } catch {}
+        try { if (wsRelay) { wsRelay.onclose = null; wsRelay.onmessage = null; wsRelay.close(); } } catch {}
+        wsRelay = null;
+        useRelay = false;
+        relayRoomCode = null;
+      }
       if (conn) {
         try { conn.close(); } catch {}
         conn = null;

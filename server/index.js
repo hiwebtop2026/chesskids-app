@@ -196,13 +196,13 @@ wss.on('connection', (ws) => {
         // 切换回合
         room.turn = room.turn === 'w' ? 'b' : 'w';
 
-        // 广播给房间内所有玩家（包括走棋者，走棋者客户端可自行忽略自己的回声）
+        // 广播给房间内其他玩家（走棋者客户端已本地应用，排除自身回声）
         broadcast(room, {
           type: 'MOVE',
           from,
           to,
           by: player.color,
-        });
+        }, ws);
 
         console.log(`[ChessKids] 房间 ${code} 走棋: ${JSON.stringify(from)} -> ${JSON.stringify(to)}`);
         break;
@@ -216,7 +216,7 @@ wss.on('connection', (ws) => {
         if (!room) break;
 
         room.turn = 'w';
-        broadcast(room, { type: 'GAME_RESET' });
+        broadcast(room, { type: 'GAME_RESET' }, ws); // 排除发起者（发起者已本地重置）
 
         console.log(`[ChessKids] 房间 ${code} 游戏重置`);
         break;
@@ -243,7 +243,33 @@ wss.on('connection', (ws) => {
           from: player.color,
           message: msg.message || '',
           timestamp: Date.now(),
-        });
+        }, ws); // 排除发起者（发起者已本地渲染）
+        break;
+      }
+
+      // ===== 语音消息 =====
+      case 'VOICE': {
+        const code = socketRoom.get(ws);
+        if (!code) break;
+        const room = rooms.get(code);
+        if (!room) break;
+
+        const player = room.players.get(ws);
+        if (!player) break;
+
+        // 语音消息大小限制：base64 最大 96KB（约 72KB 原始音频）
+        if (typeof msg.audioData !== 'string' || msg.audioData.length > 96 * 1024) {
+          sendTo(ws, { type: 'ERROR', message: '语音消息过大' });
+          break;
+        }
+
+        broadcast(room, {
+          type: 'VOICE',
+          from: player.color,
+          audioData: msg.audioData,
+          duration: typeof msg.duration === 'number' ? msg.duration : 0,
+        }, ws); // 排除发起者（发起者已本地渲染）
+        console.log(`[ChessKids] 房间 ${code} 语音消息 ${msg.audioData.length} chars`);
         break;
       }
 

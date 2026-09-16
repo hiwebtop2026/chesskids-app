@@ -1,5 +1,30 @@
 # 中国象棋模块优化记录（2026-09-05）
 
+## 2026-09-16：联机对战双通道中继（聊天/语音/走棋国内网络可用化）
+
+### 背景
+- 联机对战依赖 PeerJS 国际云信令（`0.peerjs.com` / TURN `openrelay.metered.ca`），国内网络无法连接 → 页面长期「正在连接…」，浮窗聊天、按住说话语音、走棋全部不可用
+- 项目自带本地 WS 服务器（`server/index.js`：3001，完整 CREATE_ROOM/JOIN_ROOM/MAKE_MOVE/CHAT/LEAVE_ROOM 协议）此前从未被前端使用
+
+### 方案：P2P 优先，信令失败自动降级本地 WS 中继
+- **`server/index.js`（服务器改造）**
+  - MOVE / RESET_GAME / CHAT 广播改为排除发起者（原来广播给全员、依赖客户端忽略回声，同一 WS 下可能误触发）
+  - 新增 `VOICE` 消息类型：base64 音频转发（96KB 上限），排除发起者并记录日志
+- **`src/store/xiangqiMultiplayerStore.ts`（前端双通道）**
+  - 新增模块级 `wsRelay / useRelay / relayRoomCode`，`relayUrl()` 取页面协议+host:3001
+  - `connectRelay()`（6s 超时，onopen 置 useRelay 并 setupRelay）；`setupRelay()` 处理 ROOM_CREATED/JOIN_SUCCESS/JOIN_ERROR/OPPONENT_JOINED/MOVE/GAME_RESET/CHAT/VOICE/OPPONENT_LEFT
+  - `relaySend()` 做内部消息→服务器协议映射（MOVE→MAKE_MOVE、HELLO→空、LEAVE→LEAVE_ROOM 等）
+  - `createRoom`/`joinRoom` PeerJS 失败自动降级：提示「已自动切换本地服务器模式」→ `connectRelay()` 后发 CREATE_ROOM/JOIN_ROOM（服务器房间码 6 位无前缀，join 时去掉 `X-` 前缀）
+  - `leaveRoom` / `handleDisconnect` 完整清理 relay 引用
+  - `sendMessage` 中继优先；`handleMessage` CHAT 改用 `data.from` 着色
+
+### 验证（双标签页浏览器实测）
+- 房主创建自动降级成功（房间号 KJQ7W5）→ 加入者「对手已连接，对局开始！」
+- 文字聊天双向：黑方发「你好呀，我是黑方！」→ 红方收到
+- 语音消息：黑方按住说话 1s 发送 → 红方收到「▶ 0:01」语音气泡
+- 走棋同步双向：红兵七进一（6,2→5,2）同步到黑方；黑卒 3,2→4,2（卒７进１）同步到红方，回合状态与走棋记录双端一致
+- `npx tsc --noEmit` 通过
+
 ## 2026-09-16：棋盘功能按钮分区工具栏（修复 2D 按钮遮挡棋子）
 
 ### 背景
