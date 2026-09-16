@@ -6054,3 +6054,38 @@ ul {
     font-size: 0.85rem;
   }
 }
+/* ================================================================
+   浮动窗口 2D 棋盘棋子：文字随棋盘等比缩放 + 加粗增强（2026-09-16）
+   根因：棋子圆盘为百分比定位（随棋盘等比放大），而 font-size 是固定 rem，
+   全屏时棋盘变大、文字不随之变大，比例失调且观感不粗。
+   方案：cqw/cqh 容器查询精确等比 + vh 回退近似（同现有棋盘尺寸双轨）
+   ================================================================ */
+
+/* 回退路径（不支持容器查询的浏览器）：按 vh 近似棋盘宽，字 ≈ 棋盘宽 4% */
+.board-float-window .xiangqi-board-host.view-2d .xiangqi-piece {
+  font-size: calc((100vh - 196px) * 0.9 * 0.04);
+  font-weight: 800;
+  -webkit-text-stroke: 0.6px currentColor;
+}
+
+/* 精确路径：容器查询（Safari 16+ / Chrome 105+） */
+@supports (container-type: size) {
+  .board-float-window .board-float-body .xiangqi-board-host.view-2d .xiangqi-piece {
+    font-size: min(4cqw, calc((100cqh - 56px) * 0.9 * 0.04));
+  }
+}
+
+/* 全屏/铺满模式：2D 棋盘宽 ≈ (100vh-136px)*0.92（与棋盘尺寸公式同源） */
+.board-float-window:fullscreen .board-float-body .xiangqi-board-host.view-2d .xiangqi-piece,
+.board-float-max .board-float-body .xiangqi-board-host.view-2d .xiangqi-piece {
+  font-size: calc((100vh - 136px) * 0.92 * 0.04);
+  font-weight: 900;
+  -webkit-text-stroke: 0.8px currentColor;
+}
+
+@supports (container-type: size) {
+  .board-float-window:fullscreen .board-float-body .xiangqi-board-host.view-2d .xiangqi-piece,
+  .board-float-max .board-float-body .xiangqi-board-host.view-2d .xiangqi-piece {
+    font-size: min(4cqw, calc((100cqh - 56px) * 0.92 * 0.04));
+  }
+}
