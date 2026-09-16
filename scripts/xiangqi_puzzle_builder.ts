@@ -1,0 +1,95 @@
+/**
+ * ChessKids - 中国象棋一步杀局面构造/验证工具
+ * 用法（改 PENDING 数组后运行）：
+ *   npx tsx scripts/xiangqi_puzzle_builder.ts
+ * 输出：每个局面的 ① 红方是否被将军（应 false）② 红方所有一步杀走法
+ * 目标：找到"唯一一步杀"的局面作为孩子做题的题目
+ *
+ * 棋子编码：红 K帅 A仕 B相 N马 R车 C炮 P兵 | 黑 k将 a士 b象 n马 r车 c炮 p卒
+ * board[row][col]：row0=黑底线 row9=红底线，col0=红视角九路 col8=一路
+ */
+import {
+  isXiangqiInCheck,
+  isXiangqiMoveLegal,
+  applyXiangqiMove,
+  isXiangqiCheckmate,
+} from '../src/engine/xiangqi';
+
+type Sq = [number, number];
+
+function empty(): string[][] {
+  return Array.from({ length: 10 }, () => Array(9).fill(''));
+}
+
+function setup(pieces: [string, number, number][]): string[][] {
+  const b = empty();
+  for (const [p, r, c] of pieces) b[r][c] = p;
+  return b;
+}
+
+/** 分析一个局面的红方一步杀 */
+function analyze(name: string, board: string[][]) {
+  const redInCheck = isXiangqiInCheck(board, 'r');
+  const blackInCheck = isXiangqiInCheck(board, 'b');
+  console.log(`\n===== ${name} =====`);
+  console.log(`红方被将军: ${redInCheck} | 黑方被将军: ${blackInCheck}`);
+  if (redInCheck) {
+    console.log('  ⚠️ 非法局面：红方正在被将军（题目必须红方先行且未被将军）');
+    return;
+  }
+  const wins: { from: Sq; to: Sq; piece: string }[] = [];
+  for (let r = 0; r < 10; r++) {
+    for (let c = 0; c < 9; c++) {
+      const p = board[r][c];
+      if (!p || p === p.toUpperCase() === false) continue;
+      if (p !== p.toUpperCase()) continue; // 只算红方
+      for (let tr = 0; tr < 10; tr++) {
+        for (let tc = 0; tc < 9; tc++) {
+          const from: Sq = [r, c];
+          const to: Sq = [tr, tc];
+          if (!isXiangqiMoveLegal(board, from, to, 'r')) continue;
+          const after = applyXiangqiMove(board, from, to).board;
+          if (isXiangqiCheckmate(after, 'b')) {
+            wins.push({ from, to, piece: p });
+          }
+        }
+      }
+    }
+  }
+  if (!wins.length) {
+    console.log('  ❌ 无一步杀');
+    return;
+  }
+  console.log(`  ✅ 一步杀共 ${wins.length} 个：`);
+  for (const w of wins) {
+    console.log(`     ${w.piece}[${w.from}] -> [${w.to}]`);
+  }
+  if (wins.length === 1) console.log('  🎯 唯一解（适合做题）');
+}
+
+// ============ 在这里粘贴待验证局面 ============
+// 例：analyze('测试', setup([['K',9,4],['R',8,2],['k',2,3],['a',0,4]]));
+// ==============================================
+
+// ---- 现有 15 题逐个诊断 ----
+const EXISTING: Record<string, [string, number, number][]> = {
+  'xq-001 车锁肋道': [['K',9,4],['R',8,2],['k',2,3],['a',0,4]],
+  'xq-002 炮打闷宫': [['K',9,4],['C',2,2],['k',0,4],['a',0,3],['a',0,5]],
+  'xq-003 经典马后炮': [['K',9,4],['N',1,4],['C',3,4],['k',0,4],['a',0,3],['a',0,5]],
+  'xq-004 卧槽马配车': [['K',9,4],['R',9,3],['N',2,4],['k',0,4],['a',0,3],['a',0,5]],
+  'xq-005 双炮叠将': [['K',9,4],['C',8,4],['C',7,4],['k',0,4],['a',0,3],['a',0,5],['r',0,0]],
+  'xq-006 双车交替': [['K',9,4],['R',0,2],['R',9,5],['k',2,3],['a',1,4]],
+  'xq-007 中炮铁门栓': [['K',9,4],['C',7,4],['R',9,3],['k',0,4],['a',1,3],['a',1,5]],
+  'xq-008 马挂士角': [['K',9,4],['R',9,5],['N',2,4],['k',0,4],['a',0,3],['a',1,5]],
+  'xq-009 钓鱼马配车': [['K',9,4],['R',8,5],['N',2,3],['k',0,4],['a',0,3],['a',0,5]],
+  'xq-010 横线马后炮': [['K',9,4],['R',9,0],['N',0,5],['C',3,7],['k',0,3],['a',1,4],['b',2,0],['p',6,4]],
+  'xq-011 车砍中士': [['K',9,4],['R',2,4],['C',8,4],['k',0,4],['a',1,3],['a',1,5],['b',2,2],['b',2,6]],
+  'xq-012 弃车引王': [['K',9,4],['R',3,3],['N',1,4],['C',5,4],['k',0,4],['a',0,3],['a',0,5],['r',2,4]],
+  'xq-013 底车交错': [['K',9,4],['R',1,5],['R',3,2],['k',0,4],['a',1,3],['b',2,6]],
+  'xq-014 卧槽马炮联杀': [['K',9,4],['N',2,4],['C',9,3],['k',0,4],['a',0,3],['a',1,5],['r',0,0]],
+  'xq-015 象位闷宫': [['K',9,4],['C',3,0],['k',0,4],['a',1,3],['a',1,5],['b',0,2]],
+};
+
+for (const [name, pieces] of Object.entries(EXISTING)) {
+  analyze(name, setup(pieces));
+}
