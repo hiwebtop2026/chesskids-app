@@ -119,6 +119,7 @@ const isRed = (p: string) => p !== '' && p === p.toUpperCase();
 
 const DIR4: Array<[number, number]> = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 const HORSE_MV: Array<[number, number]> = [[-2, -1], [-2, 1], [-1, -2], [-1, 2], [1, -2], [1, 2], [2, -1], [2, 1]];
+// 马腿表（相对马位置：pseudoMoves 着法生成用）——保持原值
 const HORSE_LEG: Record<string, [number, number]> = {
   '[-2,-1]': [-1, 0], '[-2,1]': [-1, 0], '[-1,-2]': [0, -1], '[-1,2]': [0, 1],
   '[1,-2]': [0, -1], '[1,2]': [0, 1], '[2,-1]': [1, 0], '[2,1]': [1, 0],
@@ -326,17 +327,24 @@ function isAttacked(b: FlatBoard, x: number, y: number, color: 'r' | 'b'): boole
     }
   }
   for (const [dx, dy] of HORSE_MV) {
-    const leg = HORSE_LEG['[' + dx + ',' + dy + ']'];
-    const px = x + dx, py = y + dy, lx = x + leg[0], ly = y + leg[1];
+    const px = x + dx, py = y + dy;
     if (inBoard(px, py) && b[py * COLS + px] && isRed(b[py * COLS + px]) === (color === 'r') &&
-        b[py * COLS + px].toLowerCase() === TYPE.HORSE && !b[ly * COLS + lx]) return true;
+        b[py * COLS + px].toLowerCase() === TYPE.HORSE) {
+      // 马腿（相对被攻击点 (x,y)）：直向为 |Δ|=2 的方向，马腿位于该方向的中间格
+      // 修复：此前用 HORSE_LEG（相对马位置）导致马腿错位 → 漏检马攻击将军
+      const lx = Math.abs(dx) === 2 ? x + dx / 2 : x + dx;
+      const ly = Math.abs(dy) === 2 ? y + dy / 2 : y + dy;
+      if (!b[ly * COLS + lx]) return true;
+    }
   }
   const redPawn = (px: number, py: number) => b[py * COLS + px] && b[py * COLS + px] === 'P';
   const blkPawn = (px: number, py: number) => b[py * COLS + px] && b[py * COLS + px] === 'p';
   if (inBoard(x, y + 1) && redPawn(x, y + 1)) return true;
-  if (y + 1 <= 4) { if (inBoard(x - 1, y + 1) && redPawn(x - 1, y + 1)) return true; if (inBoard(x + 1, y + 1) && redPawn(x + 1, y + 1)) return true; }
+  // 红兵过河（row<=4）后在同排左右横吃将帅（修复：原检查 (x±1,y+1) 漏检同排横吃将军）
+  if (y <= 4) { if (inBoard(x - 1, y) && redPawn(x - 1, y)) return true; if (inBoard(x + 1, y) && redPawn(x + 1, y)) return true; }
   if (inBoard(x, y - 1) && blkPawn(x, y - 1)) return true;
-  if (y - 1 >= 5) { if (inBoard(x - 1, y - 1) && blkPawn(x - 1, y - 1)) return true; if (inBoard(x + 1, y - 1) && blkPawn(x + 1, y - 1)) return true; }
+  // 黑兵过河（row>=5）后在同排左右横吃将帅
+  if (y >= 5) { if (inBoard(x - 1, y) && blkPawn(x - 1, y)) return true; if (inBoard(x + 1, y) && blkPawn(x + 1, y)) return true; }
   return false;
 }
 
@@ -372,7 +380,7 @@ function isEndgame(b: FlatBoard): boolean {
   return main <= 6; // 约等于"车+马"级别以下的残局
 }
 
-function evaluate(b: FlatBoard, c: 'r' | 'b'): number {
+function evaluate(b: FlatBoard, c: 'r' | 'b', withMobility = true): number {
   let material = 0;
   let positional = 0;
   let mobility = 0;
@@ -447,14 +455,16 @@ function evaluate(b: FlatBoard, c: 'r' | 'b'): number {
     }
   }
 
-  // 机动性评估（浅层：只计算己方）
-  let myMobility = 0;
-  for (let i = 0; i < b.length; i++) {
-    if (b[i] && isRed(b[i]) === (c === 'r')) {
-      myMobility += pseudoMoves(b, i).length;
+  // 机动性评估（浅层：只计算己方；静态搜索等高频路径可关闭以提速）
+  if (withMobility) {
+    let myMobility = 0;
+    for (let i = 0; i < b.length; i++) {
+      if (b[i] && isRed(b[i]) === (c === 'r')) {
+        myMobility += pseudoMoves(b, i).length;
+      }
     }
+    mobility = myMobility * 2;
   }
-  mobility = myMobility * 2;
 
   return material + positional + mobility + safety;
 }
@@ -501,6 +511,101 @@ function legalMovesOrdered(
   return legal;
 }
 
+// ===== 吃子走法（Quiescence 静态搜索用，MVV-LVA 排序） =====
+function captureMovesOrdered(
+  b: FlatBoard,
+  c: 'r' | 'b',
+  bestFrom: number,
+  bestTo: number,
+): Array<{ from: number; to: number; cap: string; score: number }> {
+  const caps: Array<{ from: number; to: number; cap: string; score: number }> = [];
+  for (let i = 0; i < b.length; i++) {
+    const p = b[i];
+    if (p && isRed(p) === (c === 'r')) {
+      for (const d of pseudoMoves(b, i)) {
+        const cap = b[d];
+        if (!cap) continue; // 只保留吃子走法
+        let score = mvvLvaScore(p, cap);
+        if (i === bestFrom && d === bestTo) score += 1000000;
+        caps.push({ from: i, to: d, cap, score });
+      }
+    }
+  }
+  caps.sort((a, z) => z.score - a.score);
+  const legal: Array<{ from: number; to: number; cap: string; score: number }> = [];
+  for (const m of caps) {
+    const cap = applyMove(b, m.from, m.to);
+    if (!isInCheck(b, c)) legal.push(m);
+    undoMove(b, m.from, m.to, cap);
+  }
+  return legal;
+}
+
+// ===== 静态搜索（Quiescence）：叶子沿吃子链延伸，防止水平线效应（战术误判）=====
+// 被将军时展开全部合法走法；否则只展开吃子走法；无应手且被将军 → 将死
+function quiescence(
+  b: FlatBoard,
+  c: 'r' | 'b',
+  alpha: number,
+  beta: number,
+  ply: number,
+  hash: number,
+  qDepth = 0,
+): number {
+  checkTimeout();
+  // 静态搜索 TT 缓存（仅精确值，且不与高层搜索条目冲突：qsearch 存 depth=0）
+  const qtt = ttProbe(hash);
+  if (qtt && qtt.depth === 0 && qtt.flag === TT_EXACT) return qtt.score;
+  // 深度保护：静态搜索最多延伸 4 层吃子链（防爆炸，且足够覆盖大部分战术）
+  if (qDepth >= 4) return evaluate(b, c, false);
+  const stand = evaluate(b, c, false);
+  if (stand >= beta) {
+    ttStore(hash, stand, 0, TT_BETA, -1, -1);
+    return beta;
+  }
+  if (stand > alpha) alpha = stand;
+
+  const inCheck = isInCheck(b, c);
+  // 被将军：展开全部合法走法；否则只展开吃子走法
+  const moves = inCheck ? legalMovesOrdered(b, c, -1, -1) : captureMovesOrdered(b, c, -1, -1);
+  if (moves.length === 0) {
+    return inCheck ? -(MATE - ply) : stand; // 被将死 / 站稳
+  }
+
+  let best = stand;
+  for (const m of moves) {
+    // delta 裁剪：吃子价值都救不回 alpha → 跳过（吃子最大收益约 900 分）
+    if (!inCheck) {
+      const gain = (PIECE_VALUE[m.cap] || 0) + 50;
+      if (stand + gain < alpha) continue;
+    }
+    const cap = applyMove(b, m.from, m.to);
+    // 更新哈希
+    const pi = pieceZobristIndex(b[m.to]);
+    const capPi = cap ? pieceZobristIndex(cap) : -1;
+    let newHash = hash;
+    if (pi >= 0) newHash ^= ZOBRIST[pi][m.to];
+    if (pi >= 0) newHash ^= ZOBRIST[pi][m.from];
+    if (capPi >= 0) newHash ^= ZOBRIST[capPi][m.to];
+    newHash ^= ZOBRIST_SIDE[0];
+    let score: number;
+    try {
+      score = -quiescence(b, opp(c), -beta, -alpha, ply + 1, newHash, qDepth + 1);
+    } catch (e) {
+      // 超时异常：必须先恢复棋盘再上抛，防止污染后续走子
+      undoMove(b, m.from, m.to, cap);
+      throw e;
+    }
+    undoMove(b, m.from, m.to, cap);
+    if (score > best) best = score;
+    if (score > alpha) alpha = score;
+    if (alpha >= beta) break;
+  }
+  const qFlag = best <= stand ? TT_ALPHA : TT_EXACT;
+  ttStore(hash, best, 0, qFlag, -1, -1);
+  return best;
+}
+
 // ===== 搜索控制 =====
 let deadline = 0;
 let nodeCount = 0;
@@ -538,15 +643,26 @@ function negamax(
     ttBestTo = ttEntry.bestTo;
   }
 
-  // 到达深度 → 评估
+  // 到达深度 → 静态搜索（吃子延伸，防止战术误判）
   if (depth <= 0) {
-    const score = evaluate(b, c);
-    ttStore(hash, score, 0, TT_EXACT, -1, -1);
-    return score;
+    return quiescence(b, c, alpha, beta, ply, hash);
   }
 
-  // 空着裁剪（只在优势局面且非底线时使用）
-  if (allowNull && depth >= 3 && !isInCheck(b, c)) {
+  // 空着裁剪（只在优势局面且非底线时使用；无主力子时禁用，防困毙误判）
+  const hasNullPotential = (() => {
+    for (let i = 0; i < b.length; i++) {
+      const p = b[i];
+      if (!p) continue;
+      const t = p.toLowerCase();
+      if (t === 'r' || t === 'n' || t === 'c') return true;
+      if (t === 'p') {
+        const y = (i / COLS) | 0;
+        if ((isRed(p) && y <= 4) || (!isRed(p) && y >= 5)) return true;
+      }
+    }
+    return false;
+  })();
+  if (allowNull && depth >= 3 && !isInCheck(b, c) && hasNullPotential) {
     // 简单空着：跳过一步，让对手走（换边只异或一次 SIDE[0]）
     const nullHash = hash ^ ZOBRIST_SIDE[0];
     const R = 2; // 空着裁剪深度减 2
@@ -568,7 +684,9 @@ function negamax(
   let bestTo = moves[0].to;
   let originalAlpha = alpha;
 
-  for (const m of moves) {
+  // PVS：首着全窗口，其余零窗口试探（提速 20-40%）；配合 LMR 晚走法缩减与将军延伸
+  for (let idx = 0; idx < moves.length; idx++) {
+    const m = moves[idx];
     const cap = applyMove(b, m.from, m.to);
     // 更新哈希
     const pi = pieceZobristIndex(b[m.to]);
@@ -579,9 +697,38 @@ function negamax(
     if (capPi >= 0) newHash ^= ZOBRIST[capPi][m.to];
     newHash ^= ZOBRIST_SIDE[0];
 
+    // 将军延伸：走子后将军对方 → 搜索深度不减（战术序列更准确）
+    const givesCheck = isInCheck(b, opp(c));
+    const extension = givesCheck && depth >= 4 ? 1 : 0;
+
+    // LMR 晚走法缩减：中后段非吃子、非 TT 最佳、非将军走法降 1 层，超 alpha 再全深度重搜
+    const isTtBest = m.from === ttBestFrom && m.to === ttBestTo;
+    let searchDepth = depth - 1 + extension;
+    let reduced = false;
+    if (depth >= 3 && !m.cap && !isTtBest && !givesCheck && idx >= 3) {
+      searchDepth = depth - 2 + extension;
+      reduced = true;
+    }
+
     let score: number;
     try {
-      score = -negamax(b, opp(c), depth - 1, -beta, -alpha, ply + 1, true, newHash);
+      if (idx === 0) {
+        // PVS 首着：全窗口
+        score = -negamax(b, opp(c), searchDepth, -beta, -alpha, ply + 1, true, newHash);
+      } else {
+        // PVS 其余：零窗口（null-window scout）
+        score = -negamax(b, opp(c), searchDepth, -alpha - 1, -alpha, ply + 1, true, newHash);
+        if (score > alpha) {
+          if (reduced) {
+            // LMR 缩减后超 alpha → 必须全深度重搜
+            score = -negamax(b, opp(c), depth - 1 + extension, -beta, -alpha, ply + 1, true, newHash);
+          } else if (score < beta) {
+            // 零窗口试探失败（alpha < score < beta）→ 全窗口重搜
+            score = -negamax(b, opp(c), searchDepth, -beta, -alpha, ply + 1, true, newHash);
+          }
+          // score >= beta（非缩减）：零窗口已 fail high，直接用该分数触发截断
+        }
+      }
     } catch (e) {
       undoMove(b, m.from, m.to, cap);
       throw e;
@@ -621,7 +768,7 @@ const DIFFICULTY: Record<XiangqiAIDifficulty, { depth: number; timeMs: number; n
   easy:   { depth: 2, timeMs: 400,  noise: 30, variety: 70 },
   medium: { depth: 4, timeMs: 1000, noise: 8,  variety: 30 },
   hard:   { depth: 6, timeMs: 2500, noise: 0,  variety: 14 },
-  master: { depth: 8, timeMs: 5000, noise: 0,  variety: 9  },
+  master: { depth: 9, timeMs: 5000, noise: 0,  variety: 9  },
 };
 
 /**
