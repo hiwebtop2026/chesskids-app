@@ -10,11 +10,13 @@
  */
 
 // ===== 背景音乐曲目（public/audio 下，Pixabay License 免费商用） =====
+// 资源基路径：跟随 vite base 配置（部署到子路径/自定义域名时资源仍能正确加载）
+const BGM_BASE: string = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.BASE_URL) || '/';
 export const BGM_TRACKS = [
-  { src: '/audio/xiangqi-bgm.mp3', label: '古筝轻曲' },
-  { src: '/audio/xiangqi-bgm-full.mp3', label: '古筝全曲' },
-  { src: '/audio/xiangqi-bgm-morning.mp3', label: '清晨古风' },
-  { src: '/audio/xiangqi-bgm-spring.mp3', label: '泉水笛韵' },
+  { src: `${BGM_BASE}audio/xiangqi-bgm.mp3`, label: '古筝轻曲' },
+  { src: `${BGM_BASE}audio/xiangqi-bgm-full.mp3`, label: '古筝全曲' },
+  { src: `${BGM_BASE}audio/xiangqi-bgm-morning.mp3`, label: '清晨古风' },
+  { src: `${BGM_BASE}audio/xiangqi-bgm-spring.mp3`, label: '泉水笛韵' },
 ];
 
 // ===== 状态 =====
