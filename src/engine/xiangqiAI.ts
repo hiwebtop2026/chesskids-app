@@ -542,11 +542,11 @@ export type XiangqiAIDifficulty = 'easy' | 'medium' | 'hard' | 'master';
 
 export const XIANGQI_AI_DIFFICULTIES: XiangqiAIDifficulty[] = ['easy', 'medium', 'hard', 'master'];
 
-const DIFFICULTY: Record<XiangqiAIDifficulty, { depth: number; timeMs: number; noise: number }> = {
-  easy:   { depth: 2, timeMs: 400,  noise: 30 },
-  medium: { depth: 4, timeMs: 1000, noise: 8  },
-  hard:   { depth: 6, timeMs: 2500, noise: 0  },
-  master: { depth: 8, timeMs: 5000, noise: 0  },
+const DIFFICULTY: Record<XiangqiAIDifficulty, { depth: number; timeMs: number; noise: number; variety: number }> = {
+  easy:   { depth: 2, timeMs: 400,  noise: 30, variety: 70 },
+  medium: { depth: 4, timeMs: 1000, noise: 8,  variety: 30 },
+  hard:   { depth: 6, timeMs: 2500, noise: 0,  variety: 14 },
+  master: { depth: 8, timeMs: 5000, noise: 0,  variety: 9  },
 };
 
 /**
@@ -587,6 +587,8 @@ export function xiangqiBestMove(
   let best: { from: number; to: number } | null = null;
   let bestScore = -INF;
   const begin = Date.now();
+  // 记录最近完整一层所有着法的分数，用于结束时做近分加权随机（走法多样化）
+  let scoredLevel: Array<{ from: number; to: number; score: number }> = [];
 
   // 迭代加深
   for (let d = 1; d <= cfg.depth; d++) {
@@ -626,6 +628,8 @@ export function xiangqiBestMove(
         curBest = { from: m.from, to: m.to };
       }
       if (curScore > alpha) alpha = curScore;
+      // 收集本层着法分数（供最终加权随机）
+      scoredLevel.push({ from: m.from, to: m.to, score });
     }
 
     if (!timedOut && curBest) {
@@ -649,6 +653,32 @@ export function xiangqiBestMove(
     const top = firstMoves.slice(0, count);
     const pick = top[(Math.random() * top.length) | 0];
     best = { from: pick.from, to: pick.to };
+  }
+
+  // 走法多样化：在分数接近最优的着法中加权随机（避免每局千篇一律、应对更灵活）
+  // 仅限非必胜/非必败局面，且本层搜索完整未超时
+  if (
+    cfg.variety > 0 &&
+    Math.abs(bestScore) < MATE * 0.5 &&
+    scoredLevel.length > 1
+  ) {
+    const bestS = Math.max(...scoredLevel.map((x) => x.score));
+    const window = cfg.variety;
+    const candidates = scoredLevel.filter((x) => bestS - x.score <= window);
+    if (candidates.length > 1) {
+      // 权重：越接近最优权重越高（线性映射 [1, 10]）
+      const weights = candidates.map((x) => Math.max(1, 10 - (bestS - x.score) * 0.16));
+      const total = weights.reduce((a, b) => a + b, 0);
+      let r = Math.random() * total;
+      for (let i = 0; i < candidates.length; i++) {
+        r -= weights[i];
+        if (r <= 0) {
+          best = { from: candidates[i].from, to: candidates[i].to };
+          bestScore = candidates[i].score;
+          break;
+        }
+      }
+    }
   }
 
   return [

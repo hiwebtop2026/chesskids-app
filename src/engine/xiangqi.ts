@@ -487,9 +487,13 @@ export function getXiangqiGameStatusAdvanced(
   return base;
 }
 
-/** 局面指纹（用于重复局面检测） */
+/** 局面指纹（用于重复局面检测）
+ * 必须无损编码：join('') 会把不同位置的棋子压缩成相同串（如边炮平中后
+ * row 仍为 'cc'），导致误判"重复局面 3 次"而错判和棋。
+ * 这里每个空位用 '.' 占位，保证不同局面指纹必不相同。
+ */
 function boardKey(board: XiangqiBoard): string {
-  return board.map((row) => row.join('')).join('|');
+  return board.map((row) => row.map((c) => c || '.').join('')).join('/');
 }
 
 /** 判断一步走法是否合法 */

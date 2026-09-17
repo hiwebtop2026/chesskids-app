@@ -328,6 +328,7 @@ export const XiangqiAIGame: React.FC = () => {
     setLastMove(null);
     setMoveHistory([]);
     setMoves([]);
+    movesRef.current = []; // 同步 ref：避免 AI 调度/开局库拿到旧对局历史（防止误判和棋）
     setHint(null);
     setThinking(false);
     // 人类执黑时，AI（红）先走
@@ -491,21 +492,43 @@ export const XiangqiAIGame: React.FC = () => {
     </div>
   );
 
-  // 对局结果弹窗（正常模式与浮动窗口共用）
+  // 对局结果弹窗（正常模式与浮动窗口共用）：胜负动画 + 彩带 + 鼓励文案
   const rank = getRank(profile.playerElo);
+  const isWin = status === 'checkmate' && turn !== humanColor;
+  const isLose = (status === 'checkmate' && turn === humanColor) || (status === 'stalemate' && turn === humanColor);
+  const isDraw = status === 'draw' || (status === 'stalemate' && turn !== humanColor);
+  const WIN_LINES = ['太棒了！', '真厉害！', '绝杀！', '你赢啦！', '棋高一招！'];
   const resultModal = gameOver ? (
-    <div className="game-result-modal">
+    <div className={`game-result-modal result-${isWin ? 'win' : isLose ? 'lose' : 'draw'}`}>
+      {isWin && (
+        <div className="confetti-layer" aria-hidden="true">
+          {Array.from({ length: 30 }).map((_, i) => (
+            <span
+              key={i}
+              className="confetti-piece"
+              style={{
+                left: `${(i * 41 + 7) % 100}%`,
+                animationDelay: `${(i % 12) * 0.16}s`,
+                animationDuration: `${2.4 + (i % 5) * 0.3}s`,
+                background: i % 3 === 0 ? '#ffd54f' : i % 3 === 1 ? '#ef5350' : '#66bb6a',
+              }}
+            />
+          ))}
+        </div>
+      )}
       <div className="result-content">
-        <div className="result-icon">
-          {status === 'checkmate' && (turn !== humanColor ? '🏆' : '😔')}
-          {status === 'stalemate' && '🤝'}
-          {status === 'draw' && '🤝'}
+        <div className={`result-icon ${isWin ? 'result-icon-trophy' : isLose ? 'result-icon-soft' : ''}`}>
+          {isWin ? '🏆' : isLose ? '💪' : '🤝'}
         </div>
         <h3 className="result-title">
-          {status === 'checkmate' && (turn !== humanColor ? '你获胜了！' : '电脑获胜')}
-          {status === 'stalemate' && (turn === humanColor ? '你被困毙，判负' : '电脑被困毙，你获胜！')}
+          {isWin && `你获胜了！${WIN_LINES[moves.length % WIN_LINES.length]}`}
+          {status === 'checkmate' && turn === humanColor && '电脑获胜'}
+          {status === 'stalemate' && turn === humanColor && '你被困毙，判负'}
+          {status === 'stalemate' && turn !== humanColor && '电脑被困毙，你获胜！'}
           {status === 'draw' && '和棋'}
         </h3>
+        {isLose && <p className="result-encourage">没关系，多练习几局，你一定会越来越厉害！</p>}
+        {isDraw && status === 'draw' && <p className="result-encourage">旗鼓相当，再来一局吧！</p>}
         <p className="result-detail">共走了 {moves.length} 步</p>
         <div className="result-learning">
           <span className="result-rank">{rank.icon} {rank.label} · ELO {profile.playerElo}</span>

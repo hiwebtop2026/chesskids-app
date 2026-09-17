@@ -13,6 +13,8 @@
 export const BGM_TRACKS = [
   { src: '/audio/xiangqi-bgm.mp3', label: '古筝轻曲' },
   { src: '/audio/xiangqi-bgm-full.mp3', label: '古筝全曲' },
+  { src: '/audio/xiangqi-bgm-morning.mp3', label: '清晨古风' },
+  { src: '/audio/xiangqi-bgm-spring.mp3', label: '泉水笛韵' },
 ];
 
 // ===== 状态 =====
@@ -261,16 +263,22 @@ function play(name: 'move' | 'capture' | 'check' | 'win' | 'lose' | 'click') {
       tone(d, 660, 0.14, { type: 'square', vol: 0.16 });
       tone(d, 880, 0.18, { type: 'square', vol: 0.16, delay: 0.12 });
       break;
-    case 'win': // 胜利：五声音阶上行琶音（G A B D E）
-      [392, 440, 494, 587, 659].forEach((f, i) =>
-        tone(d, f, 0.32, { type: 'triangle', vol: 0.22, delay: i * 0.11 }),
+    case 'win': // 胜利：五声上行琶音 + 明亮收尾和弦 + 小鼓点（欢快）
+      [392, 440, 494, 587, 659, 784].forEach((f, i) =>
+        tone(d, f, 0.3, { type: 'triangle', vol: 0.24, delay: i * 0.1 }),
       );
-      tone(d, 784, 0.5, { type: 'sine', vol: 0.2, delay: 0.55 });
+      // 收尾明亮和弦（G 大三和弦）
+      [392, 494, 587].forEach((f) => tone(d, f, 0.7, { type: 'sine', vol: 0.18, delay: 0.62 }));
+      // 喜庆小鼓点
+      knock(d, 880, 0.08, 0.2);
+      knock(d, 1100, 0.08, 0.18);
+      knock(d, 880, 0.12, 0.22);
       break;
-    case 'lose': // 失败：下行舒缓音
+    case 'lose': // 输棋：温和下行 + 低音安慰（不打击、不刺耳）
       [494, 440, 392, 330].forEach((f, i) =>
-        tone(d, f, 0.34, { type: 'sine', vol: 0.2, delay: i * 0.14 }),
+        tone(d, f, 0.4, { type: 'sine', vol: 0.16, delay: i * 0.16 }),
       );
+      tone(d, 196, 0.9, { type: 'sine', vol: 0.12, delay: 0.66 });
       break;
     case 'click': // 按钮点击：轻短音
       tone(d, 720, 0.05, { type: 'sine', vol: 0.15 });

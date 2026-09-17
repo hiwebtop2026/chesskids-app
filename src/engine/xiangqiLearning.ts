@@ -379,8 +379,22 @@ const OPENING_BOOK_ALTERNATE: BookEntry[] = [
   { ply: 7, color: 'b', from: [0, 6], to: [1, 5], note: '黑方补象' },
 ];
 
+/** 红方首步可用的主流开局（随机选择，避免每局千篇一律） */
+const RED_OPENINGS: Array<{ from: XiangqiSquare; to: XiangqiSquare; note: string }> = [
+  { from: [7, 7], to: [7, 4], note: '中炮开局：炮镇中路' },
+  { from: [6, 2], to: [5, 2], note: '仙人指路：兵三进一' },
+  { from: [9, 6], to: [7, 4], note: '飞相局：相三进五' },
+];
+
+/** 黑方应红方首步的主流应手（随机选择） */
+const BLACK_RESPONSES: Array<{ from: XiangqiSquare; to: XiangqiSquare; note: string }> = [
+  { from: [0, 1], to: [2, 2], note: '屏风马：马8进7' },
+  { from: [2, 1], to: [2, 4], note: '顺炮：黑炮2平5' },
+  { from: [0, 7], to: [2, 6], note: '反宫马：马2进3' },
+];
+
 /**
- * 查询开局库着法。
+ * 查询开局库着法（随机变例，避免固定套路；着法不合法由调用方回退搜索）。
  * @param ply 当前总走子数（0 = 红方第一步）
  * @param color 当前行棋方
  * @param board 当前局面（用于校验着法合法性，调用方负责最终校验）
@@ -392,8 +406,20 @@ export function getOpeningMove(
   board: XiangqiBoard,
 ): XiangqiSquare[] | null {
   if (ply >= 8) return null; // 开局库只覆盖前 8 步
+
+  // 红方首步：三种主流开局随机
+  if (ply === 0 && color === 'r') {
+    const pick = RED_OPENINGS[(Math.random() * RED_OPENINGS.length) | 0];
+    return pick ? [pick.from, pick.to] : null;
+  }
+  // 黑方应手：三种主流应法随机（不论红方走哪种开局都合法）
+  if (ply === 1 && color === 'b') {
+    const pick = BLACK_RESPONSES[(Math.random() * BLACK_RESPONSES.length) | 0];
+    return pick ? [pick.from, pick.to] : null;
+  }
+
+  // 其余步数：主变优先；红方非中炮开局时主变着法不合法会自动回退搜索
   const entries = OPENING_BOOK.filter((e) => e.ply === ply && e.color === color);
-  // 主变第 2 步（黑应手）若用户走顺炮变例，则后续黑方用备选变例
   const alt = OPENING_BOOK_ALTERNATE.filter((e) => e.ply === ply && e.color === color);
   const candidates = entries.length ? entries : alt;
   if (!candidates.length) return null;
