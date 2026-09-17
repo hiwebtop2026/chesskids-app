@@ -6089,3 +6089,21 @@ ul {
     font-size: min(4cqw, calc((100cqh - 56px) * 0.92 * 0.04));
   }
 }
+/* ================================================================
+   将军警示强化（2026-09-17）：将军≠将死，红色警示避免混淆
+   ================================================================ */
+.battle-status.battle-status-check {
+  background: rgba(244, 67, 54, 0.14);
+  color: #c62828;
+  animation: checkBarFlash 1s ease-in-out infinite;
+}
+
+.battle-status.battle-status-check .status-pulse-dot {
+  background: #f44336;
+  animation: pulse 0.7s infinite;
+}
+
+@keyframes checkBarFlash {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(244, 67, 54, 0); }
+  50% { box-shadow: 0 0 0 3px rgba(244, 67, 54, 0.35); }
+}

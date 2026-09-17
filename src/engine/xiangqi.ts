@@ -398,6 +398,8 @@ export function isXiangqiCheckmate(
   board: XiangqiBoard,
   color: XiangqiColor,
 ): boolean {
+  // 防御：王不在棋盘（异常局面）不判将死，避免误判
+  if (!findXiangqiKing(board, color)) return false;
   if (!isXiangqiInCheck(board, color)) return false;
   return getAllXiangqiLegalMoves(board, color).length === 0;
 }
@@ -407,6 +409,7 @@ export function isXiangqiStalemate(
   board: XiangqiBoard,
   color: XiangqiColor,
 ): boolean {
+  if (!findXiangqiKing(board, color)) return false;
   if (isXiangqiInCheck(board, color)) return false;
   return getAllXiangqiLegalMoves(board, color).length === 0;
 }
@@ -420,6 +423,68 @@ export function getXiangqiGameStatus(
   if (isXiangqiStalemate(board, turn)) return 'stalemate';
   if (isXiangqiInCheck(board, turn)) return 'check';
   return 'playing';
+}
+
+/**
+ * 进阶状态判定：在基础判定之上补充和棋规则
+ * - 重复局面：同一局面出现 3 次 → 和棋（长将长捉/重复走子）
+ * - 自然限着：60 回合（120 步）内无吃子且无兵/卒移动 → 和棋
+ * moves 需为从初始局面开始的完整走法序列
+ */
+export function getXiangqiGameStatusAdvanced(
+  board: XiangqiBoard,
+  turn: XiangqiColor,
+  moves: XiangqiMove[],
+): XiangqiGameStatus {
+  const base = getXiangqiGameStatus(board, turn);
+  if (base === 'checkmate' || base === 'stalemate') return base;
+
+  // 1) 重复局面检测：重放走法序列，统计当前局面出现次数
+  const key = boardKey(board);
+  let count = 0;
+  // 从初始棋盘重放（moves 记录完整序列时正确）
+  let b = cloneXiangqiBoard(XIANGQI_INITIAL_BOARD);
+  const snapshotKeys: string[] = [boardKey(b)];
+  for (const m of moves) {
+    if (!xiangqiInBounds(m.from[0], m.from[1]) || !xiangqiInBounds(m.to[0], m.to[1]) || !b[m.from[0]]?.[m.from[1]]) {
+      // 防御：历史走法异常时中止重放（不误判和棋）
+      snapshotKeys.length = 0;
+      break;
+    }
+    const applied = applyXiangqiMove(b, m.from, m.to);
+    b = applied.board;
+    snapshotKeys.push(boardKey(b));
+  }
+  // 重放后的棋盘应等于当前棋盘（防御：不一致则跳过和棋判定）
+  const replayKey = snapshotKeys[snapshotKeys.length - 1] || '';
+  if (replayKey === key) {
+    for (const k of snapshotKeys) {
+      if (k === key) count++;
+    }
+    if (count >= 3) return 'draw';
+  } else {
+    // 重放结果与当前棋盘不一致（异常/历史不完整）：保守不判和，避免误判
+    if (moves.length > 0) {
+      console.warn('[xiangqi] 局面重放与当前棋盘不一致，跳过重复局面判定');
+    }
+  }
+
+  // 2) 自然限着：120 步（60 回合）无吃子且无兵卒移动 → 和棋
+  const limit = 120;
+  if (moves.length >= limit) {
+    const recent = moves.slice(-limit);
+    const hasProgress = recent.some(
+      (m) => m.captured || m.piece === 'P' || m.piece === 'p',
+    );
+    if (!hasProgress) return 'draw';
+  }
+
+  return base;
+}
+
+/** 局面指纹（用于重复局面检测） */
+function boardKey(board: XiangqiBoard): string {
+  return board.map((row) => row.join('')).join('|');
 }
 
 /** 判断一步走法是否合法 */

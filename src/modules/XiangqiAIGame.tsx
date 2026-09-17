@@ -11,6 +11,7 @@ import {
   applyXiangqiMove,
   getAllXiangqiLegalMoves,
   getXiangqiGameStatus,
+  getXiangqiGameStatusAdvanced,
   getXiangqiMoveNotation,
   findXiangqiKing,
   isXiangqiRed,
@@ -42,10 +43,10 @@ import { initEngineWeights, trainSelfPlayAsync } from '../utils/xiangqiAIAsync';
 const PLAYER_NAMES: Record<XiangqiColor, string> = { r: '红方', b: '黑方' };
 const STATUS_TEXT: Record<XiangqiGameStatus, (turn: XiangqiColor) => string> = {
   playing: (t) => `轮到 ${PLAYER_NAMES[t]} 走棋`,
-  check: (t) => `${PLAYER_NAMES[t]} 被将军！`,
-  checkmate: (t) => `${PLAYER_NAMES[t === 'r' ? 'b' : 'r']} 获胜！`,
+  check: (t) => `${PLAYER_NAMES[t]} 被将军！请应将`,
+  checkmate: (t) => `绝杀！${PLAYER_NAMES[t === 'r' ? 'b' : 'r']} 获胜！`,
   stalemate: () => '困毙（无子可动，判负）',
-  draw: () => '和棋',
+  draw: () => '和棋（重复局面 / 长对弈）',
 };
 const DIFF_LABELS: Record<XiangqiAIDifficulty | 'auto', string> = {
   easy: '入门',
@@ -118,8 +119,8 @@ export const XiangqiAIGame: React.FC = () => {
   }, []);
 
   const status = useMemo<XiangqiGameStatus>(
-    () => getXiangqiGameStatus(board, turn),
-    [board, turn],
+    () => getXiangqiGameStatusAdvanced(board, turn, moves),
+    [board, turn, moves],
   );
   const checkSquare = useMemo(() => {
     if (status === 'check' || status === 'checkmate') return findXiangqiKing(board, turn);
@@ -474,7 +475,7 @@ export const XiangqiAIGame: React.FC = () => {
         <div className="game-main-area">
           {/* 对战信息条：回合状态 + 段位徽章 + 执子/换边（换边会重置对局） */}
           <div className="battle-status-bar">
-            <span className={`battle-status ${turn === humanColor ? 'battle-status-mine' : ''} ${thinking ? 'battle-status-thinking' : ''}`}>
+            <span className={`battle-status ${turn === humanColor ? 'battle-status-mine' : ''} ${thinking ? 'battle-status-thinking' : (status === 'check' || status === 'checkmate') ? 'battle-status-check' : ''}`}>
               <span className="status-pulse-dot" />
               {thinking ? '🤔 电脑思考中…' : STATUS_TEXT[status](turn)}
             </span>
