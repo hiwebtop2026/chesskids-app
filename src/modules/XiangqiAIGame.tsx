@@ -197,9 +197,9 @@ export const XiangqiAIGame: React.FC = () => {
     // 1) 更新玩家 ELO / 段位（自适应难度据此自动升降）
     const p = recordGameResult(res, diffRef.current);
     setProfile(p);
-    // 2) 节流触发 AI 自我对弈学习：每完成 3 局让 AI 与自己下 2 局，把胜负经验存进评估权重
-    if (p.gamesPlayed % 3 === 0) {
-      trainSelfPlayAsync(2, getLearnedPieceBias())
+    // 2) 节流触发 AI 自我对弈学习：每完成 2 局让 AI 与自己下 3 局，把胜负经验存进评估权重（AI 越下越聪明）
+    if (p.gamesPlayed % 2 === 0) {
+      trainSelfPlayAsync(3, getLearnedPieceBias())
         .then((r) => {          const cur = getLearningProfile();
           cur.pieceBias = { ...(r.bias || {}) };
           cur.selfPlayRounds += r.rounds;
@@ -556,6 +556,9 @@ export const XiangqiAIGame: React.FC = () => {
             </span>
             <span className="rank-badge" title="你的棋力等级（AI 会随你的进步自动调整难度）">
               {rank.icon} {rank.label} · {profile.playerElo}
+            </span>
+            <span className="rank-badge ai-train-badge" title="AI 通过后台自我对弈持续进步，越下越聪明">
+              🧠 自练 {profile.selfPlayRounds || 0} 局
             </span>
             <div className="side-switch">
               <span className="side-switch-label">

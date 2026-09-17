@@ -74,6 +74,8 @@ export interface XiangqiLearningProfile {
   selfPlayRounds: number;
   /** AI 评估偏置（自我对弈学习的成果）：棋子类型(小写) → 分值偏置 */
   pieceBias: Record<string, number>;
+  /** 玩家连胜/连败（正=连胜、负=连败；用于自适应 AI 强度动态调节） */
+  streak: number;
 }
 
 function defaultProfile(): XiangqiLearningProfile {
@@ -85,6 +87,7 @@ function defaultProfile(): XiangqiLearningProfile {
     draws: 0,
     selfPlayRounds: 0,
     pieceBias: {},
+    streak: 0,
   };
 }
 
@@ -153,9 +156,16 @@ export function recordGameResult(result: XiangqiGameResult, aiDifficulty: Xiangq
   const K = 24;
   p.playerElo = Math.round(Math.max(200, Math.min(2600, p.playerElo + K * (score - expected))));
   p.gamesPlayed += 1;
-  if (result === 'win') p.wins += 1;
-  else if (result === 'loss') p.losses += 1;
-  else p.draws += 1;
+  if (result === 'win') {
+    p.wins += 1;
+    p.streak = p.streak > 0 ? p.streak + 1 : 1;
+  } else if (result === 'loss') {
+    p.losses += 1;
+    p.streak = p.streak < 0 ? p.streak - 1 : -1;
+  } else {
+    p.draws += 1;
+    p.streak = 0;
+  }
   saveLearningProfile(p);
   return p;
 }
@@ -165,9 +175,13 @@ export function getRank(elo: number): { label: string; icon: string } {
   return RANKS.find((r) => elo >= r.min) || RANKS[RANKS.length - 1];
 }
 
-/** 自适应模式下 AI 的目标 ELO：始终比玩家强一点点（期望玩家胜率 ≈ 45%，有挑战但可赢） */
-export function resolveAutoAiElo(playerElo: number): number {
-  return playerElo + 22;
+/** 自适应模式下 AI 的目标 ELO：始终比玩家强一点点（期望胜率 ≈ 45%），
+ * 并叠加"连胜/连败动量"——玩家连胜时 AI 逐局变强（保持挑战），连败时 AI 温和放水（保护信心）。
+ * 动量上限 ±42 ELO（约 ±2 档内），不会剧烈跳档。
+ */
+export function resolveAutoAiElo(playerElo: number, streak = 0): number {
+  const momentum = Math.max(-42, Math.min(42, streak * 14));
+  return playerElo + 22 + momentum;
 }
 
 export interface AiStrengthConfig {
@@ -325,6 +339,37 @@ export function runSelfPlayLearning(
           bias[t] = clampBias((bias[t] || 0) - BIAS_LR * 0.2 * l);
         }
       }
+      // 区域学习：统计胜方/负方"过河"主力子，学习推进价值（过河棋子是胜势关键）
+      const countCrossed = (side: XiangqiColor) => {
+        const counts: Record<string, number> = {};
+        for (let rowIdx = 0; rowIdx < board.length; rowIdx++) {
+          for (const p of board[rowIdx]) {
+            if (!p) continue;
+            const isRedPiece = p === p.toUpperCase();
+            if ((side === 'r') !== isRedPiece) continue;
+            const t = p.toLowerCase();
+            if (t !== 'r' && t !== 'c' && t !== 'n' && t !== 'p') continue;
+            // 红方过河 = row<=4；黑方过河 = row>=5
+            const over = isRedPiece ? rowIdx <= 4 : rowIdx >= 5;
+            if (over) counts[t] = (counts[t] || 0) + 1;
+          }
+        }
+        return counts;
+      };
+      const wCross = countCrossed(winner);
+      const lCross = countCrossed(loser);
+      for (const t of ['r', 'c', 'n', 'p'] as const) {
+        const wc = wCross[t] || 0;
+        const lc = lCross[t] || 0;
+        if (wc > 0) {
+          const k = `z_${t}_cross`;
+          bias[k] = clampZoneBias((bias[k] || 0) + BIAS_LR * 0.5 * wc);
+        }
+        if (lc > 0) {
+          const k = `z_${t}_cross`;
+          bias[k] = clampZoneBias((bias[k] || 0) - BIAS_LR * 0.25 * lc);
+        }
+      }
     }
   }
 
@@ -333,6 +378,11 @@ export function runSelfPlayLearning(
 
 function clampBias(v: number): number {
   return Math.max(-BIAS_CLAMP, Math.min(BIAS_CLAMP, Math.round(v * 10) / 10));
+}
+
+/** 区域偏置（过河价值）上限更保守：±12 分 */
+function clampZoneBias(v: number): number {
+  return Math.max(-12, Math.min(12, Math.round(v * 10) / 10));
 }
 
 // ================================================================

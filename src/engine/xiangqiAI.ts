@@ -355,21 +355,96 @@ const applyMove = (b: FlatBoard, from: number, to: number) => { const cap = b[to
 const undoMove = (b: FlatBoard, from: number, to: number, cap: string) => { b[from] = b[to]; b[to] = cap; };
 
 // ===== 评估函数 =====
+// 残局动态价值：主力子（车马炮+过河兵）数量少 → 残局，子力价值随阶段调整
+function isEndgame(b: FlatBoard): boolean {
+  let main = 0;
+  for (let i = 0; i < b.length; i++) {
+    const p = b[i];
+    if (!p) continue;
+    const t = p.toLowerCase();
+    if (t === 'r' || t === 'n' || t === 'c') main += 2;
+    else if (t === 'p') {
+      const y = (i / COLS) | 0;
+      // 过河兵也算主力（红兵 y<=4，黑兵 y>=5）
+      if ((isRed(p) && y <= 4) || (!isRed(p) && y >= 5)) main += 1;
+    }
+  }
+  return main <= 6; // 约等于"车+马"级别以下的残局
+}
+
 function evaluate(b: FlatBoard, c: 'r' | 'b'): number {
   let material = 0;
   let positional = 0;
   let mobility = 0;
+  let safety = 0;
+
+  const endgame = isEndgame(b);
+  // 区域学习偏置（自我对弈学习的"过河价值"）：learnedBias 键格式 'z_<type>_cross'/'z_<type>_home'
+  const zCross: Record<string, number> = {};
+  const zHome: Record<string, number> = {};
+  if (learnedBias) {
+    for (const k in learnedBias) {
+      if (k.startsWith('z_')) {
+        const parts = k.split('_'); // z_n_cross
+        if (parts.length === 3) {
+          const type = parts[1];
+          const zone = parts[2];
+          if (zone === 'cross') zCross[type] = learnedBias[k] || 0;
+          else if (zone === 'home') zHome[type] = learnedBias[k] || 0;
+        }
+      }
+    }
+  }
+
+  // 己方士相数量（将帅安全：士相掩护）与王位置
+  let myAdvisors = 0, myElephants = 0;
 
   for (let i = 0; i < b.length; i++) {
     const p = b[i];
     if (!p) continue;
     const x = i % COLS, y = (i / COLS) | 0;
     const mine = isRed(p) === (c === 'r');
-    // 基础价值 + 自我对弈学习的偏置（同类型棋子对红黑双方一致生效）
-    const baseVal = (PIECE_VALUE[p] || 0) + (learnedBias?.[p.toLowerCase()] || 0);
+    const t = p.toLowerCase();
+    // 基础价值 + 类型学习偏置 + 残局动态价值
+    let baseVal = PIECE_VALUE[p] || 0;
+    if (learnedBias) baseVal += learnedBias[t] || 0;
+    if (endgame) {
+      if (t === 'n') baseVal += 30;       // 残局马升
+      else if (t === 'c') baseVal -= 25;  // 残局炮降
+      else if (t === 'p') baseVal += 25;  // 残局兵升
+    }
     const pstVal = getPST(p, y, x);
     material += mine ? baseVal : -baseVal;
     positional += mine ? pstVal : -pstVal;
+
+    // 区域学习偏置：过河/己方半场
+    if (mine) {
+      const zoneBonus = crossed(y, c) ? (zCross[t] || 0) : (zHome[t] || 0);
+      positional += zoneBonus;
+      if (t === 'a') myAdvisors += 1;
+      else if (t === 'b') myElephants += 1;
+    }
+  }
+
+  // 将帅安全：王居宫心加分；士相在场提供掩护
+  const king = findGeneral(b, c);
+  if (king >= 0) {
+    const kx = king % COLS, ky = (king / COLS) | 0;
+    if (kx === 4 && (ky === 8 || ky === 1)) safety += 8; // 王在宫心
+  }
+  safety += myAdvisors * 5 + myElephants * 5;
+
+  // 炮有根：炮四邻有己方子掩护 +6
+  for (let i = 0; i < b.length; i++) {
+    const p = b[i];
+    if (!p || p.toLowerCase() !== 'c' || isRed(p) !== (c === 'r')) continue;
+    const x = i % COLS, y = (i / COLS) | 0;
+    for (const [dx, dy] of DIR4) {
+      const nx = x + dx, ny = y + dy;
+      if (!inBoard(nx, ny)) continue;
+      const np = b[ny * COLS + nx];
+      if (np && isRed(np) === (c === 'r')) { safety += 6; break; }
+    }
   }
 
   // 机动性评估（浅层：只计算己方）
@@ -381,7 +456,7 @@ function evaluate(b: FlatBoard, c: 'r' | 'b'): number {
   }
   mobility = myMobility * 2;
 
-  return material + positional + mobility;
+  return material + positional + mobility + safety;
 }
 
 // ===== MVV-LVA 着法排序 =====
