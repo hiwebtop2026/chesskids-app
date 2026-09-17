@@ -13,6 +13,19 @@ import { findXiangqiKing, isXiangqiInCheck } from '../engine/xiangqi';
 import { isXiangqiGameOver } from '../types/xiangqi';
 import type { XiangqiSquare } from '../types/xiangqi';
 import { supportsWebGL } from '../utils/webgl';
+import {
+  unlockAudio,
+  playSfx,
+  setMusicEnabled,
+  setSfxEnabled,
+  isMusicEnabled,
+  isSfxEnabled,
+  initAudioAutoPause,
+  cycleBgmTrack,
+  getBgmVolume,
+  setBgmVolume,
+  BGM_TRACKS,
+} from '../utils/sound';
 
 /** 少儿友好表情包 */
 const EMOJI_LIST = [
@@ -110,6 +123,10 @@ export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [copied, setCopied] = useState(false);
   const [viewMode, setViewMode] = useState<'3d' | '2d'>(supportsWebGL() ? '3d' : '2d');
+  const [musicOn, setMusicOnState] = useState(() => isMusicEnabled());
+  const [sfxOn, setSfxOnState] = useState(() => isSfxEnabled());
+  const [bgmLabel, setBgmLabel] = useState(() => BGM_TRACKS[0].label);
+  const [bgmVol, setBgmVolState] = useState(() => getBgmVolume());
   const webglOk = useMemo(() => supportsWebGL(), []); // 3D 按钮可用性
   const chatListRef = useRef<HTMLDivElement>(null);
   const board3dRef = useRef<any>(null);
@@ -202,6 +219,43 @@ export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [isFloating]);
+
+  /** 音效/音乐：首次用户交互后解锁音频（浏览器自动播放策略） */
+  useEffect(() => {
+    initAudioAutoPause();
+    const unlockOnce = () => unlockAudio();
+    window.addEventListener('pointerdown', unlockOnce, { once: true });
+    window.addEventListener('click', unlockOnce, { once: true });
+    window.addEventListener('keydown', unlockOnce, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlockOnce);
+      window.removeEventListener('click', unlockOnce);
+      window.removeEventListener('keydown', unlockOnce);
+    };
+  }, []);
+
+  /** 对局音效：走子 / 吃子 / 将军警示 / 终局胜负 */
+  const prevStatusRef = useRef<string | null>(null);
+  const lastMoveRef = useRef<{ from: [number, number]; to: [number, number] } | null>(null);
+  useEffect(() => {
+    // 走子音效（己方与对方走子均提示，lastMove 更新即新一步）
+    if (lastMove && lastMoveRef.current !== lastMove) {
+      lastMoveRef.current = lastMove;
+      const last = moves[moves.length - 1];
+      playSfx(last && last.captured ? 'capture' : 'move');
+    }
+    // 将军/终局音效
+    if (prevStatusRef.current !== status) {
+      const prev = prevStatusRef.current;
+      prevStatusRef.current = status;
+      if (prev) {
+        if (status === 'check') playSfx('check');
+        else if (status === 'checkmate') playSfx(turn !== color ? 'win' : 'lose');
+        else if (status === 'stalemate') playSfx(turn === color ? 'lose' : 'win');
+        else if (status === 'draw') playSfx('click');
+      }
+    }
+  }, [lastMove, moves, status, turn, color]);
 
   /** 清理录音资源 */
   useEffect(() => {
@@ -628,6 +682,58 @@ export const XiangqiOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
         <button className={`view-ctrl-btn ${isFloating ? 'active' : ''}`} onClick={toggleFloat} title={isFloating ? '退出浮动窗口' : '浮动窗口'}>
           {isFloating ? '🗗' : '⛶'}
         </button>
+        <button
+          className={`view-ctrl-btn sound-btn ${musicOn ? '' : 'view-ctrl-muted'}`}
+          onClick={() => {
+            playSfx('click');
+            const v = !musicOn;
+            setMusicEnabled(v);
+            setMusicOnState(v);
+          }}
+          title={musicOn ? '关闭背景音乐' : '开启背景音乐'}
+        >
+          {musicOn ? '🎵' : '🔇'}
+        </button>
+        <button
+          className={`view-ctrl-btn sound-btn ${sfxOn ? '' : 'view-ctrl-muted'}`}
+          onClick={() => {
+            const v = !sfxOn;
+            setSfxEnabled(v);
+            setSfxOnState(v);
+            if (v) playSfx('click');
+          }}
+          title={sfxOn ? '关闭音效' : '开启音效'}
+        >
+          {sfxOn ? '🔊' : '🔈'}
+        </button>
+        {musicOn && (
+          <>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={Math.round(bgmVol * 100)}
+            onChange={(e) => {
+              const v = Number(e.target.value) / 100;
+              setBgmVolume(v);
+              setBgmVolState(v);
+            }}
+            className="bgm-volume-slider bgm-volume-slider-compact"
+            title={`背景音乐音量 ${Math.round(bgmVol * 100)}%`}
+          />
+          <button
+            className="view-ctrl-btn sound-btn bgm-switch-btn"
+            onClick={() => {
+              const t = cycleBgmTrack();
+              setBgmLabel(t.label);
+              playSfx('click');
+            }}
+            title={`切换背景音乐（当前：${bgmLabel}）`}
+          >
+            ⏭
+          </button>
+          </>
+        )}
       </div>
       {viewMode === '3d' ? (
         <ThreeJSXiangqiBoard

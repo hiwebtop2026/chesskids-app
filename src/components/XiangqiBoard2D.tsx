@@ -99,10 +99,11 @@ export const XiangqiBoard2D = React.forwardRef<XiangqiBoard2DHandle, XiangqiBoar
   const isLegalTarget = (r: number, c: number) =>
     legalTargets.some((t) => t[0] === r && t[1] === c);
 
-  const isLastMove = (r: number, c: number) =>
-    lastMove &&
-    ((lastMove.from[0] === r && lastMove.from[1] === c) ||
-      (lastMove.to[0] === r && lastMove.to[1] === c));
+  const isLastMoveFrom = (r: number, c: number) =>
+    lastMove && lastMove.from[0] === r && lastMove.from[1] === c;
+
+  const isLastMoveTo = (r: number, c: number) =>
+    lastMove && lastMove.to[0] === r && lastMove.to[1] === c;
 
   const isCheck = (r: number, c: number) =>
     checkSquare && checkSquare[0] === r && checkSquare[1] === c;
@@ -369,7 +370,8 @@ export const XiangqiBoard2D = React.forwardRef<XiangqiBoard2DHandle, XiangqiBoar
             row.map((piece, c) => {
               const selected = isSelected(r, c);
               const legal = isLegalTarget(r, c);
-              const last = isLastMove(r, c);
+              const lastFrom = isLastMoveFrom(r, c);
+              const lastTo = isLastMoveTo(r, c);
               const check = isCheck(r, c);
               const hintSquare = isHint(r, c);
               const red = piece && isXiangqiRed(piece);
@@ -380,7 +382,7 @@ export const XiangqiBoard2D = React.forwardRef<XiangqiBoard2DHandle, XiangqiBoar
                 <div
                   key={`${r}-${c}`}
                   className={`xiangqi-point ${selected ? 'point-selected' : ''} ${
-                    last ? 'point-lastmove' : ''
+                    lastFrom ? 'point-lastmove-from' : lastTo ? 'point-lastmove-to' : ''
                   } ${check ? 'point-check' : ''} ${hintSquare ? 'point-hint' : ''}`}
                   style={pos}
                   onClick={() => handlePointClick(r, c)}

@@ -3823,8 +3823,24 @@ ul {
   50% { transform: scale(1.08); opacity: 1; }
 }
 
-.point-lastmove .xiangqi-piece {
-  box-shadow: 0 0 0 3px rgba(255, 152, 0, 0.7), 0 2px 4px rgba(0,0,0,0.3);
+.point-lastmove-from .xiangqi-piece {
+  animation: lastMoveFromPulse 1.1s ease-in-out infinite;
+}
+
+.point-lastmove-to .xiangqi-piece {
+  animation: lastMoveToPulse 0.9s ease-in-out infinite;
+}
+
+/* 上步棋起点：橙色半透明虚圈呼吸 */
+@keyframes lastMoveFromPulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(255, 152, 0, 0.35), 0 2px 4px rgba(0,0,0,0.25); transform: scale(1); }
+  50% { box-shadow: 0 0 0 5px rgba(255, 152, 0, 0.2), 0 2px 4px rgba(0,0,0,0.25); transform: scale(1.03); }
+}
+
+/* 上步棋落点：橙色实心跳动闪烁（醒目提醒对方刚走的棋子） */
+@keyframes lastMoveToPulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(255, 152, 0, 0.95), 0 0 12px rgba(255, 152, 0, 0.5), 0 2px 4px rgba(0,0,0,0.3); transform: scale(1); }
+  50% { box-shadow: 0 0 0 6px rgba(255, 152, 0, 0.45), 0 0 18px rgba(255, 152, 0, 0.25), 0 2px 4px rgba(0,0,0,0.3); transform: scale(1.06); }
 }
 
 .point-check .xiangqi-piece {
@@ -6106,4 +6122,49 @@ ul {
 @keyframes checkBarFlash {
   0%, 100% { box-shadow: 0 0 0 0 rgba(244, 67, 54, 0); }
   50% { box-shadow: 0 0 0 3px rgba(244, 67, 54, 0.35); }
+}
+/* 音乐/音效开关按钮 */
+.action-btn.sound-btn {
+  min-width: 40px;
+  padding: 6px 8px;
+  font-size: 15px;
+}
+.action-btn.action-btn-muted {
+  opacity: 0.45;
+  filter: grayscale(0.6);
+}
+
+/* 联机视图控制条内的音乐/音效按钮 */
+.view-ctrl-btn.sound-btn {
+  min-width: 36px;
+  padding: 4px 6px;
+  font-size: 14px;
+}
+.view-ctrl-btn.view-ctrl-muted {
+  opacity: 0.45;
+  filter: grayscale(0.6);
+}
+
+/* 切歌按钮 */
+.action-btn.bgm-switch-btn {
+  min-width: 36px;
+  padding: 6px 6px;
+  font-size: 14px;
+}
+.view-ctrl-btn.bgm-switch-btn {
+  min-width: 32px;
+  padding: 4px 4px;
+  font-size: 13px;
+}
+
+/* 背景音乐音量滑块 */
+.bgm-volume-slider {
+  width: 72px;
+  height: 4px;
+  accent-color: #ff9800;
+  cursor: pointer;
+  vertical-align: middle;
+}
+.bgm-volume-slider-compact {
+  width: 52px;
 }

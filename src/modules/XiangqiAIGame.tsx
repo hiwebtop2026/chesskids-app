@@ -4,13 +4,25 @@
  */
 import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import { XiangqiBoard2D, type XiangqiBoard2DHandle } from '../components/XiangqiBoard2D';
+import {
+  unlockAudio,
+  playSfx,
+  setMusicEnabled,
+  setSfxEnabled,
+  isMusicEnabled,
+  isSfxEnabled,
+  initAudioAutoPause,
+  cycleBgmTrack,
+  getBgmVolume,
+  setBgmVolume,
+  BGM_TRACKS,
+} from '../utils/sound';
 import { ThreeJSXiangqiBoard } from '../components/ThreeJSXiangqiBoard';
 import {
   XIANGQI_INITIAL_BOARD,
   cloneXiangqiBoard,
   applyXiangqiMove,
   getAllXiangqiLegalMoves,
-  getXiangqiGameStatus,
   getXiangqiGameStatusAdvanced,
   getXiangqiMoveNotation,
   findXiangqiKing,
@@ -80,6 +92,20 @@ export const XiangqiAIGame: React.FC = () => {
     setIsFloating((prev) => !prev);
   };
 
+  /** 音效/音乐：首次用户交互后解锁音频（浏览器自动播放策略） */
+  useEffect(() => {
+    initAudioAutoPause();
+    const unlockOnce = () => unlockAudio();
+    window.addEventListener('pointerdown', unlockOnce, { once: true });
+    window.addEventListener('click', unlockOnce, { once: true });
+    window.addEventListener('keydown', unlockOnce, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlockOnce);
+      window.removeEventListener('click', unlockOnce);
+      window.removeEventListener('keydown', unlockOnce);
+    };
+  }, []);
+
   /** ESC 键退出浮动模式 */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -93,6 +119,10 @@ export const XiangqiAIGame: React.FC = () => {
   const [thinking, setThinking] = useState(false);
   const [hint, setHint] = useState<XiangqiSquare[] | null>(null);
   const [boardFlipped, setBoardFlipped] = useState(false);
+  const [musicOn, setMusicOnState] = useState(() => isMusicEnabled());
+  const [sfxOn, setSfxOnState] = useState(() => isSfxEnabled());
+  const [bgmLabel, setBgmLabel] = useState(() => BGM_TRACKS[0].label);
+  const [bgmVol, setBgmVolState] = useState(() => getBgmVolume());
   const aiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const aiCancelledRef = useRef(false);
   const aiGenRef = useRef(0); // AI 请求世代号：重置/换边后使在途计算结果失效，防止串局
@@ -128,6 +158,26 @@ export const XiangqiAIGame: React.FC = () => {
   }, [board, status, turn]);
   const gameOver = isXiangqiGameOver(status);
   const isHumanTurn = turn === humanColor;
+
+  /** 对局音效：将军警示 / 终局胜负 */
+  const prevStatusRef = useRef<XiangqiGameStatus | null>(null);
+  useEffect(() => {
+    if (prevStatusRef.current === status) return;
+    const prev = prevStatusRef.current;
+    prevStatusRef.current = status;
+    if (!prev) return; // 首次渲染不播
+    if (status === 'check') {
+      playSfx('check');
+    } else if (status === 'checkmate') {
+      playSfx(turn !== humanColor ? 'win' : 'lose');
+    } else if (status === 'stalemate') {
+      playSfx(turn === humanColor ? 'lose' : 'win');
+    } else if (status === 'draw') {
+      playSfx('click');
+    }
+  }, [status, turn, humanColor]);
+
+
 
   // ===== AI 越下越聪明：对局结束学习（ELO 结算 + 后台自对弈训练）=====
   const lastGameResultRef = useRef<XiangqiGameResult | null>(null);
@@ -193,6 +243,7 @@ export const XiangqiAIGame: React.FC = () => {
     setMoves(newMoves);
     movesRef.current = newMoves; // 同步 ref，保证 AI 调度时能拿到最新步数（开局库 ply）
     setLastMove({ from, to });
+    playSfx(captured ? 'capture' : 'move');
     setTurn(movingColor === 'r' ? 'b' : 'r');
     setSelection(null);
     setLegalTargets([]);
@@ -204,7 +255,8 @@ export const XiangqiAIGame: React.FC = () => {
   // 计算放在 Web Worker 中异步执行，困难/大师难度不再冻结主线程（防止"卡死/闪退"）
   const scheduleAI = useCallback((b: XiangqiBoard, t: XiangqiColor, ply: number) => {
     if (aiTimerRef.current) clearTimeout(aiTimerRef.current);
-    if (isXiangqiGameOver(getXiangqiGameStatus(b, t))) return;
+    // 进阶判定（含重复局面/自然限着和棋）：和棋后 AI 不再落子
+    if (isXiangqiGameOver(getXiangqiGameStatusAdvanced(b, t, movesRef.current))) return;
     const gen = ++aiGenRef.current;
     setThinking(true);
     // 自适应难度：按玩家 ELO 解析本次实际 AI 强度
@@ -235,9 +287,9 @@ export const XiangqiAIGame: React.FC = () => {
   const makeHumanMove = (from: XiangqiSquare, to: XiangqiSquare) => {
     if (thinking || gameOver || !isHumanTurn) return;
     const nb = commitMove(board, from, to, turn);
-    // AI 应战（ply = 当前总步数）
+    // AI 应战（ply = 当前总步数）；终局判定用进阶版，和棋后不再应战
     const nextTurn: XiangqiColor = turn === 'r' ? 'b' : 'r';
-    if (!isXiangqiGameOver(getXiangqiGameStatus(nb, nextTurn)) && nextTurn !== humanColor) {
+    if (!isXiangqiGameOver(getXiangqiGameStatusAdvanced(nb, nextTurn, movesRef.current)) && nextTurn !== humanColor) {
       scheduleAI(nb, nextTurn, movesRef.current.length);
     }
   };
@@ -512,6 +564,58 @@ export const XiangqiAIGame: React.FC = () => {
               <button className="action-btn" onClick={handleUndo} disabled={moves.length === 0 || thinking}>↩ 悔棋</button>
               <button className="action-btn" onClick={handleHint} disabled={thinking || gameOver}>💡 提示</button>
               <button className="action-btn primary" onClick={newGameDialog}>🔄 新对局</button>
+              <button
+                className={`action-btn sound-btn ${musicOn ? '' : 'action-btn-muted'}`}
+                onClick={() => {
+                  playSfx('click');
+                  const v = !musicOn;
+                  setMusicEnabled(v);
+                  setMusicOnState(v);
+                }}
+                title={musicOn ? '关闭背景音乐' : '开启背景音乐'}
+              >
+                {musicOn ? '🎵' : '🔇'}
+              </button>
+              <button
+                className={`action-btn sound-btn ${sfxOn ? '' : 'action-btn-muted'}`}
+                onClick={() => {
+                  const v = !sfxOn;
+                  setSfxEnabled(v);
+                  setSfxOnState(v);
+                  if (v) playSfx('click');
+                }}
+                title={sfxOn ? '关闭音效' : '开启音效'}
+              >
+                {sfxOn ? '🔊' : '🔈'}
+              </button>
+              {musicOn && (
+                <>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={Math.round(bgmVol * 100)}
+                  onChange={(e) => {
+                    const v = Number(e.target.value) / 100;
+                    setBgmVolume(v);
+                    setBgmVolState(v);
+                  }}
+                  className="bgm-volume-slider"
+                  title={`背景音乐音量 ${Math.round(bgmVol * 100)}%`}
+                />
+                <button
+                  className="action-btn sound-btn bgm-switch-btn"
+                  onClick={() => {
+                    const t = cycleBgmTrack();
+                    setBgmLabel(t.label);
+                    playSfx('click');
+                  }}
+                  title={`切换背景音乐（当前：${bgmLabel}）`}
+                >
+                  ⏭
+                </button>
+                </>
+              )}
             </div>
           </div>
           {viewActions}

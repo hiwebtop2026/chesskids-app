@@ -18,7 +18,7 @@ import {
   cloneXiangqiBoard,
   applyXiangqiMove,
   getAllXiangqiLegalMoves,
-  getXiangqiGameStatus,
+  getXiangqiGameStatusAdvanced,
   getXiangqiMoveNotation,
   isXiangqiMoveLegal,
   isXiangqiRed,
@@ -179,7 +179,8 @@ export const useXiangqiMultiplayerStore = create<XiangqiMultiplayerState>((set, 
     const move: XiangqiMove = { from, to, piece, captured, notation };
     const newMoves = [...state.moves, move];
     const newTurn: XiangqiColor = state.turn === 'r' ? 'b' : 'r';
-    const newStatus = getXiangqiGameStatus(newBoard, newTurn);
+    // 进阶判定：除胜负外，含重复局面（长将长捉）与自然限着（60回合无吃子无兵动）和棋
+    const newStatus = getXiangqiGameStatusAdvanced(newBoard, newTurn, newMoves);
 
     const moveNum = Math.ceil(newMoves.length / 2);
     const newHistory = [...state.history];

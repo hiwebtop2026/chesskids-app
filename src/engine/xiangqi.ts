@@ -445,15 +445,20 @@ export function getXiangqiGameStatusAdvanced(
   // 从初始棋盘重放（moves 记录完整序列时正确）
   let b = cloneXiangqiBoard(XIANGQI_INITIAL_BOARD);
   const snapshotKeys: string[] = [boardKey(b)];
-  for (const m of moves) {
-    if (!xiangqiInBounds(m.from[0], m.from[1]) || !xiangqiInBounds(m.to[0], m.to[1]) || !b[m.from[0]]?.[m.from[1]]) {
-      // 防御：历史走法异常时中止重放（不误判和棋）
-      snapshotKeys.length = 0;
-      break;
+  try {
+    for (const m of moves) {
+      if (!xiangqiInBounds(m.from[0], m.from[1]) || !xiangqiInBounds(m.to[0], m.to[1]) || !b[m.from[0]]?.[m.from[1]]) {
+        // 防御：历史走法异常时中止重放（不误判和棋）
+        snapshotKeys.length = 0;
+        break;
+      }
+      const applied = applyXiangqiMove(b, m.from, m.to);
+      b = applied.board;
+      snapshotKeys.push(boardKey(b));
     }
-    const applied = applyXiangqiMove(b, m.from, m.to);
-    b = applied.board;
-    snapshotKeys.push(boardKey(b));
+  } catch {
+    // 极端异常：走法序列损坏时保守跳过重复局面判定
+    snapshotKeys.length = 0;
   }
   // 重放后的棋盘应等于当前棋盘（防御：不一致则跳过和棋判定）
   const replayKey = snapshotKeys[snapshotKeys.length - 1] || '';

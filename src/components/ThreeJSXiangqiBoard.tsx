@@ -1149,7 +1149,9 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
       // 合法走法点呼吸
       highlightsGroup.children.forEach((h) => {
         if (h.userData.breathing) {
-          const s = 1 + Math.sin(t * 4) * 0.25;
+          const speed = h.userData.breatheSpeed || 4;
+          const amp = h.userData.breatheAmp || 0.25;
+          const s = 1 + Math.sin(t * speed) * amp;
           (h.scale as any).setScalar(s);
           need = true;
         }
@@ -1427,18 +1429,41 @@ export const ThreeJSXiangqiBoard: React.FC<ThreeJSXiangqiBoardProps> = ({
       }
     });
 
-    // 上一步
+    // 上一步（醒目方案）：起点地面光环 + 终点棋子顶部发光球体（呼吸放大，一眼可见）
     if (lastMove) {
-      [lastMove.from, lastMove.to].forEach(([r, c]) => {
-        const [x, z] = squareToWorld(r, c);
-        const ring = new THREE.Mesh(
-          new THREE.TorusGeometry(PIECE_RADIUS * 0.7, 0.018, 12, 32),
-          new T.MeshBasicMaterial({ color: 0xFFA726, transparent: true, opacity: 0.8 }),
-        );
-        ring.rotation.x = -Math.PI / 2;
-        ring.position.set(x, baseY, z);
-        hg.add(ring);
-      });
+      const [fx, fz] = squareToWorld(lastMove.from[0], lastMove.from[1]);
+      const fromRing = new THREE.Mesh(
+        new THREE.TorusGeometry(PIECE_RADIUS * 0.72, 0.012, 12, 32),
+        new T.MeshBasicMaterial({ color: 0xFFA726, transparent: true, opacity: 0.4 }),
+      );
+      fromRing.rotation.x = -Math.PI / 2;
+      fromRing.position.set(fx, baseY, fz);
+      fromRing.userData = { breathing: true, breatheSpeed: 3, breatheAmp: 0.2 };
+      hg.add(fromRing);
+
+      const [tx, tz] = squareToWorld(lastMove.to[0], lastMove.to[1]);
+      // 落点棋子顶部的发光球：呼吸放大 + 半透明叠加，明显区别于选中/走法标记
+      const glow = new THREE.Mesh(
+        new THREE.SphereGeometry(PIECE_RADIUS * 0.72, 16, 16),
+        new T.MeshBasicMaterial({
+          color: 0xFFC107,
+          transparent: true,
+          opacity: 0.6,
+          depthWrite: false,
+        }),
+      );
+      glow.position.set(tx, baseY + PIECE_HEIGHT * 0.55, tz);
+      glow.userData = { breathing: true, breatheSpeed: 5, breatheAmp: 0.35 };
+      hg.add(glow);
+      // 落点地面亮环（辅助）
+      const toRing = new THREE.Mesh(
+        new THREE.TorusGeometry(PIECE_RADIUS * 0.95, 0.018, 12, 32),
+        new T.MeshBasicMaterial({ color: 0xFFC107, transparent: true, opacity: 0.8 }),
+      );
+      toRing.rotation.x = -Math.PI / 2;
+      toRing.position.set(tx, baseY, tz);
+      toRing.userData = { breathing: true, breatheSpeed: 5, breatheAmp: 0.3 };
+      hg.add(toRing);
     }
 
     // hint
