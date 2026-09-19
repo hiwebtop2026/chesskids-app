@@ -223,121 +223,6 @@ function historyIndex(from: number, to: number): number {
   return from * COLS * ROWS + to;
 }
 
-// ===== 杀手着法（Killer Moves）=====
-// 每层记录 2 个引起 beta cutoff 的非吃子着法，后续同层优先尝试
-const MAX_KILLER_PLY = 64;
-const killerMoves: Array<[number, number]>[] = [];
-for (let i = 0; i < MAX_KILLER_PLY; i++) killerMoves.push([[-1, -1], [-1, -1]]);
-
-function storeKiller(ply: number, from: number, to: number) {
-  if (ply >= MAX_KILLER_PLY) return;
-  const km = killerMoves[ply];
-  // 避免重复
-  if (km[0][0] === from && km[0][1] === to) return;
-  km[1] = km[0];
-  km[0] = [from, to];
-}
-
-function isKiller(ply: number, from: number, to: number): boolean {
-  if (ply >= MAX_KILLER_PLY) return false;
-  const km = killerMoves[ply];
-  return (km[0][0] === from && km[0][1] === to) || (km[1][0] === from && km[1][1] === to);
-}
-
-// ===== 静态交换评估（SEE）=====
-// 评估吃子交换的净收益，用于着法排序和裁剪
-function seeExchange(b: FlatBoard, toIdx: number, attackerColor: 'r' | 'b'): number {
-  const victim = b[toIdx];
-  if (!victim) return 0;
-
-  // 找到所有能攻击 toIdx 的棋子（双方）
-  const tx = toIdx % COLS, ty = (toIdx / COLS) | 0;
-  const attackers: Array<{ idx: number; val: number; color: 'r' | 'b' }> = [];
-
-  // 车/炮沿四方向扫描
-  for (const [dx, dy] of DIR4) {
-    let nx = tx + dx, ny = ty + dy, screen = 0;
-    while (inBoard(nx, ny)) {
-      const q = b[ny * COLS + nx];
-      if (q) {
-        if (screen === 0) {
-          if (q.toLowerCase() === 'r' || q.toLowerCase() === 'k') {
-            attackers.push({ idx: ny * COLS + nx, val: PIECE_VALUE[q] || 0, color: isRed(q) ? 'r' : 'b' });
-          }
-        }
-        if (q.toLowerCase() === 'c' && screen === 1) {
-          attackers.push({ idx: ny * COLS + nx, val: PIECE_VALUE[q] || 0, color: isRed(q) ? 'r' : 'b' });
-        }
-        screen++;
-        if (screen >= 2) break;
-      }
-      nx += dx; ny += dy;
-    }
-  }
-
-  // 马攻击
-  for (const [dx, dy] of HORSE_MV) {
-    const px = tx + dx, py = ty + dy;
-    if (!inBoard(px, py)) continue;
-    const q = b[py * COLS + px];
-    if (!q || q.toLowerCase() !== 'n') continue;
-    const leg = HORSE_LEG['[' + dx + ',' + dy + ']'];
-    const lx = px + leg[0], ly = py + leg[1];
-    if (!inBoard(lx, ly) || !b[ly * COLS + lx]) {
-      attackers.push({ idx: py * COLS + px, val: PIECE_VALUE[q] || 0, color: isRed(q) ? 'r' : 'b' });
-    }
-  }
-
-  // 兵攻击
-  // 红兵向上走（y-1），所以能攻击 ty 的红兵在 ty+1
-  if (inBoard(tx, ty + 1) && b[(ty + 1) * COLS + tx] === 'P') {
-    attackers.push({ idx: (ty + 1) * COLS + tx, val: PIECE_VALUE['P'], color: 'r' });
-  }
-  // 红兵过河后横吃
-  if (ty <= 4) {
-    if (inBoard(tx - 1, ty) && b[ty * COLS + tx - 1] === 'P')
-      attackers.push({ idx: ty * COLS + tx - 1, val: PIECE_VALUE['P'], color: 'r' });
-    if (inBoard(tx + 1, ty) && b[ty * COLS + tx + 1] === 'P')
-      attackers.push({ idx: ty * COLS + tx + 1, val: PIECE_VALUE['P'], color: 'r' });
-  }
-  // 黑卒向下走
-  if (inBoard(tx, ty - 1) && b[(ty - 1) * COLS + tx] === 'p') {
-    attackers.push({ idx: (ty - 1) * COLS + tx, val: PIECE_VALUE['p'], color: 'b' });
-  }
-  if (ty >= 5) {
-    if (inBoard(tx - 1, ty) && b[ty * COLS + tx - 1] === 'p')
-      attackers.push({ idx: ty * COLS + tx - 1, val: PIECE_VALUE['p'], color: 'b' });
-    if (inBoard(tx + 1, ty) && b[ty * COLS + tx + 1] === 'p')
-      attackers.push({ idx: ty * COLS + tx + 1, val: PIECE_VALUE['p'], color: 'b' });
-  }
-
-  // 简化的 SEE：按攻击者价值升序模拟交换
-  // 攻击方先手，轮流吃，直到一方不吃为止
-  const sorted = attackers.sort((a, b) => a.val - b.val);
-  let gain = 0;
-  let turn: 'r' | 'b' = attackerColor;
-  let victimVal = PIECE_VALUE[victim] || 0;
-
-  for (const atk of sorted) {
-    if (atk.color === turn) {
-      gain += victimVal;
-      victimVal = atk.val;
-      turn = opp(turn);
-    } else {
-      // 对方可以选择不吃（简化：如果亏子就不吃）
-      if (victimVal > atk.val) {
-        gain -= atk.val;
-        victimVal = atk.val;
-        turn = opp(turn);
-      } else {
-        break;
-      }
-    }
-  }
-
-  return gain;
-}
-
 // ===== 棋盘转换 =====
 function toFlat(board: XiangqiBoard): FlatBoard {
   const f = new Array<string>(COLS * ROWS).fill('');
@@ -571,93 +456,17 @@ function evaluate(b: FlatBoard, c: 'r' | 'b', withMobility = true): number {
   }
 
   // 机动性评估（浅层：只计算己方；静态搜索等高频路径可关闭以提速）
-  // 同时统计侵略性威胁：己方走法能攻击敌方将帅/高价值子（捉子、将军）→ 走法更有侵略性
   if (withMobility) {
     let myMobility = 0;
-    let aggression = 0;
     for (let i = 0; i < b.length; i++) {
       if (b[i] && isRed(b[i]) === (c === 'r')) {
-        const moves = pseudoMoves(b, i);
-        myMobility += moves.length;
-        // 威胁扫描（同一份 pseudoMoves 结果复用，零额外生成成本）
-        for (const d of moves) {
-          const q = b[d];
-          if (!q || isRed(q) === (c === 'r')) continue;
-          const t = q.toLowerCase();
-          // 温和侵略：威胁分只作微调（过强会诱导贪眼前将军/捉子而失大局）
-          if (t === 'k') aggression += 12;            // 能将军（将杀倾向）
-          else if (t === 'r') aggression += 4;        // 捉车
-          else if (t === 'c' || t === 'n') aggression += 2; // 捉马/炮
-          else if (t === 'p') aggression += 1;        // 捉兵
-        }
+        myMobility += pseudoMoves(b, i).length;
       }
     }
     mobility = myMobility * 2;
-    safety += aggression; // 侵略性并入总评估（攻击是最好的防守）
   }
 
-  // 威胁检测：攻击敌方将帅周围格子（AKA - Attacking King's Adjacency）
-  const enemyKing = findGeneral(b, opp(c));
-  let kingThreat = 0;
-  if (enemyKing >= 0) {
-    const ekx = enemyKing % COLS, eky = (enemyKing / COLS) | 0;
-    for (const [dx, dy] of DIR4) {
-      const nx = ekx + dx, ny = eky + dy;
-      if (!inBoard(nx, ny)) continue;
-      const nIdx = ny * COLS + nx;
-      // 检查己方棋子是否能攻击将帅周围
-      for (let i = 0; i < b.length; i++) {
-        const p = b[i];
-        if (!p || isRed(p) !== (c === 'r')) continue;
-        const moves = pseudoMoves(b, i);
-        if (moves.includes(nIdx)) {
-          kingThreat += 3;
-          break;
-        }
-      }
-    }
-  }
-  safety += kingThreat;
-
-  // 棋子协调性评估
-  let coordination = 0;
-  // 车马配合：车和马在相邻位置（攻击力增强）
-  for (let i = 0; i < b.length; i++) {
-    const p = b[i];
-    if (!p || isRed(p) !== (c === 'r')) continue;
-    if (p.toLowerCase() !== 'r') continue;
-    const x = i % COLS, y = (i / COLS) | 0;
-    for (const [dx, dy] of DIR4) {
-      const nx = x + dx, ny = y + dy;
-      if (!inBoard(nx, ny)) continue;
-      const q = b[ny * COLS + nx];
-      if (q && isRed(q) === (c === 'r') && q.toLowerCase() === 'n') {
-        coordination += 6;
-      }
-    }
-  }
-  // 过河兵协同：多个过河兵相邻（兵阵推进更强）
-  let crossedPawns = 0;
-  for (let i = 0; i < b.length; i++) {
-    const p = b[i];
-    if (!p || p.toLowerCase() !== 'p' || isRed(p) !== (c === 'r')) continue;
-    const y = (i / COLS) | 0;
-    if (crossed(y, c)) {
-      crossedPawns++;
-      const x = i % COLS;
-      // 检查相邻是否有己方过河兵
-      for (const [dx, dy] of DIR4) {
-        const nx = x + dx, ny = y + dy;
-        if (!inBoard(nx, ny)) continue;
-        const q = b[ny * COLS + nx];
-        if (q && q.toLowerCase() === 'p' && isRed(q) === (c === 'r') && crossed(ny, c)) {
-          coordination += 4;
-        }
-      }
-    }
-  }
-
-  return material + positional + mobility + safety + coordination;
+  return material + positional + mobility + safety;
 }
 
 // ===== MVV-LVA 着法排序 =====
@@ -674,7 +483,6 @@ function legalMovesOrdered(
   c: 'r' | 'b',
   bestFrom: number,
   bestTo: number,
-  ply: number = 0,
 ): Array<{ from: number; to: number; cap: string; score: number }> {
   const pseudo: Array<{ from: number; to: number; cap: string; score: number }> = [];
   for (let i = 0; i < b.length; i++) {
@@ -685,15 +493,8 @@ function legalMovesOrdered(
         let score = mvvLvaScore(p, cap);
         // TT 最佳着法优先
         if (i === bestFrom && d === bestTo) score += 1000000;
-        // 杀手着法（非吃子）：同层 beta cutoff 走法优先
-        if (!cap && isKiller(ply, i, d)) score += 900000;
         // 历史着法加成（非吃子）
         if (!cap) score += historyTable[historyIndex(i, d)] || 0;
-        // SEE 加成：赢子交换的吃子着法加分
-        if (cap) {
-          const seeScore = seeExchange(b, d, c);
-          if (seeScore > 0) score += 5000;
-        }
         pseudo.push({ from: i, to: d, cap, score });
       }
     }
@@ -871,8 +672,8 @@ function negamax(
     }
   }
 
-  // 生成着法并排序（传入 ply 用于杀手着法查询）
-  const moves = legalMovesOrdered(b, c, ttBestFrom, ttBestTo, ply);
+  // 生成着法并排序
+  const moves = legalMovesOrdered(b, c, ttBestFrom, ttBestTo);
   if (moves.length === 0) {
     // 将死或困毙
     return -(MATE - ply);
@@ -941,10 +742,9 @@ function negamax(
     }
     if (bestScore > alpha) alpha = bestScore;
     if (alpha >= beta) {
-      // Beta cutoff → 更新历史表和杀手着法
+      // Beta cutoff → 更新历史表
       if (!m.cap) {
-        historyTable[historyIndex(m.from, m.to)] += depth * depth * (givesCheck ? 2 : 1);
-        storeKiller(ply, m.from, m.to);
+        historyTable[historyIndex(m.from, m.to)] += depth * depth;
       }
       break;
     }
@@ -964,19 +764,11 @@ export type XiangqiAIDifficulty = 'easy' | 'medium' | 'hard' | 'master';
 
 export const XIANGQI_AI_DIFFICULTIES: XiangqiAIDifficulty[] = ['easy', 'medium', 'hard', 'master'];
 
-/** 职业段位映射：对应中国象棋协会等级标准 */
-export const DIFFICULTY_RANK: Record<XiangqiAIDifficulty, { label: string; elo: number; description: string }> = {
-  easy:   { label: '业余初级', elo: 600,  description: '会基本走法，偶有失误，适合入门学习' },
-  medium: { label: '业余中等', elo: 1000, description: '懂基本战术，能识破简单陷阱，适合进阶训练' },
-  hard:   { label: '业余高级', elo: 1450, description: '战术意识强，开局规范，适合挑战提高' },
-  master: { label: '大师级',   elo: 2000, description: '深度搜索+全局评估，接近专业水平' },
-};
-
 const DIFFICULTY: Record<XiangqiAIDifficulty, { depth: number; timeMs: number; noise: number; variety: number }> = {
   easy:   { depth: 2, timeMs: 400,  noise: 30, variety: 70 },
   medium: { depth: 4, timeMs: 1000, noise: 8,  variety: 30 },
   hard:   { depth: 6, timeMs: 2500, noise: 0,  variety: 14 },
-  master: { depth: 10, timeMs: 5000, noise: 0, variety: 9  },
+  master: { depth: 9, timeMs: 5000, noise: 0,  variety: 9  },
 };
 
 /**
@@ -1005,10 +797,6 @@ export function xiangqiBestMove(
   transTable = new Array(TT_SIZE);
   // 历史表衰减
   for (let i = 0; i < historyTable.length; i++) historyTable[i] = Math.floor(historyTable[i] / 2);
-  // 清空杀手着法表
-  for (let i = 0; i < MAX_KILLER_PLY; i++) {
-    killerMoves[i] = [[-1, -1], [-1, -1]];
-  }
 
   const b = toFlat(board);
   const c: 'r' | 'b' = color;
@@ -1025,22 +813,10 @@ export function xiangqiBestMove(
   let scoredLevel: Array<{ from: number; to: number; score: number }> = [];
 
   // 迭代加深
-  let prevScore = 0;
   for (let d = 1; d <= cfg.depth; d++) {
     let curBest: { from: number; to: number } | null = null;
     let curScore = -INF;
     let alpha = -INF, beta = INF, timedOut = false;
-
-    // Aspiration 期望窗口：第 3 层起以上一层分数为中心的窄窗口搜索（着法排序良好时显著提速 → 同时间内看更多步）
-    // 窗口内搜索失败（fail low/high）时用全窗口重搜兜底，保证正确性
-    // A/B 测试标记：ASPIRE_OFF
-    let aspiration = false;
-    if (false && d >= 3 && Math.abs(prevScore) < MATE * 0.5) {
-      const delta = 60;
-      alpha = prevScore - delta;
-      beta = prevScore + delta;
-      aspiration = true;
-    }
 
     // 重新排序（用上一轮最佳着法优先）
     const moves = legalMovesOrdered(
@@ -1062,10 +838,6 @@ export function xiangqiBestMove(
       let score: number;
       try {
         score = -negamax(b, opp(c), d - 1, -beta, -alpha, 1, true, newHash);
-        // Aspiration 失败：分数落在窄窗口外 → 用全窗口重搜本走法（保证分数正确）
-        if (aspiration && (score <= alpha || score >= beta)) {
-          score = -negamax(b, opp(c), d - 1, -INF, INF, 1, true, newHash);
-        }
       } catch {
         timedOut = true;
         undoMove(b, m.from, m.to, cap);
@@ -1085,7 +857,6 @@ export function xiangqiBestMove(
     if (!timedOut && curBest) {
       best = curBest;
       bestScore = curScore;
-      prevScore = curScore;
     } else {
       break; // 超时，用上次结果
     }

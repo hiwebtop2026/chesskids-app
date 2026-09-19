@@ -46,6 +46,9 @@ export const MANUAL_AI_ELO: Record<XiangqiAIDifficulty, number> = {
   master: 2000,
 };
 
+/** 职业段位信息（从引擎导入） */
+export { DIFFICULTY_RANK } from './xiangqiAI';
+
 /** 段位（按玩家 ELO） */
 export const RANKS: Array<{ min: number; label: string; icon: string }> = [
   { min: 1600, label: '大师', icon: '👑' },
