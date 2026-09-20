@@ -967,7 +967,7 @@ const DIFFICULTY: Record<XiangqiAIDifficulty, { depth: number; timeMs: number; n
   easy:   { depth: 2, timeMs: 400,  noise: 30, variety: 70 },
   medium: { depth: 4, timeMs: 1000, noise: 8,  variety: 30 },
   hard:   { depth: 6, timeMs: 2500, noise: 0,  variety: 14 },
-  master: { depth: 10, timeMs: 5000, noise: 0, variety: 9  },
+  master: { depth: 11, timeMs: 6000, noise: 0, variety: 9  },
 };
 
 /**
@@ -992,7 +992,7 @@ export function xiangqiBestMove(
   deadline = Date.now() + cfg.timeMs;
   nodeCount = 0;
 
-  // 清空置换表（每步清空避免污染，也可以不清空保留前序信息）
+  // 清空置换表（每步清空避免污染——实测跨步保留在 master 深度搜索下反而降低吞吐，保持清空策略）
   transTable = new Array(TT_SIZE);
   // 历史表衰减
   for (let i = 0; i < historyTable.length; i++) historyTable[i] = Math.floor(historyTable[i] / 2);
