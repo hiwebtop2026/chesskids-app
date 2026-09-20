@@ -574,53 +574,42 @@ function evaluate(b: FlatBoard, c: 'r' | 'b', withMobility = true): number {
   // 同时统计侵略性威胁：己方走法能攻击敌方将帅/高价值子（捉子、将军）→ 走法更有侵略性
   if (withMobility) {
     let myMobility = 0;
-    let aggression = 0;
     for (let i = 0; i < b.length; i++) {
       if (b[i] && isRed(b[i]) === (c === 'r')) {
-        const moves = pseudoMoves(b, i);
-        myMobility += moves.length;
-        // 威胁扫描（同一份 pseudoMoves 结果复用，零额外生成成本）
-        for (const d of moves) {
-          const q = b[d];
-          if (!q || isRed(q) === (c === 'r')) continue;
-          const t = q.toLowerCase();
-          // 温和侵略：威胁分只作微调（过强会诱导贪眼前将军/捉子而失大局）
-          if (t === 'k') aggression += 12;            // 能将军（将杀倾向）
-          else if (t === 'r') aggression += 4;        // 捉车
-          else if (t === 'c' || t === 'n') aggression += 2; // 捉马/炮
-          else if (t === 'p') aggression += 1;        // 捉兵
-        }
+        myMobility += pseudoMoves(b, i).length;
       }
     }
     mobility = myMobility * 2;
-    safety += aggression; // 侵略性并入总评估（攻击是最好的防守）
+    // 注：侵略性威胁分已移除——浅层搜索（4-6 层）下威胁分诱导"贪眼前将军/捉子"而失大局
+    // （实测 0:12 → 5:6；保留完整机动性评估即已体现活动力价值）
   }
 
   // 威胁检测：攻击敌方将帅周围格子（AKA - Attacking King's Adjacency）
-  const enemyKing = findGeneral(b, opp(c));
-  let kingThreat = 0;
-  if (enemyKing >= 0) {
-    const ekx = enemyKing % COLS, eky = (enemyKing / COLS) | 0;
-    for (const [dx, dy] of DIR4) {
-      const nx = ekx + dx, ny = eky + dy;
-      if (!inBoard(nx, ny)) continue;
-      const nIdx = ny * COLS + nx;
-      // 检查己方棋子是否能攻击将帅周围
-      for (let i = 0; i < b.length; i++) {
-        const p = b[i];
-        if (!p || isRed(p) !== (c === 'r')) continue;
-        const moves = pseudoMoves(b, i);
-        if (moves.includes(nIdx)) {
-          kingThreat += 3;
-          break;
+  // 仅完整评估（withMobility）时启用：静态搜索高频路径跳过，保搜索深度
+  let coordination = 0;
+  if (withMobility) {
+    const enemyKing = findGeneral(b, opp(c));
+    let kingThreat = 0;
+    if (enemyKing >= 0) {
+      const ekx = enemyKing % COLS, eky = (enemyKing / COLS) | 0;
+      for (const [dx, dy] of DIR4) {
+        const nx = ekx + dx, ny = eky + dy;
+        if (!inBoard(nx, ny)) continue;
+        const nIdx = ny * COLS + nx;
+        // 检查己方棋子是否能攻击将帅周围（围困将帅 → 将杀压力）
+        for (let i = 0; i < b.length; i++) {
+          const p = b[i];
+          if (!p || isRed(p) !== (c === 'r')) continue;
+          const moves = pseudoMoves(b, i);
+          if (moves.includes(nIdx)) {
+            kingThreat += 3;
+            break;
+          }
         }
       }
     }
+    safety += kingThreat;
   }
-  safety += kingThreat;
-
-  // 棋子协调性评估
-  let coordination = 0;
   // 车马配合：车和马在相邻位置（攻击力增强）
   for (let i = 0; i < b.length; i++) {
     const p = b[i];
@@ -750,14 +739,16 @@ function quiescence(
   ply: number,
   hash: number,
   qDepth = 0,
+  fullStand = true,
 ): number {
   checkTimeout();
   // 静态搜索 TT 缓存（仅精确值，且不与高层搜索条目冲突：qsearch 存 depth=0）
   const qtt = ttProbe(hash);
   if (qtt && qtt.depth === 0 && qtt.flag === TT_EXACT) return qtt.score;
   // 深度保护：静态搜索最多延伸 4 层吃子链（防爆炸，且足够覆盖大部分战术）
-  if (qDepth >= 4) return evaluate(b, c, false);
-  const stand = evaluate(b, c, false);
+  if (qDepth >= 4) return evaluate(b, c, fullStand);
+  // stand-pat：完整评估（机动性价值），吃子链深层用轻量评估提速
+  const stand = evaluate(b, c, fullStand);
   if (stand >= beta) {
     ttStore(hash, stand, 0, TT_BETA, -1, -1);
     return beta;
@@ -789,7 +780,7 @@ function quiescence(
     newHash ^= ZOBRIST_SIDE[0];
     let score: number;
     try {
-      score = -quiescence(b, opp(c), -beta, -alpha, ply + 1, newHash, qDepth + 1);
+      score = -quiescence(b, opp(c), -beta, -alpha, ply + 1, newHash, qDepth + 1, false);
     } catch (e) {
       // 超时异常：必须先恢复棋盘再上抛，防止污染后续走子
       undoMove(b, m.from, m.to, cap);
@@ -1032,11 +1023,12 @@ export function xiangqiBestMove(
     let alpha = -INF, beta = INF, timedOut = false;
 
     // Aspiration 期望窗口：第 3 层起以上一层分数为中心的窄窗口搜索（着法排序良好时显著提速 → 同时间内看更多步）
-    // 窗口内搜索失败（fail low/high）时用全窗口重搜兜底，保证正确性
-    // A/B 测试标记：ASPIRE_OFF
+    // 窗口内搜索失败（fail low/high）时用全窗口重搜兜底，保证正确性（fail 判定用"搜索时窗口"，不丢 fail-high 近似值）
+    // 注意：Aspiration 与置换表存在 bound 污染风险（窄窗口条目被后续全窗口搜索误用），对弈实测 hard 1:7 崩坏，
+    // 故本版保持关闭（性能收益不足以抵消正确性风险）
     let aspiration = false;
     if (false && d >= 3 && Math.abs(prevScore) < MATE * 0.5) {
-      const delta = 60;
+      const delta = 120;
       alpha = prevScore - delta;
       beta = prevScore + delta;
       aspiration = true;
@@ -1061,9 +1053,11 @@ export function xiangqiBestMove(
 
       let score: number;
       try {
-        score = -negamax(b, opp(c), d - 1, -beta, -alpha, 1, true, newHash);
-        // Aspiration 失败：分数落在窄窗口外 → 用全窗口重搜本走法（保证分数正确）
-        if (aspiration && (score <= alpha || score >= beta)) {
+        // 记录搜索时的窗口（循环中 alpha 会更新，fail 判定必须用搜索时窗口）
+        const winAlpha = alpha, winBeta = beta;
+        score = -negamax(b, opp(c), d - 1, -winBeta, -winAlpha, 1, true, newHash);
+        // Aspiration 失败：分数落在窄窗口外 → 用全窗口重搜本走法（保证分数正确，不丢 fail-high/fail-low）
+        if (aspiration && (score <= winAlpha || score >= winBeta)) {
           score = -negamax(b, opp(c), d - 1, -INF, INF, 1, true, newHash);
         }
       } catch {
