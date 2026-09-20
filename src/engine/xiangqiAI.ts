@@ -41,6 +41,7 @@ export function getLearnedBias(): Record<string, number> | null {
   return learnedBias;
 }
 
+
 // ===== 位置价值表 (红方视角，黑方镜像) =====
 // 值越大位置越好
 
@@ -964,8 +965,8 @@ export const DIFFICULTY_RANK: Record<XiangqiAIDifficulty, { label: string; elo: 
 };
 
 const DIFFICULTY: Record<XiangqiAIDifficulty, { depth: number; timeMs: number; noise: number; variety: number }> = {
-  easy:   { depth: 2, timeMs: 400,  noise: 30, variety: 70 },
-  medium: { depth: 4, timeMs: 1000, noise: 8,  variety: 30 },
+  easy:   { depth: 2, timeMs: 400,  noise: 0, variety: 70 },
+  medium: { depth: 4, timeMs: 1000, noise: 0, variety: 30 },
   hard:   { depth: 6, timeMs: 2500, noise: 0,  variety: 14 },
   master: { depth: 11, timeMs: 6000, noise: 0, variety: 9  },
 };
@@ -1018,6 +1019,7 @@ export function xiangqiBestMove(
   // 迭代加深
   let prevScore = 0;
   for (let d = 1; d <= cfg.depth; d++) {
+    scoredLevel.length = 0; // 每层清空：variety 随机只用"当前完整层"的搜索分数（防止浅层数据污染）
     let curBest: { from: number; to: number } | null = null;
     let curScore = -INF;
     let alpha = -INF, beta = INF, timedOut = false;
@@ -1083,7 +1085,6 @@ export function xiangqiBestMove(
     } else {
       break; // 超时，用上次结果
     }
-
     // 时间用完 90% 就停止加深
     if (Date.now() - begin > cfg.timeMs * 0.85) break;
   }
@@ -1092,15 +1093,9 @@ export function xiangqiBestMove(
     best = { from: firstMoves[0].from, to: firstMoves[0].to };
   }
 
-  // 低难度随机扰动
-  if (cfg.noise > 0 && Math.abs(bestScore) < MATE * 0.5) {
-    const count = Math.max(1, Math.min(firstMoves.length, 1 + Math.floor(cfg.noise / 5)));
-    const top = firstMoves.slice(0, count);
-    const pick = top[(Math.random() * top.length) | 0];
-    best = { from: pick.from, to: pick.to };
-  }
-
   // 走法多样化：在分数接近最优的着法中加权随机（避免每局千篇一律、应对更灵活）
+  // 注：低难度"放水"由 variety 的搜索分数窗口承担——此前 noise 从启发排序（非搜索排序）前 N 个乱选，
+  // 实测会走出明显烂棋（"走棋不合理/不思考"主因）；删 noise 后放水是"次优但合理"着法
   // 仅限非必胜/非必败局面，且本层搜索完整未超时
   if (
     cfg.variety > 0 &&
