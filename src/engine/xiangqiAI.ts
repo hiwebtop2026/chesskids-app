@@ -199,7 +199,7 @@ interface TTEntry {
   bestTo: number;
 }
 
-const TT_SIZE = 1 << 17; // 131072 条目
+const TT_SIZE = 1 << 19; // 524288 条目（master 深度搜索下 TT 命中率是速度关键）
 let transTable: TTEntry[] = new Array(TT_SIZE);
 
 function ttStore(hash: number, score: number, depth: number, flag: number, bestFrom: number, bestTo: number) {
@@ -892,6 +892,21 @@ function negamax(
       continue;
     }
     const cap = applyMove(b, m.from, m.to);
+    // 将军延伸：走子后将军对方 → 搜索深度不减（战术序列更准确）
+    const givesCheck = isInCheck(b, opp(c));
+    // 晚走法裁剪 LMP：浅层超晚的非吃子、非将军走法直接跳过（标准技术，不依赖历史分）
+    // 公式 idx >= 4 + depth*depth*2：depth1→6、depth2→12、depth3→22——只裁"几乎不可能成为最优"的末尾走法
+    if (
+      depth <= 3 &&
+      !m.cap &&
+      !givesCheck &&
+      !(m.from === ttBestFrom && m.to === ttBestTo) &&
+      !isKiller(ply, m.from, m.to) &&
+      idx >= 4 + depth * depth * 2
+    ) {
+      undoMove(b, m.from, m.to, cap);
+      continue;
+    }
     // 更新哈希
     const pi = pieceZobristIndex(b[m.to]);
     const capPi = cap ? pieceZobristIndex(cap) : -1;
@@ -900,9 +915,6 @@ function negamax(
     if (pi >= 0) newHash ^= ZOBRIST[pi][m.from];
     if (capPi >= 0) newHash ^= ZOBRIST[capPi][m.to];
     newHash ^= ZOBRIST_SIDE[0];
-
-    // 将军延伸：走子后将军对方 → 搜索深度不减（战术序列更准确）
-    const givesCheck = isInCheck(b, opp(c));
     const extension = givesCheck && depth >= 4 ? 1 : 0;
 
     // LMR 晚走法缩减：中后段非吃子、非 TT 最佳、非将军走法降 1 层，超 alpha 再全深度重搜
@@ -1010,8 +1022,9 @@ export function xiangqiBestMove(
 
   // 清空置换表（每步清空避免污染——实测跨步保留在 master 深度搜索下反而降低吞吐，保持清空策略）
   transTable = new Array(TT_SIZE);
-  // 历史表衰减
-  for (let i = 0; i < historyTable.length; i++) historyTable[i] = Math.floor(historyTable[i] / 2);
+  // 历史表温和衰减（×0.85）：原每步减半导致跨步累积不起来、排序质量差、剪枝效率低；
+  // 温和衰减让"整局内多次出现的良着"持续获得排序加成（历史裁剪阈值配合此口径）
+  for (let i = 0; i < historyTable.length; i++) historyTable[i] = Math.floor(historyTable[i] * 0.85);
   // 清空杀手着法表
   for (let i = 0; i < MAX_KILLER_PLY; i++) {
     killerMoves[i] = [[-1, -1], [-1, -1]];
