@@ -262,7 +262,8 @@ function seeExchange(b: FlatBoard, toIdx: number, attackerColor: 'r' | 'b'): num
       const q = b[ny * COLS + nx];
       if (q) {
         if (screen === 0) {
-          if (q.toLowerCase() === 'r' || q.toLowerCase() === 'k') {
+          // 车/将帅直线攻击：将帅只走一步，不能隔空攻击——SEE 仅统计能实际吃子的攻击者（将帅一步内的攻击极罕见，忽略）
+          if (q.toLowerCase() === 'r') {
             attackers.push({ idx: ny * COLS + nx, val: PIECE_VALUE[q] || 0, color: isRed(q) ? 'r' : 'b' });
           }
         }
@@ -314,26 +315,23 @@ function seeExchange(b: FlatBoard, toIdx: number, attackerColor: 'r' | 'b'): num
 
   // 简化的 SEE：按攻击者价值升序模拟交换
   // 攻击方先手，轮流吃，直到一方不吃为止
-  const sorted = attackers.sort((a, b) => a.val - b.val);
+  // 己方攻击者优先（按价值升序），对方攻击者随后（按价值升序）——保证先手回合交替，避免同值排序不稳定
+  const sorted = attackers.sort((a, b) => {
+    const aSelf = a.color === attackerColor ? 0 : 1;
+    const bSelf = b.color === attackerColor ? 0 : 1;
+    return aSelf - bSelf || a.val - b.val;
+  });
   let gain = 0;
   let turn: 'r' | 'b' = attackerColor;
   let victimVal = PIECE_VALUE[victim] || 0;
 
   for (const atk of sorted) {
-    if (atk.color === turn) {
-      gain += victimVal;
-      victimVal = atk.val;
-      turn = opp(turn);
-    } else {
-      // 对方可以选择不吃（简化：如果亏子就不吃）
-      if (victimVal > atk.val) {
-        gain -= atk.val;
-        victimVal = atk.val;
-        turn = opp(turn);
-      } else {
-        break;
-      }
-    }
+    if (atk.color !== turn) continue; // 非当前回合的攻击者跳过（己方/对方分块，回合交替处理）
+    // 对方回合：若吃回亏本（用贵子换便宜子）则对方停手
+    if (turn !== attackerColor && victimVal < atk.val) break;
+    gain += turn === attackerColor ? victimVal : -victimVal;
+    victimVal = atk.val;
+    turn = opp(turn);
   }
 
   return gain;
@@ -700,10 +698,10 @@ function legalMovesOrdered(
         if (!cap && isKiller(ply, i, d)) score += 900000;
         // 历史着法加成（非吃子）
         if (!cap) score += historyTable[historyIndex(i, d)] || 0;
-        // SEE 加成：赢子交换的吃子着法加分
+        // SEE 加成：不亏的吃子着法加分（平兑/净赚先搜，分数更准；净亏送吃排后）
         if (cap) {
           const seeScore = seeExchange(b, d, c);
-          if (seeScore > 0) score += 5000;
+          if (seeScore >= 0) score += 5000;
         }
         pseudo.push({ from: i, to: d, cap, score });
       }
@@ -1118,9 +1116,13 @@ export function xiangqiBestMove(
       }
       undoMove(b, m.from, m.to, cap);
 
-      // 同分时优先吃子/兑子走法（MATE 饱和或分数扁平时避免"送子换胜"的不优雅路线）
+      // 同分时优先吃子/兑子走法，但仅当 SEE 为正（白赚/净赚）——避免"分数扁平时吃子送死"
+      // （SEE 已按平兑链修正：被回吃净亏的吃子 SEE<0 不再优先）
       const curHadCap = curBest ? !!(b[curBest.to]) : false;
-      if (score > curScore || (score === curScore && m.cap && !curHadCap)) {
+      // 同分吃子优先：仅 master（variety=0，深搜分数准确）附加 SEE>=0 防送吃；
+      // medium/hard 浅层分数扁平、靠吃子累积优势，若加 SEE 条件会抑制大量正常吃子导致棋力崩（实测 0:7）
+      const masterStrict = cfg.variety === 0;
+      if (score > curScore || (score === curScore && m.cap && !curHadCap && (!masterStrict || seeExchange(b, m.to, c) >= 0))) {
         curScore = score;
         curBest = { from: m.from, to: m.to };
       }
