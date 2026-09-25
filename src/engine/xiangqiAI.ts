@@ -585,6 +585,27 @@ function evaluate(b: FlatBoard, c: 'r' | 'b', withMobility = true): number {
     // （实测 0:12 → 5:6；保留完整机动性评估即已体现活动力价值）
   }
 
+  // 防守评估（轻量）：无保护且被对方直接攻击的己方子 → 每子惩罚
+  // 只做防守惩罚（不诱导进攻），修复"车捉马 AI 不逃"式送吃；四邻有己方子视为有保护（近似）
+  if (withMobility) {
+    let threatCount = 0;
+    for (let i = 0; i < b.length; i++) {
+      const p = b[i];
+      if (!p || isRed(p) !== (c === 'r') || p.toLowerCase() === 'k') continue;
+      const x = i % COLS, y = (i / COLS) | 0;
+      if (!isAttacked(b, x, y, opp(c))) continue;
+      let hasGuard = false;
+      for (const [dx, dy] of DIR4) {
+        const nx = x + dx, ny = y + dy;
+        if (!inBoard(nx, ny)) continue;
+        const q = b[ny * COLS + nx];
+        if (q && isRed(q) === (c === 'r')) { hasGuard = true; break; }
+      }
+      if (!hasGuard) threatCount++;
+    }
+    safety -= threatCount * 40;
+  }
+
   // 威胁检测：攻击敌方将帅周围格子（AKA - Attacking King's Adjacency）
   // 仅完整评估（withMobility）时启用：静态搜索高频路径跳过，保搜索深度
   let coordination = 0;
@@ -995,7 +1016,7 @@ const DIFFICULTY: Record<XiangqiAIDifficulty, { depth: number; timeMs: number; n
   easy:   { depth: 2, timeMs: 400,  noise: 0, variety: 70 },
   medium: { depth: 4, timeMs: 1200, noise: 0, variety: 30 },
   hard:   { depth: 6, timeMs: 4000, noise: 0,  variety: 14 },
-  master: { depth: 8, timeMs: 8000, noise: 0, variety: 9  },
+  master: { depth: 9, timeMs: 8000, noise: 0, variety: 0  },
 };
 
 /**
@@ -1097,7 +1118,9 @@ export function xiangqiBestMove(
       }
       undoMove(b, m.from, m.to, cap);
 
-      if (score > curScore) {
+      // 同分时优先吃子/兑子走法（MATE 饱和或分数扁平时避免"送子换胜"的不优雅路线）
+      const curHadCap = curBest ? !!(b[curBest.to]) : false;
+      if (score > curScore || (score === curScore && m.cap && !curHadCap)) {
         curScore = score;
         curBest = { from: m.from, to: m.to };
       }
