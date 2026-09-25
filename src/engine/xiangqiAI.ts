@@ -874,10 +874,23 @@ function negamax(
   let bestFrom = moves[0].from;
   let bestTo = moves[0].to;
   let originalAlpha = alpha;
+  // 预计算静态评估（仅 Futility 剪枝需要；被将军时不裁剪——必须处理将军）
+  const staticEval = !isInCheck(b, c) ? evaluate(b, c, false) : NaN;
 
   // PVS：首着全窗口，其余零窗口试探（提速 20-40%）；配合 LMR 晚走法缩减与将军延伸
   for (let idx = 0; idx < moves.length; idx++) {
     const m = moves[idx];
+    // Futility 剪枝：浅层非吃子走法，静态评估+裕量仍低于 alpha → 本走法无望翻盘，跳过
+    // （在 applyMove 前判断，不落子不污染棋盘；被将军时跳过裁剪保证应将搜索完整）
+    if (
+      depth <= 2 &&
+      !m.cap &&
+      !isInCheck(b, c) &&
+      idx >= 3 &&
+      staticEval + (260 + 180 * depth) < alpha
+    ) {
+      continue;
+    }
     const cap = applyMove(b, m.from, m.to);
     // 更新哈希
     const pi = pieceZobristIndex(b[m.to]);
@@ -896,8 +909,10 @@ function negamax(
     const isTtBest = m.from === ttBestFrom && m.to === ttBestTo;
     let searchDepth = depth - 1 + extension;
     let reduced = false;
-    if (depth >= 3 && !m.cap && !isTtBest && !givesCheck && idx >= 3) {
-      searchDepth = depth - 2 + extension;
+    if (depth >= 2 && !m.cap && !isTtBest && !givesCheck && idx >= 2) {
+      // 深分支更激进：降 2 层（浅层降 1 层）；超 alpha 后全深度重搜兜底，保证正确性
+      const reduceBy = depth >= 4 ? 2 : 1;
+      searchDepth = depth - 1 - reduceBy + extension;
       reduced = true;
     }
 
@@ -966,9 +981,9 @@ export const DIFFICULTY_RANK: Record<XiangqiAIDifficulty, { label: string; elo: 
 
 const DIFFICULTY: Record<XiangqiAIDifficulty, { depth: number; timeMs: number; noise: number; variety: number }> = {
   easy:   { depth: 2, timeMs: 400,  noise: 0, variety: 70 },
-  medium: { depth: 4, timeMs: 1000, noise: 0, variety: 30 },
-  hard:   { depth: 6, timeMs: 2500, noise: 0,  variety: 14 },
-  master: { depth: 11, timeMs: 6000, noise: 0, variety: 9  },
+  medium: { depth: 4, timeMs: 1200, noise: 0, variety: 30 },
+  hard:   { depth: 6, timeMs: 4000, noise: 0,  variety: 14 },
+  master: { depth: 8, timeMs: 8000, noise: 0, variety: 9  },
 };
 
 /**
