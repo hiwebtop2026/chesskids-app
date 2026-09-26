@@ -29,6 +29,7 @@ function disposeRendererSafe(r: any) {
 const CELL = 1.0;                 // 交叉点间距
 const BOARD_MARGIN = 0.9;         // 棋盘四周留边（木框）
 const BOARD_HEIGHT = 0.26;        // 棋盘厚度
+const BOARD_DEPTH = 1.08;        // 棋盘竖长比例（真实围棋盘外框上下宽，高:宽≈1.08:1）
 const LINE_OPACITY = 0.9;
 
 // 棋子：厚实圆润（参考真实云子——中心厚、边缘圆润收薄，高宽比≈1:4 有立体厚度）
@@ -100,20 +101,21 @@ function makeWoodTexture(): any {
   return tex;
 }
 
-/** 生成棋子剖面（Lathe）：中心厚、边缘薄、上弧下微弧 */
+/** 生成棋子剖面（Lathe）：平底贴棋盘 + 侧面直边厚度 + 顶部凸弧
+ * 参考中国象棋棋子结构（底平、侧直、顶凸），消除"棋子悬浮"观感 */
 function makeStoneGeometry(): any {
   const pts: any[] = [];
   const r = PIECE_RADIUS;
-  const steps = 12;
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps;               // 0=中心, 1=边缘
-    const x = r * t;
-    // 椭圆扁圆剖面：中央平缓（斜率0），边缘圆润收薄到底
-    const y = PIECE_EDGE_H + (PIECE_CENTER_H - PIECE_EDGE_H) * Math.sqrt(Math.max(0, 1 - t * t));
-    pts.push(new T.Vector2(x, y));
-  }
-  // 底缘微倒角（更圆润）
-  pts.push(new T.Vector2(r * 0.995, PIECE_EDGE_H * 0.35));
+  // 剖面点（自底心 → 底部 → 侧边 → 顶部弧面 → 顶心），底部 y=0 完全贴合棋盘面
+  pts.push(new T.Vector2(0, 0));                       // 底心（贴棋盘）
+  pts.push(new T.Vector2(r * 0.92, 0));                // 平底
+  pts.push(new T.Vector2(r * 0.995, PIECE_EDGE_H * 0.35)); // 底缘倒角
+  pts.push(new T.Vector2(r, PIECE_EDGE_H));            // 侧面直边（可见厚度）
+  pts.push(new T.Vector2(r * 0.88, PIECE_CENTER_H * 0.42)); // 上弧起
+  pts.push(new T.Vector2(r * 0.72, PIECE_CENTER_H * 0.78));
+  pts.push(new T.Vector2(r * 0.52, PIECE_CENTER_H * 0.96));
+  pts.push(new T.Vector2(r * 0.28, PIECE_CENTER_H));
+  pts.push(new T.Vector2(0, PIECE_CENTER_H * 0.97));   // 顶心
   const geo = new T.LatheGeometry(pts, 40);
   return geo;
 }
@@ -189,7 +191,7 @@ export const ThreeJSGoBoard: React.FC<ThreeJSGoBoardProps> = ({
     const n = size;
     const gridW = (n - 1) * CELL;
     const halfW = gridW / 2 + BOARD_MARGIN + PIECE_RADIUS * 0.5;
-    const halfD = halfW;
+    const halfD = halfW * BOARD_DEPTH;
     const yTop = BOARD_HEIGHT + PIECE_CENTER_H;
     const target = new T.Vector3(0, 0.3, 0);
     const viewDir = new T.Vector3(0, 1, flippedRef.current ? -0.62 : 0.62).normalize();
@@ -471,7 +473,7 @@ export const ThreeJSGoBoard: React.FC<ThreeJSGoBoardProps> = ({
     const boardW = gridW + BOARD_MARGIN * 2;
     const woodTex = makeWoodTexture();
     const boardTop = new T.Mesh(
-      new T.BoxGeometry(boardW, BOARD_HEIGHT, boardW),
+      new T.BoxGeometry(boardW, BOARD_HEIGHT, boardW * BOARD_DEPTH),
       new T.MeshPhysicalMaterial({
         map: woodTex,
         color: 0xffffff,
@@ -485,7 +487,7 @@ export const ThreeJSGoBoard: React.FC<ThreeJSGoBoardProps> = ({
     scene.add(boardTop);
 
     // 侧面边框（深木色）
-    const frameMesh = new T.Mesh(new T.BoxGeometry(boardW + 0.5, 0.5, boardW + 0.5),
+    const frameMesh = new T.Mesh(new T.BoxGeometry(boardW + 0.5, 0.5, (boardW + 0.5) * BOARD_DEPTH),
       new T.MeshStandardMaterial({ color: new T.Color(BOARD_SIDE), roughness: 0.8 }));
     frameMesh.position.y = -BOARD_HEIGHT - 0.12;
     frameMesh.receiveShadow = true;
@@ -696,9 +698,9 @@ export const ThreeJSGoBoard: React.FC<ThreeJSGoBoardProps> = ({
     });
     // 接触阴影（棋子底部微暗圈，强化黑白与棋盘的分隔）
     const shadowMat = new T.MeshBasicMaterial({
-      color: 0x000000, transparent: true, opacity: 0.26, depthWrite: false,
+      color: 0x000000, transparent: true, opacity: 0.18, depthWrite: false,
     });
-    const shadowGeo = new T.CircleGeometry(PIECE_RADIUS * 0.92, 20);
+    const shadowGeo = new T.CircleGeometry(PIECE_RADIUS * 0.88, 20);
 
     for (let r = 0; r < n; r++) {
       for (let c = 0; c < n; c++) {

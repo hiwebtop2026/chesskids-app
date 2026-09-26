@@ -127,7 +127,7 @@ export const GoBoard: React.FC<GoBoardProps> = ({
           stones.push(
             <g
               key={`${r},${c}`}
-              transform={`translate(${c * 100 / (n - 1)}%, ${r * 100 / (n - 1)}%)`}
+              transform={`translate(${c * 100 / (n - 1)}, ${r * 100 / (n - 1)})`}
               className="go-stone-wrap"
             >
               {renderStone(r, c)}
@@ -141,7 +141,7 @@ export const GoBoard: React.FC<GoBoardProps> = ({
           );
         } else if (hintPoint && hintPoint[0] === r && hintPoint[1] === c) {
           stones.push(
-            <g key={`${r},${c}`} transform={`translate(${c * 100 / (n - 1)}%, ${r * 100 / (n - 1)}%)`}>
+            <g key={`${r},${c}`} transform={`translate(${c * 100 / (n - 1)}, ${r * 100 / (n - 1)})`}>
               <circle cx="0" cy="0" r={Math.max(1.6, 100 / (n - 1) * 0.22)} fill="none" stroke="#1e88e5" strokeWidth="1.8" opacity="0.9" className="go-hint" />
             </g>,
           );
