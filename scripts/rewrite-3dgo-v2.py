@@ -1,4 +1,10 @@
-/**
+# -*- coding: utf-8 -*-
+# 重写 ThreeJSGoBoard.tsx：
+# 1) 增强黑白棋子区分度（深黑哑光黑子 vs 纯白亮面白子 + 底部接触阴影）
+# 2) 完整视角控制（参考中国象棋 3D）：左键旋转/右键平移/滚轮缩放/单指旋转/双指缩放/三指平移/重置视角
+import io
+
+src = '''/**
  * ChessKids - Three.js 3D 围棋棋盘
  * 棋子：透镜状凸面圆片（中心厚边缘薄），深黑哑光黑子 / 纯白亮面白子 + 底部接触阴影，黑白对比分明
  * 视角控制（参考中国象棋 3D 方案）：左键拖拽旋转、右键拖拽平移、滚轮缩放、
@@ -31,56 +37,23 @@ const BOARD_MARGIN = 0.9;         // 棋盘四周留边（木框）
 const BOARD_HEIGHT = 0.26;        // 棋盘厚度
 const LINE_OPACITY = 0.9;
 
-// 棋子：厚实圆润（参考真实云子——中心厚、边缘圆润收薄，高宽比≈1:4 有立体厚度）
+// 棋子：透镜状凸面（参考真实云子/贝壳棋子比例）
 const PIECE_RADIUS = CELL * 0.43;
-const PIECE_CENTER_H = PIECE_RADIUS * 0.42;  // 中心最高（真实云子厚度）
-const PIECE_EDGE_H = PIECE_RADIUS * 0.15;    // 边缘厚度（圆润收薄）
+const PIECE_CENTER_H = PIECE_RADIUS * 0.5;   // 中心最高
+const PIECE_EDGE_H = PIECE_RADIUS * 0.09;    // 边缘厚度（微弧）
 
 // 颜色
-const BOARD_TOP = '#c29155';       // 棋盘面：暖木色（略深，衬托白子）
+const BOARD_TOP = '#d9a665';       // 棋盘面：暖木色
 const BOARD_SIDE = '#8a5a2e';      // 棋盘侧面：深木色
-const LINE_COLOR = '#33200e';      // 网格线（真实棋盘：深棕黑）
+const LINE_COLOR = '#3a2410';      // 网格线
 
-/** 生成程序化环境贴图（摄影棚柔光：顶部亮、四周暗，用于棋子镜面反射） */
-function makeEnvTexture(): any {
-  const size = 128;
-  const canvas = document.createElement('canvas');
-  canvas.width = size; canvas.height = size;
-  const ctx = canvas.getContext('2d')!;
-  const grad = ctx.createLinearGradient(0, 0, 0, size);
-  grad.addColorStop(0, '#c9c2b0');
-  grad.addColorStop(0.22, '#b4ac98');
-  grad.addColorStop(0.55, '#a89a80');
-  grad.addColorStop(1, '#3f392e');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, size, size);
-  // 柔光带（增加反射层次）
-  ctx.fillStyle = 'rgba(255,255,255,0.18)';
-  ctx.fillRect(0, 0, size, size * 0.3);
-  const images: any[] = [];
-  for (let i = 0; i < 6; i++) images.push(canvas);
-  const cube = new T.CubeTexture(images);
-  cube.needsUpdate = true;
-  return cube;
-}
-
-/** 生成木质纹理（Canvas：年轮弧线 + 木纹条纹 + 柔和噪点） */
+/** 生成木质纹理（Canvas：木纹条纹 + 柔和噪点） */
 function makeWoodTexture(): any {
   const canvas = document.createElement('canvas');
   canvas.width = 512; canvas.height = 512;
   const ctx = canvas.getContext('2d')!;
   ctx.fillStyle = BOARD_TOP;
   ctx.fillRect(0, 0, 512, 512);
-  // 年轮弧线（真实木纹层次）
-  const cx = 200 + (Math.random() * 2 - 1) * 60;
-  const cy = 260 + (Math.random() * 2 - 1) * 60;
-  for (let i = 0; i < 9; i++) {
-    ctx.strokeStyle = `rgba(138, 88, 38, ${0.045 + Math.random() * 0.05})`;
-    ctx.lineWidth = 1.5 + Math.random() * 2;
-    ctx.beginPath();
-    ctx.arc(cx, cy, 30 + i * 24 + Math.random() * 10, 0, Math.PI * 2);
-    ctx.stroke();
-  }
   for (let i = 0; i < 60; i++) {
     const y = Math.random() * 512;
     const h = 2 + Math.random() * 10;
@@ -104,17 +77,15 @@ function makeWoodTexture(): any {
 function makeStoneGeometry(): any {
   const pts: any[] = [];
   const r = PIECE_RADIUS;
-  const steps = 12;
+  const steps = 8;
   for (let i = 0; i <= steps; i++) {
     const t = i / steps;               // 0=中心, 1=边缘
     const x = r * t;
-    // 椭圆扁圆剖面：中央平缓（斜率0），边缘圆润收薄到底
-    const y = PIECE_EDGE_H + (PIECE_CENTER_H - PIECE_EDGE_H) * Math.sqrt(Math.max(0, 1 - t * t));
+    const y = PIECE_EDGE_H + (PIECE_CENTER_H - PIECE_EDGE_H) * Math.cos(t * Math.PI * 0.5);
     pts.push(new T.Vector2(x, y));
   }
-  // 底缘微倒角（更圆润）
-  pts.push(new T.Vector2(r * 0.995, PIECE_EDGE_H * 0.35));
-  const geo = new T.LatheGeometry(pts, 40);
+  pts.push(new T.Vector2(r, PIECE_EDGE_H * 0.2));
+  const geo = new T.LatheGeometry(pts, 32);
   return geo;
 }
 
@@ -224,8 +195,8 @@ export const ThreeJSGoBoard: React.FC<ThreeJSGoBoardProps> = ({
     if (height < 10) height = 480;
 
     const scene = new T.Scene();
-    scene.background = new T.Color(0x8d8468);
-    scene.fog = new T.Fog(0x8d8468, 26, 54);
+    scene.background = new T.Color(0x9a9078);
+    scene.fog = new T.Fog(0x9a9078, 26, 54);
 
     const camera = new T.PerspectiveCamera(40, width / height, 0.1, 120);
     const cameraTarget = new T.Vector3(0, 0.3, 0);
@@ -244,14 +215,9 @@ export const ThreeJSGoBoard: React.FC<ThreeJSGoBoardProps> = ({
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = T.PCFSoftShadowMap;
     renderer.toneMapping = T.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.0;
+    renderer.toneMappingExposure = 1.12;
     renderer.outputColorSpace = T.SRGBColorSpace;
     container.appendChild(renderer.domElement);
-
-    // 环境贴图（棋子镜面反射的柔光来源，提升立体感）
-    const envTex = makeEnvTexture();
-    scene.environment = envTex;
-    scene.environmentIntensity = 0.12;
 
     for (const old of activeRenderers) disposeRendererSafe(old);
     activeRenderers.clear();
@@ -439,29 +405,23 @@ export const ThreeJSGoBoard: React.FC<ThreeJSGoBoardProps> = ({
         panCamera(dx, dy);
       }
     };
-    const handleTouchEnd = (event: TouchEvent) => {
-      // 兜底：单指抬起时校验移动距离（防止无 touchmove 时误触发点击落子）
-      if (isDragging && event.changedTouches.length > 0) {
-        const dx = event.changedTouches[0].clientX - dragStartX;
-        const dy = event.changedTouches[0].clientY - dragStartY;
-        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dragMoved = true;
-      }
+    const handleTouchEnd = () => {
       isDragging = false;
       isTouchPanning = false;
     };
 
     // ---- 灯光（环境暗一点 + 主光更强：增强黑白明暗对比）----
-    scene.add(new T.AmbientLight(0xffffff, 0.2));
-    const hemi = new T.HemisphereLight(0xffffff, 0x806040, 0.22);
+    scene.add(new T.AmbientLight(0xffffff, 0.45));
+    const hemi = new T.HemisphereLight(0xffffff, 0x806040, 0.5);
     scene.add(hemi);
-    const sun = new T.DirectionalLight(0xfff2dd, 0.8);
+    const sun = new T.DirectionalLight(0xfff2dd, 1.6);
     sun.position.set(6, 14, 8);
     sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
     sun.shadow.camera.left = -14; sun.shadow.camera.right = 14;
     sun.shadow.camera.top = 14; sun.shadow.camera.bottom = -14;
     scene.add(sun);
-    const fill = new T.DirectionalLight(0xbcd0ff, 0.25);
+    const fill = new T.DirectionalLight(0xbcd0ff, 0.32);
     fill.position.set(-8, 6, -6);
     scene.add(fill);
 
@@ -650,7 +610,6 @@ export const ThreeJSGoBoard: React.FC<ThreeJSGoBoardProps> = ({
         else if (mat) mat.dispose();
       });
       woodTex.dispose();
-      if (scene.environment) scene.environment.dispose();
       lineGeo.dispose();
       sceneRef.current = null;
       cameraRef.current = null;
@@ -674,29 +633,24 @@ export const ThreeJSGoBoard: React.FC<ThreeJSGoBoardProps> = ({
     const n = size;
     const geo = getStoneGeometry();
 
-    // 黑子：乌黑、哑光为主（俯视纯黑不泛灰），斜视保留柔和光泽
+    // 黑/白子材质：深黑哑光（低高光不泛灰）vs 纯白亮面（光泽温润），黑白对比分明
     const blackMat = new T.MeshPhysicalMaterial({
-      color: 0x050505,
-      roughness: 0.55,
+      color: 0x0e0e0e,        // 近纯黑
+      roughness: 0.42,        // 哑光：抑制高光泛灰
       metalness: 0,
-      clearcoat: 0.08,
-      clearcoatRoughness: 0.6,
-      specularIntensity: 0.1,
-      specularColor: 0x8a8068,
+      clearcoat: 0.35,        // 弱高光，保留一点瓷感
+      clearcoatRoughness: 0.5,
     });
-    // 白子：乳白温润、瓷光（俯视依然白亮）
     const whiteMat = new T.MeshPhysicalMaterial({
-      color: 0xfaf6ec,
-      roughness: 0.14,
+      color: 0xfdfcf7,        // 近纯白
+      roughness: 0.1,         // 亮面
       metalness: 0,
-      clearcoat: 0.3,
-      clearcoatRoughness: 0.2,
-      specularIntensity: 0.3,
-      specularColor: 0xf2ead8,
+      clearcoat: 0.55,        // 瓷白光感
+      clearcoatRoughness: 0.15,
     });
     // 接触阴影（棋子底部微暗圈，强化黑白与棋盘的分隔）
     const shadowMat = new T.MeshBasicMaterial({
-      color: 0x000000, transparent: true, opacity: 0.26, depthWrite: false,
+      color: 0x000000, transparent: true, opacity: 0.16, depthWrite: false,
     });
     const shadowGeo = new T.CircleGeometry(PIECE_RADIUS * 0.92, 20);
 
@@ -810,3 +764,7 @@ export const ThreeJSGoBoard: React.FC<ThreeJSGoBoardProps> = ({
 };
 
 export default ThreeJSGoBoard;
+'''
+
+io.open(r'src\components\ThreeJSGoBoard.tsx', 'w', encoding='utf-8', newline='').write(src)
+print('ThreeJSGoBoard rewritten: stone contrast + view controls')

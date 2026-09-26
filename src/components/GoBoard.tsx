@@ -69,23 +69,25 @@ export const GoBoard: React.FC<GoBoardProps> = ({
     if (!color) {
       // 领地标记（胜负判定后）
       if (territory && territory[r][c] && territory[r][c] !== board[r][c]) {
-        return <circle className="go-territory-mark" cx="50%" cy="50%" r="7" fill={territory[r][c] === 'b' ? '#1a1a1a' : '#e8e8e8'} opacity="0.35" />;
+        return <circle className="go-territory-mark" cx="0" cy="0" r={Math.max(2, 100 / (n - 1) * 0.3)} fill={territory[r][c] === 'b' ? '#1a1a1a' : '#e8e8e8'} opacity="0.35" />;
       }
       return null;
     }
     const isB = color === 'b';
+    const cellPct = 100 / (n - 1);      // 一格宽（viewBox 单位）
+    const stoneR = Math.max(3, cellPct * 0.46);   // 棋子半径 ≈ 0.46 格（直径≈0.92格）
     return (
       <g>
         <circle
-          cx="50%" cy="50%"
-          r={boardSize ? Math.max(8, boardSize / n * 0.44) : 11}
-          fill={isB ? '#1a1a1a' : '#f7f7f7'}
-          stroke={isB ? '#000' : '#999'}
-          strokeWidth={isB ? 0.5 : 1}
+          cx="0" cy="0"
+          r={stoneR}
+          fill={isB ? '#141414' : '#fdfdf9'}
+          stroke={isB ? '#000' : '#5a5548'}
+          strokeWidth={isB ? 0.4 : 0.8}
           className="go-stone"
         />
         {isB && (
-          <circle cx="50%" cy="50%" r={boardSize ? Math.max(3, boardSize / n * 0.14) : 4} fill="#444" />
+          <circle cx="0" cy="0" r={Math.max(1.2, stoneR * 0.32)} fill="#444" className="go-stone-inner" />
         )}
       </g>
     );
@@ -108,7 +110,7 @@ export const GoBoard: React.FC<GoBoardProps> = ({
     for (let r = 0; r < n; r++) {
       for (let c = 0; c < n; c++) {
         if (isGoStarPoint(r, c, size)) {
-          pts.push(<circle key={`${r},${c}`} cx={`${c * 100 / (n - 1)}%`} cy={`${r * 100 / (n - 1)}%`} r="3.2" fill="#444" className="go-star" />);
+          pts.push(<circle key={`${r},${c}`} cx={`${c * 100 / (n - 1)}%`} cy={`${r * 100 / (n - 1)}%`} r={Math.max(1.4, 100 / (n - 1) * 0.16)} fill="#3a2a14" className="go-star" />);
         }
       }
     }
@@ -130,17 +132,17 @@ export const GoBoard: React.FC<GoBoardProps> = ({
             >
               {renderStone(r, c)}
               {isLast && color && (
-                <circle cx="50%" cy="50%" r="3" fill={color === 'b' ? '#ff5a4e' : '#e23c2c'} className="go-last-mark" />
+                <circle cx="0" cy="0" r={Math.max(1.1, 100 / (n - 1) * 0.13)} fill={color === 'b' ? '#ff5a4e' : '#e23c2c'} className="go-last-mark" />
               )}
               {hintPoint && hintPoint[0] === r && hintPoint[1] === c && !color && (
-                <circle cx="50%" cy="50%" r="6" fill="none" stroke="#1e88e5" strokeWidth="2" opacity="0.9" className="go-hint" />
+                <circle cx="0" cy="0" r={Math.max(1.6, 100 / (n - 1) * 0.22)} fill="none" stroke="#1e88e5" strokeWidth="1.8" opacity="0.9" className="go-hint" />
               )}
             </g>,
           );
         } else if (hintPoint && hintPoint[0] === r && hintPoint[1] === c) {
           stones.push(
             <g key={`${r},${c}`} transform={`translate(${c * 100 / (n - 1)}%, ${r * 100 / (n - 1)}%)`}>
-              <circle cx="50%" cy="50%" r="6" fill="none" stroke="#1e88e5" strokeWidth="2" opacity="0.9" className="go-hint" />
+              <circle cx="0" cy="0" r={Math.max(1.6, 100 / (n - 1) * 0.22)} fill="none" stroke="#1e88e5" strokeWidth="1.8" opacity="0.9" className="go-hint" />
             </g>,
           );
         }
