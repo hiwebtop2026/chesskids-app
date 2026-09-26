@@ -494,11 +494,46 @@ function isEndgame(b: FlatBoard): boolean {
   return main <= 6; // 约等于"车+马"级别以下的残局
 }
 
+// 残局"理论可守和"判定：双方均无过河兵时，攻方子力不足以取胜的定式局面
+// 覆盖：车 vs 车、车+马 vs 车、车 vs 单马/单炮（守方有车/轻子）、马炮/双马/双炮 vs 士象全
+// 用途：此类局面评估向 0 收敛——防守方不再误判大劣而"弃车送死"（修复"车+马 vs 车"守和认知缺失）
+function isDrawish(b: FlatBoard): boolean {
+  let redMain = 0, blkMain = 0; // 车马炮价值
+  let redPawnCross = false, blkPawnCross = false; // 过河兵
+  let redShield = 0, blkShield = 0; // 士+象数量
+  for (let i = 0; i < b.length; i++) {
+    const p = b[i];
+    if (!p) continue;
+    const t = p.toLowerCase();
+    const y = (i / COLS) | 0;
+    if (t === 'r' || t === 'n' || t === 'c') {
+      const v = PIECE_VALUE[p] || 0;
+      if (isRed(p)) redMain += v; else blkMain += v;
+    } else if (t === 'a' || t === 'b') {
+      if (isRed(p)) redShield++; else blkShield++;
+    } else if (t === 'p') {
+      if ((isRed(p) && y <= 4) || (!isRed(p) && y >= 5)) { if (isRed(p)) redPawnCross = true; else blkPawnCross = true; }
+    }
+  }
+  if (redPawnCross || blkPawnCross) return false; // 有过河兵可求胜
+  const attacker = Math.max(redMain, blkMain);
+  const defender = Math.min(redMain, blkMain);
+  // 守方有车：攻方 ≤ 车+马（1250）基本和（车 vs 车 / 车+马 vs 车 / 车 vs 轻子组合）
+  if (defender >= 900 && attacker <= 1250) return true;
+  // 攻方单车（≤900）对守方轻子（无车）：和倾向（车不胜单马/单炮；车对马炮也难速胜，守方收敛防弃车）
+  if (attacker <= 900 && defender > 0) return true;
+  // 守方无车有士象全：攻方 ≤ 马炮（800）难胜（马炮/双马/双炮 vs 士象全）
+  const defenderShield = redMain > blkMain ? blkShield : redShield;
+  if (attacker <= 800 && defenderShield >= 4) return true;
+  return false;
+}
+
 function evaluate(b: FlatBoard, c: 'r' | 'b', withMobility = true): number {
   let material = 0;
   let positional = 0;
   let mobility = 0;
   let safety = 0;
+  let coordination = 0;
 
   const endgame = isEndgame(b);
   // 区域学习偏置（自我对弈学习的"过河价值"）：learnedBias 键格式 'z_<type>_cross'/'z_<type>_home'
@@ -602,11 +637,10 @@ function evaluate(b: FlatBoard, c: 'r' | 'b', withMobility = true): number {
       if (!hasGuard) threatCount++;
     }
     safety -= threatCount * 40;
-  }
+
 
   // 威胁检测：攻击敌方将帅周围格子（AKA - Attacking King's Adjacency）
   // 仅完整评估（withMobility）时启用：静态搜索高频路径跳过，保搜索深度
-  let coordination = 0;
   if (withMobility) {
     const enemyKing = findGeneral(b, opp(c));
     let kingThreat = 0;
@@ -666,7 +700,70 @@ function evaluate(b: FlatBoard, c: 'r' | 'b', withMobility = true): number {
     }
   }
 
-  return material + positional + mobility + safety + coordination;
+  // 兵型结构：过河兵兵链（斜前方己方兵互保）+ 底兵贬值
+    for (let i = 0; i < b.length; i++) {
+      const p = b[i];
+      if (!p || p.toLowerCase() !== 'p' || isRed(p) !== (c === 'r')) continue;
+      const x = i % COLS, y = (i / COLS) | 0;
+      if (crossed(y, c)) {
+        const fy = c === 'r' ? y - 1 : y + 1;
+        let chained = false;
+        for (const dx of [-1, 1]) {
+          if (inBoard(x + dx, fy) && b[fy * COLS + x + dx] && b[fy * COLS + x + dx].toLowerCase() === 'p' &&
+              isRed(b[fy * COLS + x + dx]) === (c === 'r')) { chained = true; break; }
+        }
+        if (chained) coordination += 6;
+        if (y === 0 || y === 9) positional -= 25; // 底兵贬值
+      }
+    }
+
+    // 车开线价值：车所在纵线无己方其他子（开放线/半开放线——车活动与进攻要点）
+    for (let i = 0; i < b.length; i++) {
+      const p = b[i];
+      if (!p || p.toLowerCase() !== 'r' || isRed(p) !== (c === 'r')) continue;
+      const x = i % COLS, y = (i / COLS) | 0;
+      let ownOnFile = false, enemyPawnOnFile = false;
+      for (let yy = 0; yy < ROWS; yy++) {
+        if (yy === y) continue;
+        const q = b[yy * COLS + x];
+        if (!q) continue;
+        if (isRed(q) === (c === 'r')) ownOnFile = true;
+        else if (q.toLowerCase() === 'p') enemyPawnOnFile = true;
+      }
+      if (!ownOnFile) coordination += enemyPawnOnFile ? 6 : 12; // 半开线 / 全开线
+    }
+
+    // 将帅安全：将帅周围被对方攻击的格数（暴露度惩罚）
+    const kg = findGeneral(b, c);
+    if (kg >= 0) {
+      const kx = kg % COLS, ky = (kg / COLS) | 0;
+      let kExposed = 0;
+      for (const [dx, dy] of DIR4) {
+        const nx = kx + dx, ny = ky + dy;
+        if (!inBoard(nx, ny)) continue;
+        if (isAttacked(b, nx, ny, opp(c))) kExposed++;
+      }
+      safety -= kExposed * 15;
+    }
+  }
+
+  const total = material + positional + mobility + safety + coordination;
+  // 残局理论可守和：仅守方（子力少的一方）评估温和收敛 ×0.5——不再误判大劣而弃车送死；
+  // 攻方不收敛——保留磨胜动力（实战残局可磨，避免消极求和）
+  if (isDrawish(b)) {
+    let my = 0, opp = 0;
+    for (let i = 0; i < b.length; i++) {
+      const p = b[i];
+      if (!p) continue;
+      const t = p.toLowerCase();
+      if (t === 'r' || t === 'n' || t === 'c') {
+        const v = PIECE_VALUE[p] || 0;
+        if (isRed(p) === (c === 'r')) my += v; else opp += v;
+      }
+    }
+    if (my < opp) return Math.round(total * 0.5);
+  }
+  return total;
 }
 
 // ===== MVV-LVA 着法排序 =====
@@ -875,7 +972,7 @@ function negamax(
   if (allowNull && depth >= 3 && !isInCheck(b, c) && hasNullPotential) {
     // 简单空着：跳过一步，让对手走（换边只异或一次 SIDE[0]）
     const nullHash = hash ^ ZOBRIST_SIDE[0];
-    const R = 2; // 空着裁剪深度减 2
+    const R = 2; // 空着裁剪深度减 2（深层 R=3 实测 hard 误剪降棋力，保持 2 安全）
     const score = -negamax(b, opp(c), depth - 1 - R, -beta, -beta + 1, ply + 1, false, nullHash);
     if (score >= beta) {
       return beta; // fail high
@@ -981,7 +1078,7 @@ function negamax(
     if (alpha >= beta) {
       // Beta cutoff → 更新历史表和杀手着法
       if (!m.cap) {
-        historyTable[historyIndex(m.from, m.to)] += depth * depth * (givesCheck ? 2 : 1);
+        historyTable[historyIndex(m.from, m.to)] += depth * depth * (givesCheck ? 3 : 2);
         storeKiller(ply, m.from, m.to);
       }
       break;
