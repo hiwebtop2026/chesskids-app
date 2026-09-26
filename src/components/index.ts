@@ -27,3 +27,5 @@ export { ErrorBoundary } from './ErrorBoundary';
 
 export { WeChatGuide } from './WeChatGuide';
 export type { WeChatGuideProps } from './WeChatGuide';
+
+export { GoBoard } from './GoBoard';

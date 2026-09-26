@@ -726,3 +726,20 @@
 - **A/B 对弈（NEW vs 570839b 基线）**：**medium 8 局 6:1:1（历史最佳）、hard 4 局 4:0（全胜）**
 - `npx tsc --noEmit`、`npx vite build` 通过
 - 注：本轮另含上轮未推送的对局记录导出（复制/下载/单盘棋谱）与重复局面检测
+
+## 2026-09-26（五）：新增围棋游戏模块（参考国际象棋/中国象棋既有模式）
+
+### 新增内容
+- **围棋规则引擎** src/engine/go.ts：9/13/19 路棋盘、落子/提子/打劫（ko）/自杀禁止/pass/中国数子法胜负（黑贴 3 3/4 子，184.5 判胜）+ 领地标记
+- **围棋 AI 引擎** src/engine/goAI.ts：启发式战术引擎（提子/逃子/吃子威胁/占位/连接 综合评分），4 档难度（入门/初级/进阶/高手），master 含反吃链检测；提示功能复用
+- **围棋棋盘** src/components/GoBoard.tsx：2D 网格/星位/坐标/棋子/last move 红标/提示圆环/领地标记，内置浮动窗口模式（全屏自适应脱离页面布局）
+- **人机对战** src/modules/GoGame.tsx：棋盘大小+执子+难度设置、pass/悔棋/提示/认输/重开、落子记录、胜负弹窗+XP 记录
+- **双人对战** src/modules/GoLocalGame.tsx：同屏轮流落子、pass/悔棋/数子判胜负
+- **联机对战** src/modules/GoOnlineGame.tsx + src/store/goMultiplayerStore.ts：PeerJS P2P 房间（TURN/STUN）、落子/pass/认输/重开同步、聊天（emoji）+语音消息（WAV base64）
+- **规则学习** src/modules/GoRulesLearning.tsx：章节式（落子与气/提子/打劫/胜负）+ 交互演示棋盘 + 术语卡片
+- **首页集成** src/App.tsx：首页新增围棋卡片（game-card-go）、GO_TABS 导航（规则/人机/双人/联机/进度）、路由与微信引导支持围棋（房间号前缀 G-）
+
+### 验证
+- 围棋规则引擎单测 11/11 通过（提子/自杀禁止/打劫/双pass/数子/回合交替/领地）
+- tsc --noEmit 通过、vite build 通过
+- 浏览器实测：首页围棋卡片 → 规则学习（交互棋盘）→ 人机对战（落子+AI应手+悔棋+浮动窗口）→ 双人（落子）→ 联机（房间界面）全部正常

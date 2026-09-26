@@ -16,3 +16,9 @@ export { XiangqiLocalGame } from './XiangqiLocalGame';
 export { XiangqiAIGame } from './XiangqiAIGame';
 export { XiangqiOnlineGame } from './XiangqiOnlineGame';
 export { XiangqiTacticsTraining } from './XiangqiTacticsTraining';
+
+// 围棋模块
+export { GoRulesLearning } from './GoRulesLearning';
+export { GoGame } from './GoGame';
+export { GoLocalGame } from './GoLocalGame';
+export { GoOnlineGame } from './GoOnlineGame';
