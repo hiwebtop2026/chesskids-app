@@ -51,6 +51,13 @@ import {
   type XiangqiGameResult,
 } from '../engine/xiangqiLearning';
 import { initEngineWeights, trainSelfPlayAsync } from '../utils/xiangqiAIAsync';
+import {
+  loadMatchHistory,
+  saveMatchRecord,
+  clearMatchHistory,
+  genMatchRecordId,
+  type XiangqiMatchRecord,
+} from '../engine/xiangqiMatchHistory';
 
 const PLAYER_NAMES: Record<XiangqiColor, string> = { r: '红方', b: '黑方' };
 const STATUS_TEXT: Record<XiangqiGameStatus, (turn: XiangqiColor) => string> = {
@@ -86,6 +93,8 @@ export const XiangqiAIGame: React.FC = () => {
   const [isFloating, setIsFloating] = useState(false);
   const board3dRef = useRef<any>(null);
   const board2dRef = useRef<XiangqiBoard2DHandle>(null);
+  /** 历史对局（近 10 盘完整走棋记录，供复盘与 AI 引擎参考） */
+  const [matchHistory, setMatchHistory] = useState<XiangqiMatchRecord[]>(() => loadMatchHistory());
 
   /** 切换浮动窗口（腾讯棋牌风格：独立可拖拽窗口，不再自动占用浏览器全屏） */
   const toggleFloat = () => {
@@ -197,7 +206,28 @@ export const XiangqiAIGame: React.FC = () => {
     // 1) 更新玩家 ELO / 段位（自适应难度据此自动升降）
     const p = recordGameResult(res, diffRef.current);
     setProfile(p);
-    // 2) 节流触发 AI 自我对弈学习：每完成 2 局让 AI 与自己下 3 局，把胜负经验存进评估权重（AI 越下越聪明）
+    // 2) 保存本局完整走棋记录（近 10 盘，供复盘与后续 AI 引擎参考/训练）
+    const playedMoves = movesRef.current;
+    if (playedMoves.length > 0) {
+      const rec: XiangqiMatchRecord = {
+        id: genMatchRecordId(),
+        timestamp: Date.now(),
+        difficulty: diffRef.current,
+        actualDifficulty: aiUsedDiffRef.current,
+        humanColor: humanRef.current,
+        result: res,
+        playerElo: p.playerElo,
+        totalPlies: playedMoves.length,
+        moves: playedMoves.map((m) => ({
+          from: [m.from[0], m.from[1]],
+          to: [m.to[0], m.to[1]],
+          piece: m.piece,
+          captured: m.captured,
+        })),
+      };
+      setMatchHistory(saveMatchRecord(rec));
+    }
+    // 3) 节流触发 AI 自我对弈学习：每完成 2 局让 AI 与自己下 3 局，把胜负经验存进评估权重（AI 越下越聪明）
     if (p.gamesPlayed % 2 === 0) {
       trainSelfPlayAsync(3, getLearnedPieceBias())
         .then((r) => {          const cur = getLearningProfile();
@@ -400,6 +430,81 @@ export const XiangqiAIGame: React.FC = () => {
     handleReset(next);
     setBoardFlipped(next === 'b');
   };
+
+  /** 历史对局时间格式化（仅显示日期与时刻） */
+  const formatMatchTime = (ts: number) => {
+    try {
+      const d = new Date(ts);
+      return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    } catch {
+      return '';
+    }
+  };
+
+  /** 历史对局记谱行渲染（红黑成对，与当前走棋记录一致） */
+  const renderMatchNotation = (r: XiangqiMatchRecord) => {
+    const rows: Array<{ n: number; red: string; black: string }> = [];
+    for (let i = 0; i < r.moves.length; i += 2) {
+      const red = r.moves[i];
+      const black = r.moves[i + 1];
+      rows.push({
+        n: i / 2 + 1,
+        red: red ? getXiangqiMoveNotation(red.piece, red.from, red.to, red.captured || '') : '',
+        black: black ? getXiangqiMoveNotation(black.piece, black.from, black.to, black.captured || '') : '',
+      });
+    }
+    return rows;
+  };
+
+  const handleClearHistory = () => {
+    if (!window.confirm('确定清空全部历史对局记录吗？')) return;
+    setMatchHistory(clearMatchHistory());
+  };
+
+  // 历史对局面板（近 10 盘完整走棋记录，可展开复盘）
+  const historyPanel = (
+    <div className="match-history-panel">
+      <div className="match-history-head">
+        <h3>历史对局</h3>
+        {matchHistory.length > 0 && (
+          <button className="match-clear-btn" onClick={handleClearHistory} title="清空历史记录">清空</button>
+        )}
+      </div>
+      {matchHistory.length === 0 && <p className="empty-text">暂无历史对局</p>}
+      <div className="match-history-list">
+        {matchHistory.map((r) => {
+          const notationRows = renderMatchNotation(r);
+          return (
+            <details key={r.id} className="match-history-item">
+              <summary className={`match-history-summary match-result-${r.result}`}>
+                <span className="match-result-tag">
+                  {r.result === 'win' ? '胜' : r.result === 'loss' ? '负' : '和'}
+                </span>
+                <span className="match-meta">
+                  {formatMatchTime(r.timestamp)} · {DIFF_LABELS[r.actualDifficulty]}
+                </span>
+                <span className="match-plies">{r.totalPlies} 步</span>
+              </summary>
+              <div className="match-detail">
+                <div className="match-detail-head">
+                  你执 {PLAYER_NAMES[r.humanColor]} · ELO {r.playerElo} · AI 难度 {DIFF_LABELS[r.actualDifficulty]}
+                </div>
+                <div className="match-move-grid">
+                  {notationRows.map((row) => (
+                    <div key={row.n} className="move-history-row">
+                      <span className="move-number">{row.n}.</span>
+                      <span className="move-red">{row.red}</span>
+                      <span className="move-black">{row.black}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </details>
+          );
+        })}
+      </div>
+    </div>
+  );
 
   // 对局统计（侧栏棋力卡片使用）
   const winRate = profile.gamesPlayed > 0 ? Math.round((profile.wins / profile.gamesPlayed) * 100) : 0;
@@ -699,6 +804,7 @@ export const XiangqiAIGame: React.FC = () => {
               ))}
             </div>
           </div>
+          {historyPanel}
         </div>
       </div>
       {resultModal}

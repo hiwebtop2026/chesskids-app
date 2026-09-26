@@ -4040,6 +4040,139 @@ ul {
   color: var(--text);
 }
 
+/* ===== 历史对局面板（近 10 盘完整走棋记录）===== */
+.match-history-panel {
+  background: var(--bg-card);
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.match-history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-sm);
+}
+
+.match-history-head h3 {
+  font-size: 0.95rem;
+  color: var(--text);
+  margin: 0;
+}
+
+.match-clear-btn {
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--border, rgba(128, 128, 128, 0.3));
+  background: transparent;
+  color: var(--text-muted, #888);
+  cursor: pointer;
+}
+
+.match-clear-btn:hover {
+  color: #e23c2c;
+  border-color: rgba(226, 60, 44, 0.5);
+}
+
+.match-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.match-history-item {
+  border: 1px solid rgba(128, 128, 128, 0.18);
+  border-radius: 8px;
+  background: rgba(128, 128, 128, 0.06);
+  overflow: hidden;
+}
+
+.match-history-item[open] {
+  border-color: rgba(128, 128, 128, 0.35);
+}
+
+.match-history-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 0.78rem;
+}
+
+.match-history-summary::-webkit-details-marker {
+  display: none;
+}
+
+.match-history-summary::before {
+  content: '▸';
+  color: var(--text-muted, #888);
+  transition: transform 0.15s;
+}
+
+.match-history-item[open] > .match-history-summary::before {
+  transform: rotate(90deg);
+}
+
+.match-result-tag {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 8px;
+  color: #fff;
+  min-width: 22px;
+  text-align: center;
+}
+
+.match-result-win .match-result-tag {
+  background: #43a047;
+}
+
+.match-result-loss .match-result-tag {
+  background: #e23c2c;
+}
+
+.match-result-draw .match-result-tag {
+  background: #8d8d8d;
+}
+
+.match-meta {
+  color: var(--text-muted, #888);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.match-plies {
+  color: var(--text-muted, #888);
+  white-space: nowrap;
+}
+
+.match-detail {
+  padding: 4px 8px 8px;
+  border-top: 1px dashed rgba(128, 128, 128, 0.2);
+}
+
+.match-detail-head {
+  font-size: 0.72rem;
+  color: var(--text-muted, #888);
+  margin: 4px 0 6px;
+}
+
+.match-move-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
 .move-history-list {
   max-height: 300px;
   overflow-y: auto;

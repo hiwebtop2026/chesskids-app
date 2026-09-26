@@ -419,6 +419,14 @@ const OPENING_BOOK: BookEntry[] = [
   { ply: 6, color: 'r', from: [7, 8], to: [1, 8], note: '中炮过河车' },
   // 8. 黑 象7进5（补象巩固中路）
   { ply: 7, color: 'b', from: [0, 6], to: [1, 5], note: '黑方补象' },
+  // 9. 红 兵七进一（活通七路马，保持中路压力）
+  { ply: 8, color: 'r', from: [6, 6], to: [5, 6], note: '红兵七进一' },
+  // 10. 黑 炮8平9（平炮兑车，邀兑过河车解压）
+  { ply: 9, color: 'b', from: [2, 7], to: [2, 8], note: '黑炮8平9兑车' },
+  // 11. 红 车二平三（压马，保持过河车牵制）
+  { ply: 10, color: 'r', from: [1, 8], to: [1, 7], note: '红车压马' },
+  // 12. 黑 炮2平1（左炮平边，活通右马）
+  { ply: 11, color: 'b', from: [2, 1], to: [2, 0], note: '黑炮2平1' },
 ];
 
 /** 黑方应中炮的另一主流变例（顺炮直车） */
@@ -458,7 +466,7 @@ export function getOpeningMove(
   color: XiangqiColor,
   board: XiangqiBoard,
 ): XiangqiSquare[] | null {
-  if (ply >= 8) return null; // 开局库只覆盖前 8 步
+  if (ply >= 12) return null; // 开局库覆盖前 12 步（8 步主变 + 4 步续走，孩子可学到更完整开局套路）
 
   // 红方首步：三种主流开局随机
   if (ply === 0 && color === 'r') {

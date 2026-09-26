@@ -568,7 +568,10 @@ function evaluate(b: FlatBoard, c: 'r' | 'b', withMobility = true): number {
     if (endgame) {
       if (t === 'n') baseVal += 30;       // 残局马升
       else if (t === 'c') baseVal -= 25;  // 残局炮降
-      else if (t === 'p') baseVal += 25;  // 残局兵升
+      else if (t === 'p') {
+        baseVal += 25;                    // 残局兵升
+        if (crossed(y, c)) baseVal += 20; // 残局过河兵是胜负手（价值再升）
+      }
     }
     const pstVal = getPST(p, y, x);
     material += mine ? baseVal : -baseVal;
@@ -1109,6 +1112,8 @@ export const DIFFICULTY_RANK: Record<XiangqiAIDifficulty, { label: string; elo: 
 
 const DIFFICULTY: Record<XiangqiAIDifficulty, { depth: number; timeMs: number; noise: number; variety: number }> = {
   easy:   { depth: 2, timeMs: 400,  noise: 0, variety: 70 },
+  // 深度上限（A/B 实测：medium d5 思考过头+超时致 1:3 和 4、hard d7/master d10 无提升——保持现档，
+  // 棋力提升靠评估增强与开局库）
   medium: { depth: 4, timeMs: 1200, noise: 0, variety: 30 },
   hard:   { depth: 6, timeMs: 4000, noise: 0,  variety: 14 },
   master: { depth: 9, timeMs: 8000, noise: 0, variety: 0  },
