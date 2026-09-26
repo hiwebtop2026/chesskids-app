@@ -100,16 +100,22 @@ function makeWoodTexture(): any {
   return tex;
 }
 
-/** 生成棋子剖面（Lathe）：标准扁椭圆——真实云子侧面为连续椭圆弧
- * y = CENTER_H*sqrt(1-(x/R)^2)：中心最高、边缘自然贴地(y=0)，无"帽檐"平底直边 */
+/** 生成棋子剖面（Lathe）：不对称完整椭圆——俯视圆、横切面椭圆
+ * 底部微凸弧面（非平面）、顶部圆凸，完全贴合真实云子形态；
+ * 底部最低点 y=0 贴棋盘，无"帽檐"直边、无平底 */
 function makeStoneGeometry(): any {
   const pts: any[] = [];
   const r = PIECE_RADIUS;
-  const steps = 14;
+  const a = PIECE_CENTER_H;            // 顶部半轴（上凸）
+  const b = PIECE_CENTER_H * 0.2;      // 底部半轴（微凸弧，非平面）
+  const yOff = b;                      // 抬升量：底部贴地 y=0
+  const steps = 28;
   for (let i = 0; i <= steps; i++) {
-    const t = i / steps;               // 0=中心, 1=边缘
-    const x = r * t;
-    const y = PIECE_CENTER_H * Math.sqrt(Math.max(0, 1 - t * t)); // 扁椭圆剖面
+    const t = i / steps;               // 0=底部(正下), 0.5=边缘(水平), 1=顶部
+    const th = -Math.PI / 2 + t * Math.PI;   // -90° → +90°
+    const x = r * Math.cos(th);              // 0 → r → 0
+    const half = th < 0 ? b : a;             // 下半用底半轴、上半用顶半轴
+    const y = yOff + half * Math.sin(th);    // 底 y=0，顶 y=b+a
     pts.push(new T.Vector2(x, y));
   }
   const geo = new T.LatheGeometry(pts, 40);
@@ -188,7 +194,7 @@ export const ThreeJSGoBoard: React.FC<ThreeJSGoBoardProps> = ({
     const gridW = (n - 1) * CELL;
     const halfW = gridW / 2 + BOARD_MARGIN + PIECE_RADIUS * 0.5;
     const halfD = halfW * BOARD_DEPTH;
-    const yTop = BOARD_HEIGHT + PIECE_CENTER_H;
+    const yTop = BOARD_HEIGHT + PIECE_CENTER_H * 1.2;
     const target = new T.Vector3(0, 0.3, 0);
     const viewDir = new T.Vector3(0, 1, flippedRef.current ? -0.62 : 0.62).normalize();
     let dist = 16;
@@ -738,7 +744,7 @@ export const ThreeJSGoBoard: React.FC<ThreeJSGoBoardProps> = ({
       const lmMat = new T.MeshBasicMaterial({ color: 0xe53935 });
       const lm = new T.Mesh(new T.CircleGeometry(0.13, 16), lmMat);
       lm.rotation.x = -Math.PI / 2;
-      lm.position.set(wx, PIECE_CENTER_H + 0.05, wz);
+      lm.position.set(wx, PIECE_CENTER_H * 1.2 + 0.05, wz);
       marks.add(lm);
     }
 
