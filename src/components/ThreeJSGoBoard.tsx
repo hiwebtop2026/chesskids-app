@@ -33,8 +33,8 @@ const LINE_OPACITY = 0.9;
 
 // 棋子：厚实圆润（参考真实云子——中心厚、边缘圆润收薄，高宽比≈1:4 有立体厚度）
 const PIECE_RADIUS = CELL * 0.43;
-const PIECE_CENTER_H = PIECE_RADIUS * 0.42;  // 中心最高（真实云子厚度）
-const PIECE_EDGE_H = PIECE_RADIUS * 0.15;    // 边缘厚度（圆润收薄）
+const PIECE_CENTER_H = PIECE_RADIUS * 0.6;   // 中心最高（真实云子中心厚度，高径比≈0.3）
+const PIECE_EDGE_H = PIECE_RADIUS * 0.25;    // 边缘厚度（圆润收薄）
 
 // 颜色
 const BOARD_TOP = '#c29155';       // 棋盘面：暖木色（略深，衬托白子）
@@ -676,23 +676,23 @@ export const ThreeJSGoBoard: React.FC<ThreeJSGoBoardProps> = ({
 
     // 黑子：乌黑、哑光为主（俯视纯黑不泛灰），斜视保留柔和光泽
     const blackMat = new T.MeshPhysicalMaterial({
-      color: 0x050505,
-      roughness: 0.55,
+      color: 0x030303,
+      roughness: 0.62,
       metalness: 0,
-      clearcoat: 0.08,
-      clearcoatRoughness: 0.6,
-      specularIntensity: 0.1,
-      specularColor: 0x8a8068,
+      clearcoat: 0.0,
+      clearcoatRoughness: 0.8,
+      specularIntensity: 0.0,
+      specularColor: 0x000000,
     });
     // 白子：乳白温润、瓷光（俯视依然白亮）
     const whiteMat = new T.MeshPhysicalMaterial({
-      color: 0xfaf6ec,
-      roughness: 0.14,
+      color: 0xffffff,
+      roughness: 0.1,
       metalness: 0,
-      clearcoat: 0.3,
-      clearcoatRoughness: 0.2,
+      clearcoat: 0.35,
+      clearcoatRoughness: 0.15,
       specularIntensity: 0.3,
-      specularColor: 0xf2ead8,
+      specularColor: 0xffffff,
     });
     // 接触阴影（棋子底部微暗圈，强化黑白与棋盘的分隔）
     const shadowMat = new T.MeshBasicMaterial({
