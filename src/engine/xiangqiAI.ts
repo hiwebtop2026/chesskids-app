@@ -290,6 +290,26 @@ function seeExchange(b: FlatBoard, toIdx: number, attackerColor: 'r' | 'b'): num
     }
   }
 
+  // 象攻击者（走田，田心无子）
+  for (const [dx, dy] of [[2, 2], [2, -2], [-2, 2], [-2, -2]]) {
+    const px = tx + dx, py = ty + dy;
+    if (!inBoard(px, py)) continue;
+    const q = b[py * COLS + px];
+    if (q && q.toLowerCase() === 'b' && !b[(ty + dy / 2) * COLS + (tx + dx / 2)]) {
+      attackers.push({ idx: py * COLS + px, val: PIECE_VALUE[q] || 0, color: isRed(q) ? 'r' : 'b' });
+    }
+  }
+  // 士攻击者（九宫斜线）
+  if (inPalace(tx, ty, 'r') || inPalace(tx, ty, 'b')) {
+    for (const [dx, dy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+      const px = tx + dx, py = ty + dy;
+      if (!inBoard(px, py)) continue;
+      const q = b[py * COLS + px];
+      if (q && q.toLowerCase() === 'a') {
+        attackers.push({ idx: py * COLS + px, val: PIECE_VALUE[q] || 0, color: isRed(q) ? 'r' : 'b' });
+      }
+    }
+  }
   // 兵攻击
   // 红兵向上走（y-1），所以能攻击 ty 的红兵在 ty+1
   if (inBoard(tx, ty + 1) && b[(ty + 1) * COLS + tx] === 'P') {
@@ -459,6 +479,22 @@ function isAttacked(b: FlatBoard, x: number, y: number, color: 'r' | 'b'): boole
   if (inBoard(x, y - 1) && blkPawn(x, y - 1)) return true;
   // 黑兵过河（row>=5）后在同排左右横吃将帅
   if (y >= 5) { if (inBoard(x - 1, y) && blkPawn(x - 1, y)) return true; if (inBoard(x + 1, y) && blkPawn(x + 1, y)) return true; }
+  // 象攻击（走田）：被攻击点 (x,y) 的田角有对方象且田心无子（修复：漏检象/士攻击导致"被象士回吃"无感知 → 送吃）
+  for (const [dx, dy] of [[2, 2], [2, -2], [-2, 2], [-2, -2]]) {
+    const px = x + dx, py = y + dy;
+    if (!inBoard(px, py)) continue;
+    const q = b[py * COLS + px];
+    if (q && isRed(q) === (color === 'r') && q.toLowerCase() === 'b' && !b[(y + dy / 2) * COLS + (x + dx / 2)]) return true;
+  }
+  // 士攻击（九宫斜线）：被攻击点在九宫内，斜邻位有对方士即可吃
+  if (inPalace(x, y, color === 'r' ? 'b' : 'r')) {
+    for (const [dx, dy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+      const px = x + dx, py = y + dy;
+      if (!inBoard(px, py)) continue;
+      const q = b[py * COLS + px];
+      if (q && isRed(q) === (color === 'r') && q.toLowerCase() === 'a') return true;
+    }
+  }
   return false;
 }
 
@@ -637,9 +673,13 @@ function evaluate(b: FlatBoard, c: 'r' | 'b', withMobility = true): number {
         const q = b[ny * COLS + nx];
         if (q && isRed(q) === (c === 'r')) { hasGuard = true; break; }
       }
-      if (!hasGuard) threatCount++;
+      if (!hasGuard) {
+        const t = p.toLowerCase();
+        // 悬挂子强罚（无保护+被攻击=极易被吃→送吃根源）：兵罚满值100、马炮70%、车80%——防"吃子后被简单回吃"的净0送吃
+        threatCount += t === 'r' ? 540 : (t === 'n' || t === 'c') ? 270 : 120;
+      }
     }
-    safety -= threatCount * 40;
+    safety -= threatCount;
 
 
   // 威胁检测：攻击敌方将帅周围格子（AKA - Attacking King's Adjacency）
@@ -1150,7 +1190,8 @@ export function xiangqiBestMove(
 ): XiangqiSquare[] | null {
   if (weights) learnedBias = weights;
   // 开局阶段优先走开局库着法（规范开局，孩子可学到标准套路）；着法不合法自动回退搜索
-  if (ply != null && ply < 8) {
+  // （开局库已扩展至 12 步：ply 0-11 走规范开局，master 不再早期乱战/无谓平兑）
+  if (ply != null && ply < 12) {
     const book = getOpeningMove(ply, color, board);
     if (book && isXiangqiMoveLegal(board, book[0], book[1], color)) {
       return book;
@@ -1235,6 +1276,12 @@ export function xiangqiBestMove(
         undoMove(b, m.from, m.to, cap);
         break;
       }
+      // 送吃保护（根节点）：小利吃子（被吃子≤士/象/兵级）吃完后目标格可被对方一步回吃 → 降分。
+      // 治"吃卒/吃象送子"式净亏送吃（浅层分数不可靠，仅深层级 d>=4 生效；大子吃子不受影响）
+      if (cap && (PIECE_VALUE[cap] || 0) <= 120 && d >= 4) {
+        const tx = m.to % COLS, ty = (m.to / COLS) | 0;
+        if (isAttacked(b, tx, ty, opp(c))) score -= 130;
+      }
       undoMove(b, m.from, m.to, cap);
 
       // 同分时优先吃子/兑子走法，但仅当 SEE 为正（白赚/净赚）——避免"分数扁平时吃子送死"
@@ -1243,7 +1290,7 @@ export function xiangqiBestMove(
       // 同分吃子优先：仅 master（variety=0，深搜分数准确）附加 SEE>=0 防送吃；
       // medium/hard 浅层分数扁平、靠吃子累积优势，若加 SEE 条件会抑制大量正常吃子导致棋力崩（实测 0:7）
       const masterStrict = cfg.variety === 0;
-      if (score > curScore || (score === curScore && m.cap && !curHadCap && (!masterStrict || seeExchange(b, m.to, c) >= 0))) {
+      if (score > curScore || (score === curScore && m.cap && !curHadCap && (!masterStrict || seeExchange(b, m.to, c) >= 60))) {
         curScore = score;
         curBest = { from: m.from, to: m.to };
       }
