@@ -35,7 +35,6 @@ const LINE_OPACITY = 0.9;
 // 棋子：厚实圆润（参考真实云子——中心厚、边缘圆润收薄，高宽比≈1:4 有立体厚度）
 const PIECE_RADIUS = CELL * 0.43;
 const PIECE_CENTER_H = PIECE_RADIUS * 0.6;   // 中心最高（真实云子中心厚度，高径比≈0.3）
-const PIECE_EDGE_H = PIECE_RADIUS * 0.25;    // 边缘厚度（圆润收薄）
 
 // 颜色
 const BOARD_TOP = '#c29155';       // 棋盘面：暖木色（略深，衬托白子）
@@ -101,21 +100,18 @@ function makeWoodTexture(): any {
   return tex;
 }
 
-/** 生成棋子剖面（Lathe）：平底贴棋盘 + 侧面直边厚度 + 顶部凸弧
- * 参考中国象棋棋子结构（底平、侧直、顶凸），消除"棋子悬浮"观感 */
+/** 生成棋子剖面（Lathe）：标准扁椭圆——真实云子侧面为连续椭圆弧
+ * y = CENTER_H*sqrt(1-(x/R)^2)：中心最高、边缘自然贴地(y=0)，无"帽檐"平底直边 */
 function makeStoneGeometry(): any {
   const pts: any[] = [];
   const r = PIECE_RADIUS;
-  // 剖面点（自底心 → 底部 → 侧边 → 顶部弧面 → 顶心），底部 y=0 完全贴合棋盘面
-  pts.push(new T.Vector2(0, 0));                       // 底心（贴棋盘）
-  pts.push(new T.Vector2(r * 0.92, 0));                // 平底
-  pts.push(new T.Vector2(r * 0.995, PIECE_EDGE_H * 0.35)); // 底缘倒角
-  pts.push(new T.Vector2(r, PIECE_EDGE_H));            // 侧面直边（可见厚度）
-  pts.push(new T.Vector2(r * 0.88, PIECE_CENTER_H * 0.42)); // 上弧起
-  pts.push(new T.Vector2(r * 0.72, PIECE_CENTER_H * 0.78));
-  pts.push(new T.Vector2(r * 0.52, PIECE_CENTER_H * 0.96));
-  pts.push(new T.Vector2(r * 0.28, PIECE_CENTER_H));
-  pts.push(new T.Vector2(0, PIECE_CENTER_H * 0.97));   // 顶心
+  const steps = 14;
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;               // 0=中心, 1=边缘
+    const x = r * t;
+    const y = PIECE_CENTER_H * Math.sqrt(Math.max(0, 1 - t * t)); // 扁椭圆剖面
+    pts.push(new T.Vector2(x, y));
+  }
   const geo = new T.LatheGeometry(pts, 40);
   return geo;
 }
