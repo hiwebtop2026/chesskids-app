@@ -56,6 +56,8 @@ import {
   saveMatchRecord,
   clearMatchHistory,
   genMatchRecordId,
+  exportMatchToText,
+  exportMatchHistoryJson,
   type XiangqiMatchRecord,
 } from '../engine/xiangqiMatchHistory';
 
@@ -461,14 +463,82 @@ export const XiangqiAIGame: React.FC = () => {
     setMatchHistory(clearMatchHistory());
   };
 
+  /** 复制文本到剪贴板（含降级方案） */
+  const copyToClipboard = async (text: string): Promise<boolean> => {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+  };
+
+  /** 导出全部历史记录为 JSON（机器可读，供 AI 引擎参考/训练） */
+  const handleExportAll = async () => {
+    const json = exportMatchHistoryJson();
+    if (matchHistory.length === 0) {
+      window.alert('暂无历史对局可导出');
+      return;
+    }
+    const ok = await copyToClipboard(json);
+    window.alert(ok
+      ? `已复制全部 ${matchHistory.length} 盘对局记录（JSON）到剪贴板，可粘贴保存或分享`
+      : '复制失败，请手动选择复制');
+  };
+
+  /** 复制单盘棋谱文本（人类可读） */
+  const handleExportOne = async (r: XiangqiMatchRecord) => {
+    const ok = await copyToClipboard(exportMatchToText(r));
+    window.alert(ok ? '已复制本盘棋谱到剪贴板' : '复制失败，请手动选择复制');
+  };
+
+  /** 下载全部历史记录为 .json 文件（保存到本地，便于备份/分享/交给 AI 分析） */
+  const handleDownloadAll = () => {
+    if (matchHistory.length === 0) {
+      window.alert('暂无历史对局可导出');
+      return;
+    }
+    const json = exportMatchHistoryJson();
+    const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const stamp = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `xiangqi-match-history-${stamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   // 历史对局面板（近 10 盘完整走棋记录，可展开复盘）
   const historyPanel = (
     <div className="match-history-panel">
       <div className="match-history-head">
         <h3>历史对局</h3>
-        {matchHistory.length > 0 && (
-          <button className="match-clear-btn" onClick={handleClearHistory} title="清空历史记录">清空</button>
-        )}
+        <div className="match-history-head-actions">
+          {matchHistory.length > 0 && (
+            <button className="match-clear-btn" onClick={handleExportAll} title="复制全部记录（JSON）到剪贴板">复制</button>
+          )}
+          {matchHistory.length > 0 && (
+            <button className="match-clear-btn" onClick={handleDownloadAll} title="下载全部记录（JSON）文件">下载</button>
+          )}
+          {matchHistory.length > 0 && (
+            <button className="match-clear-btn" onClick={handleClearHistory} title="清空历史记录">清空</button>
+          )}
+        </div>
       </div>
       {matchHistory.length === 0 && <p className="empty-text">暂无历史对局</p>}
       <div className="match-history-list">
@@ -498,6 +568,7 @@ export const XiangqiAIGame: React.FC = () => {
                     </div>
                   ))}
                 </div>
+                <button className="match-export-btn" onClick={() => handleExportOne(r)} title="复制本盘棋谱文本">📋 复制棋谱</button>
               </div>
             </details>
           );

@@ -11,6 +11,7 @@
  */
 import type { XiangqiColor, XiangqiSquare, XiangqiPiece } from '../types/xiangqi';
 import type { XiangqiAIDifficulty } from './xiangqiAI';
+import { getXiangqiMoveNotation } from './xiangqi';
 
 // ================================================================
 // 类型
@@ -106,6 +107,43 @@ export function saveMatchRecord(record: XiangqiMatchRecord): XiangqiMatchRecord[
 export function clearMatchHistory(): XiangqiMatchRecord[] {
   writeStorage('[]');
   return [];
+}
+
+// ================================================================
+// 导出（棋谱文本 / JSON——供复盘分享与 AI 引擎参考/训练）
+// ================================================================
+
+const RESULT_TEXT: Record<XiangqiMatchRecord['result'], string> = {
+  win: '玩家胜',
+  loss: '玩家负',
+  draw: '和棋',
+};
+
+/** 生成单盘棋谱文本（含对局信息 + 完整记谱，人类可读） */
+export function exportMatchToText(r: XiangqiMatchRecord): string {
+  const head = [
+    `对局时间：${new Date(r.timestamp).toLocaleString()}`,
+    `AI 难度：${r.actualDifficulty}${r.difficulty === 'auto' ? '（自适应）' : ''}`,
+    `玩家执子：${r.humanColor === 'r' ? '红方' : '黑方'}`,
+    `结果：${RESULT_TEXT[r.result]}`,
+    `玩家 ELO：${r.playerElo}`,
+    `总步数：${r.totalPlies}`,
+    '',
+  ].join('\n');
+  const rows: string[] = [];
+  for (let i = 0; i < r.moves.length; i += 2) {
+    const red = r.moves[i];
+    const black = r.moves[i + 1];
+    const redTxt = red ? getXiangqiMoveNotation(red.piece, red.from, red.to, red.captured || '') : '';
+    const blackTxt = black ? getXiangqiMoveNotation(black.piece, black.from, black.to, black.captured || '') : '';
+    rows.push(`${i / 2 + 1}. ${redTxt}${blackTxt ? '  ' + blackTxt : ''}`);
+  }
+  return `${head}棋谱：\n${rows.join('\n')}`;
+}
+
+/** 导出全部历史记录为 JSON 字符串（机器可读，完整走棋序列——供 AI 引擎参考/训练） */
+export function exportMatchHistoryJson(): string {
+  return JSON.stringify(loadMatchHistory(), null, 2);
 }
 
 /** 生成唯一 id */

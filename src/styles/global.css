@@ -4076,6 +4076,27 @@ ul {
   border-color: rgba(226, 60, 44, 0.5);
 }
 
+.match-history-head-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.match-export-btn {
+  margin-top: 6px;
+  font-size: 0.72rem;
+  padding: 3px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(128, 128, 128, 0.3);
+  background: transparent;
+  color: var(--text-muted, #888);
+  cursor: pointer;
+}
+
+.match-export-btn:hover {
+  color: #1e88e5;
+  border-color: rgba(30, 136, 229, 0.5);
+}
+
 .match-history-list {
   display: flex;
   flex-direction: column;

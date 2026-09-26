@@ -927,7 +927,7 @@ function checkTimeout() {
   }
 }
 
-// Negamax + Alpha-Beta + TT + 空着裁剪
+// Negamax + Alpha-Beta + TT + 空着裁剪 + 重复局面检测（长将/循环规避）
 function negamax(
   b: FlatBoard,
   c: 'r' | 'b',
@@ -937,8 +937,18 @@ function negamax(
   ply: number,
   allowNull: boolean,
   hash: number,
+  rep: number[] = [],
 ): number {
   checkTimeout();
+
+  // 重复局面检测（棋规：长将判负、循环判和——AI 必须规避重复走子）
+  // 放在 TT 探测之前：重复罚分是"路径相关"的，TT 缓存的是纯局面价值
+  if (rep.length >= 4) {
+    let repCount = 0;
+    for (let i = 0; i < rep.length; i++) if (rep[i] === hash) repCount++;
+    if (repCount >= 2) return -600; // 即将第 3 次重复 → 按长将/重复判罚重分
+    if (repCount === 1) return -70; // 即将第 2 次重复 → 罚分回避循环
+  }
 
   // 置换表探测
   const ttEntry = ttProbe(hash);
@@ -976,8 +986,14 @@ function negamax(
     // 简单空着：跳过一步，让对手走（换边只异或一次 SIDE[0]）
     const nullHash = hash ^ ZOBRIST_SIDE[0];
     const R = 2; // 空着裁剪深度减 2（深层 R=3 实测 hard 误剪降棋力，保持 2 安全）
-    const score = -negamax(b, opp(c), depth - 1 - R, -beta, -beta + 1, ply + 1, false, nullHash);
-    if (score >= beta) {
+    rep.push(hash);
+    let nullScore: number;
+    try {
+      nullScore = -negamax(b, opp(c), depth - 1 - R, -beta, -beta + 1, ply + 1, false, nullHash, rep);
+    } finally {
+      rep.pop();
+    }
+    if (nullScore >= beta) {
       return beta; // fail high
     }
   }
@@ -1048,28 +1064,31 @@ function negamax(
     }
 
     let score: number;
+    rep.push(hash);
     try {
       if (idx === 0) {
         // PVS 首着：全窗口
-        score = -negamax(b, opp(c), searchDepth, -beta, -alpha, ply + 1, true, newHash);
+        score = -negamax(b, opp(c), searchDepth, -beta, -alpha, ply + 1, true, newHash, rep);
       } else {
         // PVS 其余：零窗口（null-window scout）
-        score = -negamax(b, opp(c), searchDepth, -alpha - 1, -alpha, ply + 1, true, newHash);
+        score = -negamax(b, opp(c), searchDepth, -alpha - 1, -alpha, ply + 1, true, newHash, rep);
         if (score > alpha) {
           if (reduced) {
             // LMR 缩减后超 alpha → 必须全深度重搜
-            score = -negamax(b, opp(c), depth - 1 + extension, -beta, -alpha, ply + 1, true, newHash);
+            score = -negamax(b, opp(c), depth - 1 + extension, -beta, -alpha, ply + 1, true, newHash, rep);
           } else if (score < beta) {
             // 零窗口试探失败（alpha < score < beta）→ 全窗口重搜
-            score = -negamax(b, opp(c), searchDepth, -beta, -alpha, ply + 1, true, newHash);
+            score = -negamax(b, opp(c), searchDepth, -beta, -alpha, ply + 1, true, newHash, rep);
           }
           // score >= beta（非缩减）：零窗口已 fail high，直接用该分数触发截断
         }
       }
     } catch (e) {
+      rep.pop();
       undoMove(b, m.from, m.to, cap);
       throw e;
     }
+    rep.pop();
     undoMove(b, m.from, m.to, cap);
 
     if (score > bestScore) {
