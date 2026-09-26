@@ -4,12 +4,15 @@
  */
 import React, { useCallback, useState } from 'react';
 import { GoBoard } from '../components/GoBoard';
+import { ThreeJSGoBoard } from '../components/ThreeJSGoBoard';
 import {
   createGoGame, goPlayMove, goPass, isGoGameOver, goCountScore,
   type GoBoardSize, type GoGameState,
 } from '../engine/go';
+import { supportsWebGL } from '../utils/webgl';
 
 export const GoLocalGame: React.FC = () => {
+  const [viewMode, setViewMode] = useState<'2d' | '3d'>(() => (typeof window !== 'undefined' && supportsWebGL() ? '3d' : '2d'));
   const [size, setSize] = useState<GoBoardSize>(9);
   const [started, setStarted] = useState(false);
   const [game, setGame] = useState<GoGameState>(() => createGoGame(9));
@@ -102,13 +105,27 @@ export const GoLocalGame: React.FC = () => {
       </div>
       <div className="game-layout">
         <div className="game-board-section go-board-section">
-          <GoBoard
-            board={game.board}
-            size={size}
-            lastMove={lastMove}
-            territory={result?.territory || null}
-            onIntersectionClick={handleClick}
-          />
+          <div className="view-switch-row">
+            <button className={`view-tab-btn ${viewMode === '3d' ? 'active' : ''}`} onClick={() => setViewMode('3d')}>3D 棋盘</button>
+            <button className={`view-tab-btn ${viewMode === '2d' ? 'active' : ''}`} onClick={() => setViewMode('2d')}>2D 棋盘</button>
+          </div>
+          {viewMode === '3d' ? (
+            <ThreeJSGoBoard
+              board={game.board}
+              size={size}
+              lastMove={lastMove}
+              territory={result?.territory || null}
+              onIntersectionClick={handleClick}
+            />
+          ) : (
+            <GoBoard
+              board={game.board}
+              size={size}
+              lastMove={lastMove}
+              territory={result?.territory || null}
+              onIntersectionClick={handleClick}
+            />
+          )}
           {toast && <div className="go-toast">{toast}</div>}
         </div>
         <div className="game-side-panel go-side-panel">

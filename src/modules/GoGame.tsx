@@ -4,12 +4,14 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { GoBoard } from '../components/GoBoard';
+import { ThreeJSGoBoard } from '../components/ThreeJSGoBoard';
 import {
   createGoGame, goPlayMove, goPass, isGoGameOver, goCountScore, cloneGoBoard,
   type GoBoardSize, type GoColor, type GoGameState,
 } from '../engine/go';
 import { goBestMove, goHintMove, GO_DIFFICULTIES, type GoDifficulty } from '../engine/goAI';
 import { useProgressStore } from '../store/progressStore';
+import { supportsWebGL } from '../utils/webgl';
 
 type GoResultInfo = { black: number; white: number; blackWins: boolean; territory: ReturnType<typeof goCountScore>['territory']; detail: string };
 
@@ -24,6 +26,7 @@ export const GoGame: React.FC = () => {
   const [selectedSize, setSelectedSize] = useState<GoBoardSize>(9);
   const [selectedDifficulty, setSelectedDifficulty] = useState<GoDifficulty>('medium');
   const [selectedColor, setSelectedColor] = useState<GoColor>('b');
+  const [viewMode, setViewMode] = useState<'2d' | '3d'>(() => (typeof window !== 'undefined' && supportsWebGL() ? '3d' : '2d'));
 
   const [game, setGame] = useState<GoGameState>(() => createGoGame(9));
   const [aiThinking, setAiThinking] = useState(false);
@@ -226,15 +229,32 @@ export const GoGame: React.FC = () => {
       </div>
       <div className="game-layout">
         <div className="game-board-section go-board-section">
-          <GoBoard
-            board={game.board}
-            size={size}
-            lastMove={lastMove}
-            hintPoint={hint}
-            territory={result?.territory || null}
-            onIntersectionClick={handleIntersection}
-            disabled={aiThinking}
-          />
+          <div className="view-switch-row">
+            <button className={`view-tab-btn ${viewMode === '3d' ? 'active' : ''}`} onClick={() => setViewMode('3d')}>3D 棋盘</button>
+            <button className={`view-tab-btn ${viewMode === '2d' ? 'active' : ''}`} onClick={() => setViewMode('2d')}>2D 棋盘</button>
+          </div>
+          {viewMode === '3d' ? (
+            <ThreeJSGoBoard
+              board={game.board}
+              size={size}
+              lastMove={lastMove}
+              hintPoint={hint}
+              territory={result?.territory || null}
+              onIntersectionClick={handleIntersection}
+              disabled={aiThinking}
+              flipped={humanColor === 'w'}
+            />
+          ) : (
+            <GoBoard
+              board={game.board}
+              size={size}
+              lastMove={lastMove}
+              hintPoint={hint}
+              territory={result?.territory || null}
+              onIntersectionClick={handleIntersection}
+              disabled={aiThinking}
+            />
+          )}
           {aiThinking && (
             <div className="ai-thinking-overlay">
               <div className="thinking-indicator">

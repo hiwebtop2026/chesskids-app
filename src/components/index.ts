@@ -29,3 +29,4 @@ export { WeChatGuide } from './WeChatGuide';
 export type { WeChatGuideProps } from './WeChatGuide';
 
 export { GoBoard } from './GoBoard';
+export { ThreeJSGoBoard } from './ThreeJSGoBoard';
