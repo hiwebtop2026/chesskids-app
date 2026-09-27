@@ -12,6 +12,7 @@ import {
 import { gomokuBestMove, gomokuHintMove, GOMOKU_DIFFICULTIES, type GomokuDifficulty } from '../engine/gomokuAI';
 import { useProgressStore } from '../store/progressStore';
 import { GomokuResultFX } from '../components/GomokuResultFX';
+import { enterFullscreen } from '../utils/fullscreen';
 import { playGomokuMove } from '../engine/gomokuSound';
 
 type ResultInfo = { winner: GomokuColor | 'draw' | null; humanWin: boolean; detail: string; winningLine: Array<[number, number]> | null };
@@ -95,6 +96,7 @@ export const GomokuGame: React.FC = () => {
   }, [started, humanColor, game.turn, game.moves.length, aiThinking]);
 
   const handleStart = () => {
+    enterFullscreen(); // 用户手势链内触发全屏，隐藏浏览器窗口
     setDifficulty(selectedDifficulty);
     setHumanColor(selectedColor);
     gameRecorded.current = false;

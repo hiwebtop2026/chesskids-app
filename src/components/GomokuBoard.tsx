@@ -4,6 +4,7 @@
  * 内置浮动窗口模式（全屏自适应）
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { enterFullscreen, exitFullscreen } from '../utils/fullscreen';
 import { GOMOKU_SIZE, GOMOKU_STAR_POINTS, type GomokuBoard as GomokuBoardT } from '../engine/gomoku';
 
 interface GomokuBoardProps {
@@ -38,23 +39,8 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
   const n = GOMOKU_SIZE;
 
   // 全屏联动：浮动模式下自动进入浏览器全屏（隐藏窗口/地址栏），脱离浏览器限制
-  const requestFs = useCallback(() => {
-    try {
-      const el = document.documentElement;
-      if (!document.fullscreenElement) {
-        const p = el.requestFullscreen?.();
-        if (p && typeof p.catch === 'function') p.catch(() => {});
-      }
-    } catch { /* 非用户手势调用可能被浏览器拒绝，静默降级为 fixed 全屏层 */ }
-  }, []);
-  const exitFs = useCallback(() => {
-    try {
-      if (document.fullscreenElement) {
-        const p = document.exitFullscreen?.();
-        if (p && typeof p.catch === 'function') p.catch(() => {});
-      }
-    } catch { /* 忽略 */ }
-  }, []);
+  const requestFs = useCallback(() => enterFullscreen(), []);
+  const exitFs = useCallback(() => exitFullscreen(), []);
   const enterFloat = useCallback(() => { setFloating(true); requestFs(); }, [requestFs]);
   const exitFloat = useCallback(() => { setFloating(false); exitFs(); }, [exitFs]);
   // 默认浮动（进入对局即 2D 全屏）：尝试自动全屏，非手势被拒则保持 fixed 全屏层

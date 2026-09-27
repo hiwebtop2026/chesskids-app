@@ -12,6 +12,7 @@ import {
 import { useGomokuMultiplayerStore } from '../store/gomokuMultiplayerStore';
 import { GomokuResultFX } from '../components/GomokuResultFX';
 import { playGomokuMove } from '../engine/gomokuSound';
+import { enterFullscreen } from '../utils/fullscreen';
 
 const EMOJI_LIST = ['😀', '😎', '🤗', '😋', '😍', '🤔', '😱', '😂', '🥳', '😴', '🤩', '😅', '👋', '👍', '👏', '🙌', '🤝', '✌️', '🙏', '💪', '❤️', '🔥', '⭐', '🎉', '🎊', '💯', '✨', '🌟', '🏆', '🎁', '🐱', '🐶', '🐰', '🦊', '🐼', '🦁'];
 
@@ -205,6 +206,7 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
             <span>房间号：</span>
             <strong>{roomCode}</strong>
             <button className="copy-btn" onClick={() => { navigator.clipboard?.writeText(roomCode); }}>📋 复制</button>
+          <button className="copy-btn" onClick={() => enterFullscreen()} title="全屏隐藏浏览器窗口">⛶ 全屏</button>
           </div>
         )}
       </div>
@@ -219,7 +221,7 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
             placeholder="输入房间号"
             maxLength={7}
           />
-          <button className="start-game-btn" onClick={() => joinRoom(joinInput)}>加入</button>
+          <button className="start-game-btn" onClick={() => { joinRoom(joinInput); enterFullscreen(); }}>加入</button>
         </div>
       </div>
     </div>
