@@ -59,7 +59,7 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
     if (!color) return null;
     const isB = color === 'b';
     const cellPct = 100 / (n - 1);
-    const stoneR = Math.max(2.8, cellPct * 0.425);
+    const stoneR = Math.max(2.6, cellPct * 0.37);
     const isWin = winningLine?.some(([wr, wc]) => wr === r && wc === c);
     const hx = -stoneR * 0.3;
     const hy = -stoneR * 0.35;
@@ -130,7 +130,7 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
             >
               {renderStone(r, c)}
               {isLast && color && (
-                <circle cx="0" cy="0" r={Math.max(1.0, 100 / (n - 1) * 0.11)} fill={color === 'b' ? '#ffd54f' : '#ff7043'} className="gomoku-last-mark" />
+                <circle cx="0" cy="0" r={Math.max(0.9, 100 / (n - 1) * 0.10)} fill={color === 'b' ? '#ffd54f' : '#ff7043'} className="gomoku-last-mark" />
               )}
             </g>,
           );
