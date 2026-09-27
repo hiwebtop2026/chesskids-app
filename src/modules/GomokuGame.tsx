@@ -277,6 +277,9 @@ export const GomokuGame: React.FC = () => {
               defaultFloating
             >
               {ctrlButtons}
+              {result && showResultModal && (
+                <GomokuResultFX kind={result.humanWin ? 'win' : result.winner === 'draw' ? 'draw' : 'lose'} label={result.detail} />
+              )}
             </GomokuBoard>
           )}
           {aiThinking && (
@@ -288,7 +291,7 @@ export const GomokuGame: React.FC = () => {
             </div>
           )}
           {toast && <div className="gomoku-toast">{toast}</div>}
-          {result && showResultModal && (
+          {viewMode === '3d' && result && showResultModal && (
             <GomokuResultFX kind={result.humanWin ? 'win' : result.winner === 'draw' ? 'draw' : 'lose'} label={result.detail} />
           )}
         </div>

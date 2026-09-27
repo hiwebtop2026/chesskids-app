@@ -271,9 +271,12 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
                 defaultFloating
               >
                 {onlineCtrlButtons}
+                {result && (
+                  <GomokuResultFX kind={result.emoji === '🎉' ? 'win' : result.title === '和棋' ? 'draw' : 'lose'} label={result.title} />
+                )}
               </GomokuBoard>
             )}
-            {result && (
+            {viewMode === '3d' && result && (
               <GomokuResultFX kind={result.emoji === '🎉' ? 'win' : result.title === '和棋' ? 'draw' : 'lose'} label={result.title} />
             )}
           </div>

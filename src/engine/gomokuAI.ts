@@ -136,19 +136,57 @@ function pointScore(b: GomokuBoard, r: number, c: number, color: GomokuColor): n
   return total;
 }
 
-/** 全局面评估（color 视角）：己方威胁分 − 对方威胁分 × 1.15（防守略重） */
-export function evaluateGomoku(b: GomokuBoard, color: GomokuColor): number {
-  let mine = 0;
-  let theirs = 0;
+/**
+ * 线级威胁扫描（v3）：统计 color 在行/列/两向对角上的"整条连段"威胁。
+ * 传统"点级求和"会把同一条活三线上的 3 个子拆成 3 份计分，且难以体现
+ * 斜向长线做棋的累积价值；线级评估直接按"段长+两端状态"计分，
+ * 能更早捕捉玩家沿对角逐步做棋的威胁。
+ */
+function lineSum(b: GomokuBoard, color: GomokuColor): number {
   const n = GOMOKU_SIZE;
+  let total = 0;
+  const seen = new Set<string>();
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      if (b[r][c] !== color) continue;
+      for (const [dr, dc] of DIRS) {
+        const key = `${r},${c},${dr},${dc}`;
+        if (seen.has(key)) continue;
+        // 回溯到该段起点
+        let sr = r, sc = c;
+        while (inBoard(sr - dr, sc - dc) && b[sr - dr][sc - dc] === color) { sr -= dr; sc -= dc; }
+        // 沿方向统计段长
+        let len = 0, or = sr, oc = sc;
+        const keys: string[] = [];
+        while (inBoard(or, oc) && b[or][oc] === color) {
+          len++; keys.push(`${or},${oc},${dr},${dc}`);
+          or += dr; oc += dc;
+        }
+        const openL = inBoard(sr - dr, sc - dc) && b[sr - dr][sc - dc] === '' ? 1 : 0;
+        const openR = inBoard(or, oc) && b[or][oc] === '' ? 1 : 0;
+        for (const k of keys) seen.add(k);
+        total += LINE_VALUE({ count: len, openEnds: openL + openR });
+      }
+    }
+  }
+  return total;
+}
+
+/** 全局面评估（v3）：线级威胁 + 点级交叉组合加成，防守系数 1.18 */
+export function evaluateGomoku(b: GomokuBoard, color: GomokuColor): number {
+  const opp = color === 'b' ? 'w' : 'b';
+  const n = GOMOKU_SIZE;
+  let mine = lineSum(b, color);
+  let theirs = lineSum(b, opp);
+  // 交叉组合加成：某点同时形成多条线威胁（活四/双冲四/四三/双活三）→ 必胜级加分
   for (let r = 0; r < n; r++) {
     for (let c = 0; c < n; c++) {
       const cell = b[r][c];
-      if (cell === color) mine += pointScore(b, r, c, color);
-      else if (cell !== '') theirs += pointScore(b, r, c, cell);
+      if (cell === color) { if (pointScore(b, r, c, color) >= 800_000) mine += 900_000; }
+      else if (cell !== '') { if (pointScore(b, r, c, cell) >= 800_000) theirs += 900_000; }
     }
   }
-  return mine - theirs * 1.15;
+  return mine - theirs * 1.18;
 }
 
 /** 启发排序：候选按"落此子进攻分+防守分"降序 */
@@ -157,7 +195,7 @@ function orderedCandidates(b: GomokuBoard, color: GomokuColor): Array<[number, n
   const scored = cands.map(([r, c]) => {
     const atk = pointScore(b, r, c, color);
     const def = pointScore(b, r, c, color === 'b' ? 'w' : 'b');
-    return { r, c, v: atk + def * 1.05 + Math.random() * 0.001 };
+    return { r, c, v: atk + def * 1.25 + Math.random() * 0.001 };
   });
   scored.sort((a, b2) => b2.v - a.v);
   return scored.map((s) => [s.r, s.c] as [number, number]);
@@ -200,7 +238,7 @@ function search(
   }
 
   const ordered = orderedCandidates(b, color);
-  const limit = depth >= 3 ? 14 : 12;
+  const limit = depth >= 3 ? 16 : 12;
   const picks = ordered.slice(0, limit);
 
   let best = -Infinity;
@@ -244,7 +282,7 @@ export function gomokuBestMove(board: GomokuBoard, color: GomokuColor, diff: Gom
     if (nb && checkGomokuWin(nb, r, c, opp)) return [r, c];
   }
 
-  // hard/master：若本手能直接形成必胜组合（活四/双冲四/四三/双活三），优先走出
+  // 我方组合威胁：本手能直接形成必胜组合（活四/双冲四/四三/双活三）→ 优先走出
   if (diff.depth >= 3) {
     for (const [r, c] of cands) {
       const v = pointScore(board, r, c, color);
@@ -252,22 +290,43 @@ export function gomokuBestMove(board: GomokuBoard, color: GomokuColor, diff: Gom
     }
   }
 
-  // 深度搜索（带时间预算，超时降级为当前层评估）
-  const budgetMs = diff.key === 'master' ? 2400 : diff.key === 'hard' ? 1300 : 800;
-  const deadline = performance.now() + budgetMs;
-
-  let bestVal = -Infinity;
-  const bestMoves: Array<[number, number]> = [];
-  const ordered = orderedCandidates(board, color);
-  const picks = ordered.slice(0, diff.depth >= 3 ? 14 : 12);
-  for (const [r, c] of picks) {
-    if (performance.now() > deadline) break;
-    const nb = gomokuPlaceStone(board, r, c, color)!;
-    const v = -search(nb, opp, diff.depth - 1, -Infinity, Infinity, color, deadline);
-    if (v > bestVal) { bestVal = v; bestMoves.length = 0; bestMoves.push([r, c]); }
-    else if (v === bestVal) { bestMoves.push([r, c]); }
+  // v3 关键：对方"落子即形成必胜组合"的威胁点必须提前堵（组合级必防，
+  // 比"一步成五"更早——玩家做对角/双线时往往先形成组合威胁再成五）
+  if (diff.depth >= 2) {
+    const threats: Array<[number, number]> = [];
+    for (const [r, c] of cands) {
+      if (pointScore(board, r, c, opp) >= 800_000) threats.push([r, c]);
+    }
+    if (threats.length > 0) {
+      // 多个威胁无法全堵时，选防守后己方局面最优者
+      const scored = threats.map(([r, c]) => ({
+        r, c, v: pointScore(board, r, c, color) + pointScore(board, r, c, opp) + Math.random() * 0.001,
+      }));
+      scored.sort((a, b2) => b2.v - a.v);
+      return [scored[0].r, scored[0].c];
+    }
   }
-  if (bestMoves.length === 0) return ordered[0] as [number, number];
+
+  // 深度搜索：master 迭代加深（1→depth，超时保留最近完成的完整层，避免浅层降级）
+  const budgetMs = diff.key === 'master' ? 2600 : diff.key === 'hard' ? 1400 : 900;
+  const t0 = performance.now();
+  const picks = orderedCandidates(board, color).slice(0, diff.depth >= 3 ? 16 : 12);
+  let bestMoves: Array<[number, number]> = [];
+  for (let d = 1; d <= diff.depth; d++) {
+    const deadline = t0 + budgetMs * (d / diff.depth);
+    let bv = -Infinity;
+    const bm: Array<[number, number]> = [];
+    for (const [r, c] of picks) {
+      if (performance.now() > deadline) break;
+      const nb = gomokuPlaceStone(board, r, c, color)!;
+      const v = -search(nb, opp, d - 1, -Infinity, Infinity, color, deadline);
+      if (v > bv) { bv = v; bm.length = 0; bm.push([r, c]); }
+      else if (v === bv) { bm.push([r, c]); }
+    }
+    if (bm.length > 0) bestMoves = bm;
+    if (performance.now() > t0 + budgetMs) break;
+  }
+  if (bestMoves.length === 0) return picks[0] as [number, number];
   // 并列最高分时随机选择：同一局面不同对局 AI 落子位置不固定
   return bestMoves[Math.floor(Math.random() * bestMoves.length)];
 }

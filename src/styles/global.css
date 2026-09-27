@@ -6767,12 +6767,14 @@ ul {
 
 /* ===== 五子棋对局结束特效（粒子 + 胜利横幅）===== */
 .gomoku-result-fx {
-  /* fixed + 高 z-index：盖过浮动窗口层(1000)，保证 2D 浮动全屏下胜局特效可见 */
-  position: fixed;
+  /* 特效只渲染在当前棋盘容器内（absolute 相对棋盘容器/浮动层），
+     不铺满浏览器视口、不跨视图重复添加；浮动层内部 z 之上可见 */
+  position: absolute;
   inset: 0;
-  z-index: 1200;
+  z-index: 60;
   pointer-events: none;
   overflow: hidden;
+  border-radius: 12px;
 }
 .gomoku-result-fx-canvas {
   position: absolute;
