@@ -6731,3 +6731,56 @@ ul {
   25% { transform: rotate(-12deg) scale(1.15); }
   60% { transform: rotate(10deg) scale(1.1); }
 }
+
+/* ===== 五子棋结束特效 v2（流光横幅 + 光晕脉冲）===== */
+.fx-banner-win {
+  background: linear-gradient(120deg, rgba(255,215,0,0.10) 0%, rgba(255,190,0,0.30) 20%, rgba(255,235,150,0.35) 40%, rgba(255,190,0,0.28) 60%, rgba(255,215,0,0.12) 100%);
+  background-size: 220% 100%;
+  border: 2px solid rgba(255, 215, 0, 0.75);
+  color: #ffd700;
+  text-shadow: 0 0 18px rgba(255, 200, 0, 0.9), 0 2px 6px rgba(120, 60, 0, 0.6);
+  box-shadow: 0 0 26px rgba(255, 190, 0, 0.5), 0 0 60px rgba(255, 170, 0, 0.25), inset 0 0 14px rgba(255, 220, 120, 0.25);
+  animation: fxBannerPop 0.55s cubic-bezier(0.175, 0.885, 0.32, 1.275) both, fxShimmer 2.2s linear infinite, fxGlow 1.4s ease-in-out infinite;
+  backdrop-filter: blur(2px);
+}
+.fx-banner-text {
+  background: linear-gradient(180deg, #fffbe8 0%, #ffd700 45%, #ffab2e 75%, #ffd700 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 8px rgba(255, 200, 60, 0.75));
+}
+@keyframes fxShimmer {
+  0% { background-position: 120% 0; }
+  100% { background-position: -120% 0; }
+}
+@keyframes fxGlow {
+  0%, 100% { box-shadow: 0 0 22px rgba(255, 190, 0, 0.45), 0 0 50px rgba(255, 170, 0, 0.2), inset 0 0 12px rgba(255, 220, 120, 0.22); }
+  50% { box-shadow: 0 0 40px rgba(255, 200, 0, 0.8), 0 0 90px rgba(255, 170, 0, 0.45), inset 0 0 18px rgba(255, 230, 150, 0.4); }
+}
+
+/* ===== 五子棋胜利点赞特效 ===== */
+.fx-like {
+  position: absolute;
+  bottom: 22%;
+  left: 0;
+  right: 0;
+  height: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+.fx-like-item {
+  position: absolute;
+  bottom: 0;
+  font-size: clamp(26px, 5vw, 46px);
+  animation: fxLikePop 2s cubic-bezier(0.22, 0.8, 0.3, 1) both;
+  filter: drop-shadow(0 3px 10px rgba(0, 0, 0, 0.28));
+  will-change: transform, opacity;
+}
+@keyframes fxLikePop {
+  0%   { transform: translateY(46px) scale(0.2) rotate(-24deg); opacity: 0; }
+  18%  { transform: translateY(-12px) scale(1.35) rotate(12deg); opacity: 1; }
+  42%  { transform: translateY(-110px) scale(1.1) rotate(-8deg); opacity: 1; }
+  70%  { transform: translateY(-220px) scale(1.25) rotate(10deg) scaleX(1.15); opacity: 0.9; }
+  100% { transform: translateY(-330px) scale(0.9) rotate(8deg); opacity: 0; }
+}

@@ -76,11 +76,9 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
           strokeWidth={isB ? 0.4 : 0}
           className="gomoku-stone"
         />
-        {/* 顶部高光（左上斜光） */}
-        <circle cx={hx} cy={hy} r={stoneR * (isB ? 0.2 : 0.26)} fill={isB ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.9)'} className="gomoku-stone-glint" />
-        {/* 黑子内圈层次 */}
-        {isB && (
-          <circle cx="0" cy="0" r={Math.max(1.2, stoneR * 0.32)} fill="#3a3a3a" opacity="0.55" className="gomoku-stone-inner" />
+        {/* 顶部高光（仅白子保留左上斜光；黑子保持纯黑无灰点） */}
+        {!isB && (
+          <circle cx={hx} cy={hy} r={stoneR * 0.26} fill="rgba(255,255,255,0.9)" className="gomoku-stone-glint" />
         )}
         {isWin && (
           <circle cx="0" cy="0" r={Math.max(1.6, stoneR * 0.55)} fill="none" stroke="#ffb300" strokeWidth="1.1" className="gomoku-win-ring" />
@@ -173,10 +171,10 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
             <stop offset="100%" stopColor="#d6c095" />
           </linearGradient>
           {/* 黑云子：乌黑带温润高光 */}
-          <radialGradient id="gStoneBlack" cx="38%" cy="34%" r="78%">
-            <stop offset="0%" stopColor="#4d4d4d" />
-            <stop offset="42%" stopColor="#191919" />
-            <stop offset="100%" stopColor="#040404" />
+          <radialGradient id="gStoneBlack" cx="42%" cy="38%" r="80%">
+            <stop offset="0%" stopColor="#1c1c1c" />
+            <stop offset="55%" stopColor="#0a0a0a" />
+            <stop offset="100%" stopColor="#000000" />
           </radialGradient>
           {/* 白云子：瓷白温润 */}
           <radialGradient id="gStoneWhite" cx="38%" cy="34%" r="80%">
