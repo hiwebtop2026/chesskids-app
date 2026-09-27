@@ -414,30 +414,30 @@ const OPENING_BOOK: BookEntry[] = [
   // 5. 红 车一平二（出直车，占领肋道）
   { ply: 4, color: 'r', from: [9, 8], to: [9, 7], note: '红方出车（车一平二）' },
   // 6. 黑 卒3进1（活通马腿）
-  { ply: 5, color: 'b', from: [3, 2], to: [4, 2], note: '黑卒3进1' },
+  { ply: 5, color: 'b', from: [3, 6], to: [4, 6], note: '黑卒3进1' },
   // 7. 红 车二进六（过河压马，形成中炮过河车）
   { ply: 6, color: 'r', from: [9, 7], to: [3, 7], note: '中炮过河车（车二进六）' },
   // 8. 黑 象7进5（补象巩固中路）
-  { ply: 7, color: 'b', from: [0, 6], to: [1, 5], note: '黑方补象' },
+  { ply: 7, color: 'b', from: [0, 6], to: [2, 4], note: '黑方补象（象7进5）' },
   // 9. 红 兵七进一（活通七路马，保持中路压力）
   { ply: 8, color: 'r', from: [6, 6], to: [5, 6], note: '红兵七进一' },
   // 10. 黑 炮8平9（平炮兑车，邀兑过河车解压）
-  { ply: 9, color: 'b', from: [2, 7], to: [2, 8], note: '黑炮8平9兑车' },
+  { ply: 9, color: 'b', from: [2, 1], to: [2, 0], note: '黑炮8平9兑车' },
   // 11. 红 车二平三（压马，保持过河车牵制）
   { ply: 10, color: 'r', from: [3, 7], to: [3, 6], note: '红车压马（车二平三）' },
   // 12. 黑 炮2平1（左炮平边，活通右马）
-  { ply: 11, color: 'b', from: [2, 1], to: [2, 0], note: '黑炮2平1' },
+  { ply: 11, color: 'b', from: [2, 7], to: [2, 8], note: '黑炮2平1' },
 ];
 
 /** 黑方应中炮的另一主流变例（顺炮直车） */
 const OPENING_BOOK_ALTERNATE: BookEntry[] = [
-  { ply: 1, color: 'b', from: [2, 1], to: [2, 4], note: '顺炮：黑炮2平5' },
+  { ply: 1, color: 'b', from: [2, 7], to: [2, 4], note: '顺炮：黑炮2平5' },
   { ply: 2, color: 'r', from: [9, 7], to: [7, 6], note: '红方跳马' },
   { ply: 3, color: 'b', from: [0, 7], to: [2, 6], note: '黑方跳马' },
   { ply: 4, color: 'r', from: [9, 8], to: [9, 7], note: '红方出车（车一平二）' },
-  { ply: 5, color: 'b', from: [3, 7], to: [4, 7], note: '黑卒7进1' },
+  { ply: 5, color: 'b', from: [3, 2], to: [4, 2], note: '黑卒7进1' },
   { ply: 6, color: 'r', from: [9, 7], to: [3, 7], note: '红车过河（车二进六）' },
-  { ply: 7, color: 'b', from: [0, 6], to: [1, 5], note: '黑方补象' },
+  { ply: 7, color: 'b', from: [0, 6], to: [2, 4], note: '黑方补象（象7进5）' },
 ];
 
 /** 红方首步可用的主流开局（随机选择，避免每局千篇一律） */
@@ -450,20 +450,20 @@ const RED_OPENINGS: Array<{ from: XiangqiSquare; to: XiangqiSquare; note: string
 /** 黑方应红方首步的主流应手（随机选择） */
 const BLACK_RESPONSES: Array<{ from: XiangqiSquare; to: XiangqiSquare; note: string }> = [
   { from: [0, 1], to: [2, 2], note: '屏风马：马8进7' },
-  { from: [2, 1], to: [2, 4], note: '顺炮：黑炮2平5' },
+  { from: [2, 7], to: [2, 4], note: '顺炮：黑炮2平5' },
   { from: [0, 7], to: [2, 6], note: '反宫马：马2进3' },
-  { from: [0, 6], to: [1, 5], note: '飞象：象3进5' },
-  { from: [0, 1], to: [1, 1], note: '起士：士4进5' },
+  { from: [0, 6], to: [2, 4], note: '飞象：象3进5' },
+  { from: [0, 5], to: [1, 4], note: '起士：士4进5' },
 ];
 
 /** 黑方变着（偏离主线）后的红方规范续着分支（按局面匹配，不依赖步数线性） */
 const BOOK_BRANCHES: Array<{ color: XiangqiColor; check: (b: XiangqiBoard) => boolean; from: XiangqiSquare; to: XiangqiSquare; note: string }> = [
   // 黑飞象（象3进5）后红方标准续着：跳马 → 出车 → 过河车压马
-  { color: 'r', check: (b) => !!(b[1] && b[1][5] === 'b' && b[2] && b[2][6] === ''), from: [9, 7], to: [7, 6], note: '跳正马' },
+  { color: 'r', check: (b) => !!(b[2] && b[2][4] === 'b' && b[9] && b[9][7] === 'N'), from: [9, 7], to: [7, 6], note: '跳正马' },
   { color: 'r', check: (b) => !!(b[7] && b[7][6] === 'N' && b[9] && b[9][8] === 'R'), from: [9, 8], to: [9, 7], note: '出直车（车一平二）' },
-  { color: 'r', check: (b) => !!(b[9] && b[9][7] === 'R' && b[3] && b[3][2] !== 'p'), from: [9, 7], to: [3, 7], note: '过河车压马（车二进六）' },
+  { color: 'r', check: (b) => !!(b[9] && b[9][7] === 'R' && b[3] && b[3][7] === undefined), from: [9, 7], to: [3, 7], note: '过河车压马（车二进六）' },
   // 黑起士（士4进5）后红方续着
-  { color: 'r', check: (b) => !!(b[1] && b[1][1] === 'a' && b[9] && b[9][8] === 'R'), from: [9, 8], to: [7, 8], note: '出直车' },
+  { color: 'r', check: (b) => !!(b[1] && b[1][4] === 'a' && b[9] && b[9][8] === 'R'), from: [9, 8], to: [9, 7], note: '出直车' },
 ];
 
 /** 红方开局阶段（前 12 步内）的规范续着优先级（书着法/分支都不适用时的兜底）。
@@ -481,8 +481,8 @@ const BLACK_BOOK_ORDER: Array<{ piece: string; from: XiangqiSquare; to: XiangqiS
   { piece: 'r', from: [0, 8], to: [0, 7], note: '出直车' },  // 车1平2
   { piece: 'n', from: [0, 7], to: [2, 6], note: '跳正马' },  // 马2进3
   { piece: 'b', from: [0, 6], to: [2, 4], note: '补象' },    // 象3进5
-  { piece: 'p', from: [3, 6], to: [4, 6], note: '活卒' },    // 卒7进1
-  { piece: 'p', from: [3, 2], to: [4, 2], note: '活卒' },    // 卒3进1
+  { piece: 'p', from: [3, 2], to: [4, 2], note: '活卒' },    // 卒7进1
+  { piece: 'p', from: [3, 6], to: [4, 6], note: '活卒' },    // 卒3进1
 ];
 
 /**

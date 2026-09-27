@@ -629,8 +629,8 @@ function evaluate(b: FlatBoard, c: 'r' | 'b', withMobility = true): number {
     if (kx === 4 && (ky === 8 || ky === 1)) safety += 8; // 王在宫心
     // 出帅重罚：帅偏离中宫（col≠4）→ 暴露于侧翼攻击（治"帅五平六被车捉"式恶手）
     if (kx !== 4) safety -= 28;
-    // 帅离开己方底线（红 y!=9 / 黑 y!=0）→ 无士相保护的高危暴露
-    if (c === 'r' ? ky !== 9 : ky !== 0) safety -= 20;
+    // 帅离开己方底线（红 y!=9 / 黑 y!=0）→ 主动出将几乎必是恶手（棋谱"将5进1/将5平6"实证），重罚
+    if (c === 'r' ? ky !== 9 : ky !== 0) safety -= 60;
   }
   safety += myAdvisors * 5 + myElephants * 5;
 
@@ -736,6 +736,24 @@ function evaluate(b: FlatBoard, c: 'r' | 'b', withMobility = true): number {
     }
     safety += kingThreat;
   }
+  // 开局出动偏置（仅中局）：己方车/马仍压初始位 → 子力未出动的惩罚
+  // （搜索阶段开局库不覆盖时，避免"卒9进1"式边卒缓着/不出子——治开局怪棋）
+  if (!endgame) {
+    for (let i = 0; i < b.length; i++) {
+      const p = b[i];
+      if (!p || isRed(p) !== (c === 'r')) continue;
+      const t = p.toLowerCase();
+      const y = (i / COLS) | 0;
+      if (t === 'r') {
+        // 车未出动：红车 (9,0)/(9,8) 黑车 (0,0)/(0,8)
+        if ((y === 9 || y === 0) && (i % COLS === 0 || i % COLS === 8)) coordination -= 8;
+      } else if (t === 'n') {
+        // 马未出动：红马 (9,1)/(9,7) 黑马 (0,1)/(0,7)
+        if ((y === 9 || y === 0) && (i % COLS === 1 || i % COLS === 7)) coordination -= 6;
+      }
+    }
+  }
+
   // 车马配合：车和马在相邻位置（攻击力增强）
   for (let i = 0; i < b.length; i++) {
     const p = b[i];
