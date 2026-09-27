@@ -6404,13 +6404,12 @@ ul {
 .go-board-toolbar { display: flex; justify-content: flex-end; width: 100%; }
 .go-float-btn { padding: 6px 14px; border-radius: 8px; border: 1px solid #d0b088; background: #f5e6c8; color: #6b4f2a; cursor: pointer; font-size: 13px; }
 .go-float-btn:hover { background: #eed9b0; }
-.go-board-wrap { position: relative; width: min(100%, 520px, calc(100dvh - 240px)); aspect-ratio: 1; }
+.go-board-wrap { position: relative; width: min(100%, 640px, calc(100dvh - 220px)); aspect-ratio: 1; }
 .go-board-svg { width: 100%; height: 100%; display: block; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.15); touch-action: manipulation; }
-.go-board-bg { fill: #e3b46b; }
-.go-line { stroke: #3a2a14; stroke-width: 0.35; }
-.go-stone { filter: drop-shadow(0 1px 1px rgba(0,0,0,0.35)); }
-.go-star { fill: #3a2a14; }
-.go-coord { font-size: 2.6; fill: #6b4f2a; font-weight: 600; }
+.go-board-bg { fill: url(#goBoardWood); }
+.go-line { stroke: #2b2b2b; stroke-width: 0.32; }
+.go-stone { filter: drop-shadow(0 1px 1px rgba(0,0,0,0.32)); }
+.go-star { fill: #1a1a1a; }
 .go-last-mark { stroke: #fff; stroke-width: 0.4; }
 .go-hint { stroke: #1565c0; }
 .go-territory-mark { pointer-events: none; }

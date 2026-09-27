@@ -18,9 +18,6 @@ interface GoBoardProps {
   flipped?: boolean;
 }
 
-/** 列坐标字母（跳过 I） */
-const COL_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T'];
-
 export const GoBoard: React.FC<GoBoardProps> = ({
   board,
   size,
@@ -30,11 +27,13 @@ export const GoBoard: React.FC<GoBoardProps> = ({
   onIntersectionClick,
   disabled,
   interactive = true,
-  flipped = false,
 }) => {
   const [floating, setFloating] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const n = size;
+
+  /** 标准围棋棋盘：网格边沿内缩留白（%） */
+  const MARGIN_PCT = 7;
 
   // 浮动窗口模式：随窗口自动缩放（棋盘自适应）
   const floatSize = useMemo(() => {
@@ -74,32 +73,31 @@ export const GoBoard: React.FC<GoBoardProps> = ({
       return null;
     }
     const isB = color === 'b';
-    const cellPct = 100 / (n - 1);      // 一格宽（viewBox 单位）
-    const stoneR = Math.max(3, cellPct * 0.46);   // 棋子半径 ≈ 0.46 格（直径≈0.92格）
+    const cellPct = (100 - 2 * MARGIN_PCT) / (n - 1);   // 有效格宽（viewBox 单位）
+    const stoneR = Math.max(2.5, cellPct * 0.40);   // 棋子半径 ≈ 0.40 格（直径≈0.80格）
     return (
       <g>
         <circle
           cx="0" cy="0"
           r={stoneR}
-          fill={isB ? '#141414' : '#fdfdf9'}
-          stroke={isB ? '#000' : '#5a5548'}
-          strokeWidth={isB ? 0.4 : 0.8}
+          fill={isB ? '#111111' : '#ffffff'}
+          stroke={isB ? '#000' : 'none'}
+          strokeWidth={isB ? 0.3 : 0}
           className="go-stone"
         />
-        {isB && (
-          <circle cx="0" cy="0" r={Math.max(1.2, stoneR * 0.32)} fill="#444" className="go-stone-inner" />
-        )}
       </g>
     );
   };
 
   const renderGrid = () => {
     const lines: React.ReactElement[] = [];
-    const cellPct = 100 / (n - 1);
     for (let i = 0; i < n; i++) {
+      const g0 = MARGIN_PCT;
+      const g1 = 100 - MARGIN_PCT;
+      const pos = (idx: number) => g0 + idx * (g1 - g0) / (n - 1);
       lines.push(
-        <line key={`h${i}`} x1="0" y1={`${i * cellPct}%`} x2="100%" y2={`${i * cellPct}%`} className="go-line" />,
-        <line key={`v${i}`} x1={`${i * cellPct}%`} y1="0" x2={`${i * cellPct}%`} y2="100%" className="go-line" />,
+        <line key={`h${i}`} x1={`${g0}%`} y1={`${pos(i)}%`} x2={`${g1}%`} y2={`${pos(i)}%`} className="go-line" />,
+        <line key={`v${i}`} x1={`${pos(i)}%`} y1={`${g0}%`} x2={`${pos(i)}%`} y2={`${g1}%`} className="go-line" />,
       );
     }
     return lines;
@@ -110,7 +108,8 @@ export const GoBoard: React.FC<GoBoardProps> = ({
     for (let r = 0; r < n; r++) {
       for (let c = 0; c < n; c++) {
         if (isGoStarPoint(r, c, size)) {
-          pts.push(<circle key={`${r},${c}`} cx={`${c * 100 / (n - 1)}%`} cy={`${r * 100 / (n - 1)}%`} r={Math.max(1.4, 100 / (n - 1) * 0.16)} fill="#3a2a14" className="go-star" />);
+          const pos = (idx: number) => MARGIN_PCT + idx * (100 - 2 * MARGIN_PCT) / (n - 1);
+          pts.push(<circle key={`${r},${c}`} cx={`${pos(c)}%`} cy={`${pos(r)}%`} r={Math.max(1.3, (100 - 2 * MARGIN_PCT) / (n - 1) * 0.16)} fill="#1a1a1a" className="go-star" />);
         }
       }
     }
@@ -127,21 +126,21 @@ export const GoBoard: React.FC<GoBoardProps> = ({
           stones.push(
             <g
               key={`${r},${c}`}
-              transform={`translate(${c * 100 / (n - 1)}, ${r * 100 / (n - 1)})`}
+              transform={`translate(${MARGIN_PCT + c * (100 - 2 * MARGIN_PCT) / (n - 1)}, ${MARGIN_PCT + r * (100 - 2 * MARGIN_PCT) / (n - 1)})`}
               className="go-stone-wrap"
             >
               {renderStone(r, c)}
               {isLast && color && (
-                <circle cx="0" cy="0" r={Math.max(1.1, 100 / (n - 1) * 0.13)} fill={color === 'b' ? '#ff5a4e' : '#e23c2c'} className="go-last-mark" />
+                <circle cx="0" cy="0" r={Math.max(1.0, (100 - 2 * MARGIN_PCT) / (n - 1) * 0.13)} fill={color === 'b' ? '#ff5a4e' : '#e23c2c'} className="go-last-mark" />
               )}
               {hintPoint && hintPoint[0] === r && hintPoint[1] === c && !color && (
-                <circle cx="0" cy="0" r={Math.max(1.6, 100 / (n - 1) * 0.22)} fill="none" stroke="#1e88e5" strokeWidth="1.8" opacity="0.9" className="go-hint" />
+                <circle cx="0" cy="0" r={Math.max(1.5, (100 - 2 * MARGIN_PCT) / (n - 1) * 0.22)} fill="none" stroke="#1e88e5" strokeWidth="1.8" opacity="0.9" className="go-hint" />
               )}
             </g>,
           );
         } else if (hintPoint && hintPoint[0] === r && hintPoint[1] === c) {
           stones.push(
-            <g key={`${r},${c}`} transform={`translate(${c * 100 / (n - 1)}, ${r * 100 / (n - 1)})`}>
+            <g key={`${r},${c}`} transform={`translate(${MARGIN_PCT + c * (100 - 2 * MARGIN_PCT) / (n - 1)}, ${MARGIN_PCT + r * (100 - 2 * MARGIN_PCT) / (n - 1)})`}>
               <circle cx="0" cy="0" r={Math.max(1.6, 100 / (n - 1) * 0.22)} fill="none" stroke="#1e88e5" strokeWidth="1.8" opacity="0.9" className="go-hint" />
             </g>,
           );
@@ -149,19 +148,6 @@ export const GoBoard: React.FC<GoBoardProps> = ({
       }
     }
     return stones;
-  };
-
-  const renderCoords = () => {
-    const coords: React.ReactElement[] = [];
-    for (let i = 0; i < n; i++) {
-      const rowIdx = flipped ? n - 1 - i : i;
-      const colIdx = flipped ? n - 1 - i : i;
-      coords.push(
-        <text key={`rc${i}`} x="-3.5%" y={`${i * 100 / (n - 1)}%`} className="go-coord" textAnchor="end" dominantBaseline="middle">{n - rowIdx}</text>,
-        <text key={`cc${i}`} x={`${i * 100 / (n - 1)}%`} y="102%" className="go-coord" textAnchor="middle">{COL_LETTERS[colIdx]}</text>,
-      );
-    }
-    return coords;
   };
 
   const boardEl = (
@@ -175,17 +161,23 @@ export const GoBoard: React.FC<GoBoardProps> = ({
           const rect = (e.currentTarget as SVGSVGElement).getBoundingClientRect();
           const px = (e.clientX - rect.left) / rect.width * 100;
           const py = (e.clientY - rect.top) / rect.height * 100;
-          // 找最近的交叉点
-          const c = Math.round(px / (100 / (n - 1)));
-          const r = Math.round(py / (100 / (n - 1)));
+          // 标准围棋棋盘：网格内缩 MARGIN_PCT 边沿，换算需扣除
+          const c = Math.round((px - MARGIN_PCT) / ((100 - 2 * MARGIN_PCT) / (n - 1)));
+          const r = Math.round((py - MARGIN_PCT) / ((100 - 2 * MARGIN_PCT) / (n - 1)));
           if (r >= 0 && r < n && c >= 0 && c < n) handleClick(r, c);
         }}
       >
-        <rect x="0" y="0" width="100" height="100" fill="#e8b96f" className="go-board-bg" />
+        <defs>
+          <linearGradient id="goBoardWood" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#ead9b5" />
+            <stop offset="0.5" stopColor="#e2cfa6" />
+            <stop offset="1" stopColor="#d6c095" />
+          </linearGradient>
+        </defs>
+        <rect x="0" y="0" width="100" height="100" fill="url(#goBoardWood)" className="go-board-bg" />
         <g className="go-grid">{renderGrid()}</g>
         <g className="go-stars">{renderStars()}</g>
         <g className="go-stones">{renderStones()}</g>
-        <g className="go-coords">{renderCoords()}</g>
       </svg>
       {floating && (
         <button className="go-float-close" onClick={() => setFloating(false)} title="退出浮动窗口">✕</button>

@@ -217,10 +217,12 @@ export function goCountScore(b: GoBoard): { black: number; white: number; blackW
 /** 获取该位置星位（按棋盘大小） */
 export function isGoStarPoint(r: number, c: number, size: GoBoardSize): boolean {
   if (size !== 19) {
-    const d = 19 - size;
-    const base = (19 - 1 - d) / 2;
+    // 9 路：角星位在 2/6，步长 4；13 路：角星位在 3/9，步长 6；天元在正中心
+    const step = size === 9 ? 4 : 6;
+    const base = size === 9 ? 2 : 3;
+    const mid = (size - 1) / 2;
     const stars: Array<[number, number]> = [
-      [base, base], [base, base + d], [base + 2 * d, base], [base + 2 * d, base + 2 * d], [base + d, base + d],
+      [base, base], [base, base + step], [base + step, base], [base + step, base + step], [mid, mid],
     ];
     return stars.some(([sr, sc]) => sr === r && sc === c);
   }
