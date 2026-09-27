@@ -10,6 +10,8 @@ import {
   type GomokuColor, type GomokuGameState,
 } from '../engine/gomoku';
 import { supportsWebGL } from '../utils/webgl';
+import { GomokuResultFX } from '../components/GomokuResultFX';
+import { playGomokuMove } from '../engine/gomokuSound';
 
 export const GomokuLocalGame: React.FC = () => {
   const [viewMode, setViewMode] = useState<'2d' | '3d'>(() => (typeof window !== 'undefined' && supportsWebGL() ? '3d' : '2d'));
@@ -28,6 +30,7 @@ export const GomokuLocalGame: React.FC = () => {
     const next = gomokuPlayMove(game, r, c);
     if (!next) { showToast('该位置已有棋子'); return; }
     setGame(next);
+    playGomokuMove();
     if (next.over) {
       const winningLine = next.winner && next.winner !== 'draw' ? findGomokuWinningLine(next.board, next.winner) : null;
       setResult({ winner: next.winner, winningLine });
@@ -91,6 +94,9 @@ export const GomokuLocalGame: React.FC = () => {
             />
           )}
           {toast && <div className="gomoku-toast">{toast}</div>}
+          {result && (
+            <GomokuResultFX kind={result.winner === 'draw' ? 'draw' : 'win'} label={result.winner === 'draw' ? '和棋' : `${result.winner === 'b' ? '黑棋' : '白棋'}获胜！`} />
+          )}
         </div>
         <div className="game-side-panel gomoku-side-panel">
           <div className="gomoku-status-bar">

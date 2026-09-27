@@ -158,8 +158,10 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
           const rect = (e.currentTarget as SVGSVGElement).getBoundingClientRect();
           const px = (e.clientX - rect.left) / rect.width * 100;
           const py = (e.clientY - rect.top) / rect.height * 100;
-          const c = Math.round(px / (100 / (n - 1)));
-          const r = Math.round(py / (100 / (n - 1)));
+          // 注意：网格内缩 MARGIN_PCT 边沿，坐标换算必须扣除边沿并按网格实际跨度映射，否则落点整体偏移
+          const span = 100 - MARGIN_PCT * 2;
+          const c = Math.round((px - MARGIN_PCT) / (span / (n - 1)));
+          const r = Math.round((py - MARGIN_PCT) / (span / (n - 1)));
           if (r >= 0 && r < n && c >= 0 && c < n) handleClick(r, c);
         }}
       >

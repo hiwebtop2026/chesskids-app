@@ -11,6 +11,8 @@ import {
 } from '../engine/gomoku';
 import { useGomokuMultiplayerStore } from '../store/gomokuMultiplayerStore';
 import { supportsWebGL } from '../utils/webgl';
+import { GomokuResultFX } from '../components/GomokuResultFX';
+import { playGomokuMove } from '../engine/gomokuSound';
 
 const EMOJI_LIST = ['😀', '😎', '🤗', '😋', '😍', '🤔', '😱', '😂', '🥳', '😴', '🤩', '😅', '👋', '👍', '👏', '🙌', '🤝', '✌️', '🙏', '💪', '❤️', '🔥', '⭐', '🎉', '🎊', '💯', '✨', '🌟', '🏆', '🎁', '🐱', '🐶', '🐰', '🦊', '🐼', '🦁'];
 
@@ -90,14 +92,17 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
       onOpponentMove: (r, c) => {
         setGame((g) => {
           const next = gomokuPlayMove(g, r, c);
-          if (next && next.over) {
-            const winningLine = next.winner && next.winner !== 'draw' ? findGomokuWinningLine(next.board, next.winner) : null;
-            setResult({
-              title: next.winner === 'draw' ? '和棋' : `${next.winner === 'b' ? '黑棋' : '白棋'}获胜！`,
-              detail: `共 ${next.moves.length} 手`,
-              emoji: next.winner === 'draw' ? '🤝' : '🏆',
-              winningLine,
-            });
+          if (next) {
+            playGomokuMove();
+            if (next.over) {
+              const winningLine = next.winner && next.winner !== 'draw' ? findGomokuWinningLine(next.board, next.winner) : null;
+              setResult({
+                title: next.winner === 'draw' ? '和棋' : `${next.winner === 'b' ? '黑棋' : '白棋'}获胜！`,
+                detail: `共 ${next.moves.length} 手`,
+                emoji: next.winner === 'draw' ? '🤝' : next.winner === myColor ? '🎉' : '😔',
+                winningLine,
+              });
+            }
           }
           return next || g;
         });
@@ -118,6 +123,7 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
     const next = gomokuPlayMove(game, r, c);
     if (!next) return;
     setGame(next);
+    playGomokuMove();
     sendMove(r, c);
     if (next.over) {
       const winningLine = next.winner && next.winner !== 'draw' ? findGomokuWinningLine(next.board, next.winner) : null;
@@ -252,6 +258,9 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
                 disabled={!myTurn}
                 flipped={myColor === 'w'}
               />
+            )}
+            {result && (
+              <GomokuResultFX kind={result.emoji === '🎉' ? 'win' : result.title === '和棋' ? 'draw' : 'lose'} label={result.title} />
             )}
           </div>
 

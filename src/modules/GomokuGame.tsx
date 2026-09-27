@@ -12,6 +12,8 @@ import {
 import { gomokuBestMove, gomokuHintMove, GOMOKU_DIFFICULTIES, type GomokuDifficulty } from '../engine/gomokuAI';
 import { useProgressStore } from '../store/progressStore';
 import { supportsWebGL } from '../utils/webgl';
+import { GomokuResultFX } from '../components/GomokuResultFX';
+import { playGomokuMove } from '../engine/gomokuSound';
 
 type ResultInfo = { winner: GomokuColor | 'draw' | null; humanWin: boolean; detail: string; winningLine: Array<[number, number]> | null };
 
@@ -78,7 +80,7 @@ export const GomokuGame: React.FC = () => {
       const mv = gomokuBestMove(g.board, g.turn, diff);
       if (mv) {
         const next = gomokuPlayMove(g, mv[0], mv[1]);
-        if (next) { setGame(next); checkOver(next); }
+        if (next) { setGame(next); playGomokuMove(); checkOver(next); }
       }
       setAiThinking(false);
     }, 400);
@@ -118,6 +120,7 @@ export const GomokuGame: React.FC = () => {
     const next = gomokuPlayMove(game, r, c);
     if (!next) { showToast('该位置已有棋子'); return; }
     setGame(next);
+    playGomokuMove();
     if (!next.over) setTimeout(() => aiMove(next, difficulty), 120);
     else checkOver(next);
   };
@@ -225,6 +228,9 @@ export const GomokuGame: React.FC = () => {
             </div>
           )}
           {toast && <div className="gomoku-toast">{toast}</div>}
+          {result && showResultModal && (
+            <GomokuResultFX kind={result.humanWin ? 'win' : result.winner === 'draw' ? 'draw' : 'lose'} label={result.detail} />
+          )}
         </div>
 
         <div className="game-side-panel gomoku-side-panel">
