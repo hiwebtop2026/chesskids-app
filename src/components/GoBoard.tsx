@@ -16,6 +16,8 @@ interface GoBoardProps {
   disabled?: boolean;
   interactive?: boolean;
   flipped?: boolean;
+  /** 默认进入浮动窗口全屏模式（脱离浏览器布局限制） */
+  defaultFloating?: boolean;
 }
 
 export const GoBoard: React.FC<GoBoardProps> = ({
@@ -27,8 +29,9 @@ export const GoBoard: React.FC<GoBoardProps> = ({
   onIntersectionClick,
   disabled,
   interactive = true,
+  defaultFloating = false,
 }) => {
-  const [floating, setFloating] = useState(false);
+  const [floating, setFloating] = useState(defaultFloating);
   const containerRef = useRef<HTMLDivElement>(null);
   const n = size;
 

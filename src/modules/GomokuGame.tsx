@@ -217,6 +217,7 @@ export const GomokuGame: React.FC = () => {
               onIntersectionClick={handleIntersection}
               disabled={aiThinking}
               flipped={humanColor === 'w'}
+              defaultFloating
             />
           )}
           {aiThinking && (

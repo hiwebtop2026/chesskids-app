@@ -15,6 +15,8 @@ interface GomokuBoardProps {
   disabled?: boolean;
   interactive?: boolean;
   flipped?: boolean;
+  /** 默认进入浮动窗口全屏模式（脱离浏览器布局限制） */
+  defaultFloating?: boolean;
 }
 
 export const GomokuBoard: React.FC<GomokuBoardProps> = ({
@@ -25,8 +27,9 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
   onIntersectionClick,
   disabled,
   interactive = true,
+  defaultFloating = false,
 }) => {
-  const [floating, setFloating] = useState(false);
+  const [floating, setFloating] = useState(defaultFloating);
   const MARGIN_PCT = 7; // 边沿留白（百分比），参考折叠围棋盘外框比例
   const containerRef = useRef<HTMLDivElement>(null);
   const n = GOMOKU_SIZE;

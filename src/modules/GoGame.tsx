@@ -253,6 +253,7 @@ export const GoGame: React.FC = () => {
               territory={result?.territory || null}
               onIntersectionClick={handleIntersection}
               disabled={aiThinking}
+              defaultFloating
             />
           )}
           {aiThinking && (

@@ -303,6 +303,7 @@ export const GoOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ autoJ
             lastMove={lastMove}
             onIntersectionClick={handleClick}
             disabled={!myTurn || isGoGameOver(game)}
+            defaultFloating
           />
           {!myTurn && !isGoGameOver(game) && (
             <div className="ai-thinking-overlay">

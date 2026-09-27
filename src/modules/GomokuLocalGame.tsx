@@ -70,7 +70,7 @@ export const GomokuLocalGame: React.FC = () => {
     <div className="module gomoku-game">
       <div className="module-header">
         <h2>👥 五子棋 · 双人对局</h2>
-        <p>15×15 棋盘 · 轮流落子</p>
+        <p>19×19 围棋棋盘 · 轮流落子</p>
       </div>
       <div className="game-layout">
         <div className="game-board-section gomoku-board-section">
@@ -91,6 +91,7 @@ export const GomokuLocalGame: React.FC = () => {
               lastMove={lastMove}
               winningLine={result?.winningLine || null}
               onIntersectionClick={handleClick}
+              defaultFloating
             />
           )}
           {toast && <div className="gomoku-toast">{toast}</div>}

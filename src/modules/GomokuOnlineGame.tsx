@@ -257,6 +257,7 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
                 onIntersectionClick={handleClick}
                 disabled={!myTurn}
                 flipped={myColor === 'w'}
+                defaultFloating
               />
             )}
             {result && (

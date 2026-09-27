@@ -124,6 +124,7 @@ export const GoLocalGame: React.FC = () => {
               lastMove={lastMove}
               territory={result?.territory || null}
               onIntersectionClick={handleClick}
+              defaultFloating
             />
           )}
           {toast && <div className="go-toast">{toast}</div>}

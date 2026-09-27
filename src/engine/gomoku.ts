@@ -1,19 +1,19 @@
 /**
  * ChessKids - 五子棋规则引擎
- * 15×15 标准棋盘，黑先白后，连五即胜（简易规则，适合少儿入门；无禁手）
+ * 19×19 标准围棋棋盘（与围棋共用棋盘），黑先白后，连五即胜（简易规则，适合少儿入门；无禁手）
  */
 
 export type GomokuColor = 'b' | 'w'; // b=黑（先手）, w=白
 export type GomokuCell = GomokuColor | '';
 export type GomokuBoard = GomokuCell[][]; // [row][col]，row 0 为上方
 
-export const GOMOKU_SIZE = 15;
+export const GOMOKU_SIZE = 19;
 
-/** 星位（15 路标准五子棋/围棋棋盘） */
+/** 星位（19 路标准围棋棋盘：四角 + 四边星 + 天元） */
 export const GOMOKU_STAR_POINTS: Array<[number, number]> = [
-  [3, 3], [3, 7], [3, 11],
-  [7, 3], [7, 7], [7, 11],
-  [11, 3], [11, 7], [11, 11],
+  [3, 3], [3, 9], [3, 15],
+  [9, 3], [9, 9], [9, 15],
+  [15, 3], [15, 9], [15, 15],
 ];
 
 export function createGomokuBoard(): GomokuBoard {
