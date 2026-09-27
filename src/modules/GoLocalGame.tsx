@@ -5,6 +5,8 @@
 import React, { useCallback, useState } from 'react';
 import { GoBoard } from '../components/GoBoard';
 import { ThreeJSGoBoard } from '../components/ThreeJSGoBoard';
+import { GoResultFX } from '../components/GoResultFX';
+import { playGoMove } from '../engine/goSound';
 import {
   createGoGame, goPlayMove, goPass, isGoGameOver, goCountScore,
   type GoBoardSize, type GoGameState,
@@ -35,6 +37,7 @@ export const GoLocalGame: React.FC = () => {
     if (!started || isGoGameOver(game)) return;
     const next = goPlayMove(game, r, c);
     if (!next) { showToast('该位置不能落子（打劫或自杀）'); return; }
+    playGoMove();
     setGame(next);
     finish(next);
   };
@@ -128,6 +131,9 @@ export const GoLocalGame: React.FC = () => {
             />
           )}
           {toast && <div className="go-toast">{toast}</div>}
+          {result && (
+            <GoResultFX kind="win" label={`${result.blackWins ? '黑棋' : '白棋'}获胜！`} />
+          )}
         </div>
         <div className="game-side-panel go-side-panel">
           <div className="go-status-bar">

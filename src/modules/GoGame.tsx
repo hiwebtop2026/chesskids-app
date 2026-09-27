@@ -5,6 +5,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { GoBoard } from '../components/GoBoard';
 import { ThreeJSGoBoard } from '../components/ThreeJSGoBoard';
+import { GoResultFX } from '../components/GoResultFX';
+import { playGoMove } from '../engine/goSound';
 import {
   createGoGame, goPlayMove, goPass, isGoGameOver, goCountScore, cloneGoBoard,
   type GoBoardSize, type GoColor, type GoGameState,
@@ -77,7 +79,7 @@ export const GoGame: React.FC = () => {
       const mv = goBestMove(g.board, g.turn, diff);
       if (mv) {
         const next = goPlayMove(g, mv[0], mv[1]);
-        if (next) { setGame(next); checkOver(next); }
+        if (next) { playGoMove(); setGame(next); checkOver(next); }
         else { const p = goPass(g); setGame(p); checkOver(p); }
       } else {
         const p = goPass(g); setGame(p); checkOver(p);
@@ -120,6 +122,7 @@ export const GoGame: React.FC = () => {
     setHint(null);
     const next = goPlayMove(game, r, c);
     if (!next) { showToast('该位置不能落子（打劫或自杀）'); return; }
+    playGoMove();
     setGame(next);
     setTimeout(() => aiMove(next, difficulty), 120);
   };
@@ -265,6 +268,12 @@ export const GoGame: React.FC = () => {
             </div>
           )}
           {toast && <div className="go-toast">{toast}</div>}
+          {result && showResultModal && (
+            <GoResultFX
+              kind={humanWin ? 'win' : 'lose'}
+              label={humanWin ? '你赢了！' : result.detail === '认输' ? '你认输了' : (result.blackWins ? '黑胜' : '白胜')}
+            />
+          )}
         </div>
 
         <div className="game-side-panel go-side-panel">

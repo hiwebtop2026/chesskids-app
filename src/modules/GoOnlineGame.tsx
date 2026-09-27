@@ -4,6 +4,8 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { GoBoard } from '../components/GoBoard';
+import { GoResultFX } from '../components/GoResultFX';
+import { playGoMove } from '../engine/goSound';
 import {
   createGoGame, goPlayMove, goPass, isGoGameOver, goCountScore,
   type GoBoardSize, type GoGameState,
@@ -88,7 +90,7 @@ export const GoOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ autoJ
       onOpponentMove: (r, c) => {
         setGame((g) => {
           const next = goPlayMove(g, r, c);
-          if (next) return next;
+          if (next) { playGoMove(); return next; }
           return g;
         });
       },
@@ -123,6 +125,7 @@ export const GoOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ autoJ
     if (!inGame || !myTurn || isGoGameOver(game)) return;
     const next = goPlayMove(game, r, c);
     if (!next) return;
+    playGoMove();
     setGame(next);
     sendMove(r, c);
   };
@@ -305,6 +308,12 @@ export const GoOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ autoJ
             disabled={!myTurn || isGoGameOver(game)}
             defaultFloating
           />
+          {result && (
+            <GoResultFX
+              kind={result.emoji === '🎉' ? 'win' : result.emoji === '😢' ? 'lose' : (result.title === (myColor === 'b' ? '黑胜' : '白胜') ? 'win' : 'lose')}
+              label={result.title}
+            />
+          )}
           {!myTurn && !isGoGameOver(game) && (
             <div className="ai-thinking-overlay">
               <div className="thinking-indicator">
