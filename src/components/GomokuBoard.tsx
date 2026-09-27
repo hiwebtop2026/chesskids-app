@@ -12,6 +12,8 @@ interface GomokuBoardProps {
   hintPoint?: [number, number] | null;
   winningLine?: Array<[number, number]> | null;
   onIntersectionClick?: (r: number, c: number) => void;
+  /** 棋盘容器内嵌功能按钮区（渲染在棋盘下方，浮动模式跟随） */
+  children?: React.ReactNode;
   disabled?: boolean;
   interactive?: boolean;
   flipped?: boolean;
@@ -28,6 +30,7 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
   disabled,
   interactive = true,
   defaultFloating = false,
+  children,
 }) => {
   const [floating, setFloating] = useState(defaultFloating);
   const MARGIN_PCT = 7; // 边沿留白（百分比），参考折叠围棋盘外框比例
@@ -39,7 +42,9 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
     if (!floating) return 0;
     const vw = Math.min(window.innerWidth, document.documentElement.clientWidth);
     const vh = Math.min(window.innerHeight, document.documentElement.clientHeight);
-    const avail = Math.min(vw - 24, vh - 96);
+    const hasInboard = React.Children.count(children) > 0;
+    // 内嵌功能按钮栏约 64px：浮动尺寸为其预留空间，避免溢出视口
+    const avail = Math.min(vw - 24, vh - (hasInboard ? 160 : 96));
     return Math.max(240, Math.min(avail, 900));
   }, [floating]);
 
@@ -149,7 +154,7 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
 
 
   const boardEl = (
-    <div className={`gomoku-board-wrap ${floating ? 'gomoku-floating' : ''}`} style={boardSize ? { width: boardSize, height: boardSize } : undefined}>
+    <div className={`gomoku-board-wrap ${floating ? 'gomoku-floating' : ''}`} style={floating ? { width: boardSize } : undefined}>
       <svg
         viewBox="0 0 100 100"
         className="gomoku-board-svg"
@@ -207,6 +212,7 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
       {floating && (
         <button className="gomoku-float-close" onClick={() => setFloating(false)} title="退出浮动窗口">✕</button>
       )}
+      {children}
     </div>
   );
 

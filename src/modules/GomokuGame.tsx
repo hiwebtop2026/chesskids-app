@@ -186,6 +186,16 @@ export const GomokuGame: React.FC = () => {
   const humanWin = result ? result.humanWin : null;
   const moveCount = game.moves.length;
 
+  // 功能按钮：2D 内嵌到棋盘容器下方；3D 显示在侧栏
+  const ctrlButtons = (
+    <div className="gomoku-controls gomoku-inboard-controls">
+      <button className="ctrl-btn" onClick={handleUndo} disabled={aiThinking || moveCount === 0}>↩️ 悔棋</button>
+      <button className="ctrl-btn" onClick={handleHint} disabled={aiThinking || game.over}>💡 提示</button>
+      <button className="ctrl-btn danger" onClick={handleResign} disabled={game.over}>🏳️ 认输</button>
+      <button className="ctrl-btn" onClick={handleReset}>🔄 重新开始</button>
+    </div>
+  );
+
   return (
     <div className="module gomoku-game">
       <div className="module-header">
@@ -218,7 +228,9 @@ export const GomokuGame: React.FC = () => {
               disabled={aiThinking}
               flipped={humanColor === 'w'}
               defaultFloating
-            />
+            >
+              {ctrlButtons}
+            </GomokuBoard>
           )}
           {aiThinking && (
             <div className="ai-thinking-overlay">
@@ -241,12 +253,7 @@ export const GomokuGame: React.FC = () => {
             <span className="gomoku-move-count">第 {Math.floor(moveCount / 2) + 1} 手</span>
           </div>
 
-          <div className="gomoku-controls">
-            <button className="ctrl-btn" onClick={handleUndo} disabled={aiThinking || moveCount === 0}>↩️ 悔棋</button>
-            <button className="ctrl-btn" onClick={handleHint} disabled={aiThinking || game.over}>💡 提示</button>
-            <button className="ctrl-btn danger" onClick={handleResign} disabled={game.over}>🏳️ 认输</button>
-            <button className="ctrl-btn" onClick={handleReset}>🔄 重新开始</button>
-          </div>
+          {viewMode === '3d' && ctrlButtons}
 
           <div className="gomoku-rules-tip">
             <p>📖 规则提示</p>

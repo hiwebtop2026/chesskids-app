@@ -48,8 +48,16 @@ export function gomokuCandidates(b: GomokuBoard): Array<[number, number]> {
     const [rr, cc] = s.split(',').map(Number);
     list.push([rr, cc]);
   }
-  // 无子时返回天元附近（先手开局）
-  if (list.length === 0) return [[7, 7]];
+  // 无子时：从开局候选点随机选一个（先手/首手不固定不变）
+  if (list.length === 0) {
+    const ALL_OPENING: Array<[number, number]> = [
+      [9, 9], [8, 8], [8, 9], [8, 10], [9, 8], [9, 10], [10, 8], [10, 9], [10, 10],
+      [7, 7], [11, 11], [9, 7], [7, 9], [11, 9], [9, 11], [9, 5], [5, 9], [13, 9], [9, 13],
+    ];
+    const OPENING: Array<[number, number]> = ALL_OPENING.filter(([r, c]) => inBoard(r, c));
+    const pick = OPENING[Math.floor(Math.random() * OPENING.length)];
+    return [[pick[0], pick[1]]];
+  }
   return list;
 }
 
