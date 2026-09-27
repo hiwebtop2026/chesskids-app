@@ -189,7 +189,7 @@ export function gomokuBestMove(board: GomokuBoard, color: GomokuColor, diff: Gom
     const scored = cands.map(([r, c]) => {
       const atk = pointScore(board, r, c, color);
       const def = pointScore(board, r, c, color === 'b' ? 'w' : 'b');
-      return { r, c, v: atk + def * 0.9 + Math.random() * 0.05 };
+      return { r, c, v: atk + def * 0.9 + Math.random() * 0.3 };
     });
     scored.sort((a, b2) => b2.v - a.v);
     return [scored[0].r, scored[0].c];
@@ -207,16 +207,18 @@ export function gomokuBestMove(board: GomokuBoard, color: GomokuColor, diff: Gom
     if (nb && checkGomokuWin(nb, r, c, opp)) return [r, c];
   }
 
-  let bestMove: [number, number] = cands[0];
   let bestVal = -Infinity;
+  const bestMoves: Array<[number, number]> = [];
   const ordered = orderedCandidates(board, color);
   const picks = ordered.slice(0, diff.depth >= 3 ? 14 : 12);
   for (const [r, c] of picks) {
     const nb = gomokuPlaceStone(board, r, c, color)!;
     const v = -search(nb, opp, diff.depth - 1, -Infinity, Infinity, color);
-    if (v > bestVal) { bestVal = v; bestMove = [r, c]; }
+    if (v > bestVal) { bestVal = v; bestMoves.length = 0; bestMoves.push([r, c]); }
+    else if (v === bestVal) { bestMoves.push([r, c]); }
   }
-  return bestMove;
+  // 并列最高分时随机选择：同一局面不同对局 AI 落子位置不固定
+  return bestMoves[Math.floor(Math.random() * bestMoves.length)];
 }
 
 /** 提示：用 hard 深度计算一着 */
