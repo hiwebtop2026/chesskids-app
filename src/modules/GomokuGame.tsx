@@ -14,6 +14,11 @@ import { useProgressStore } from '../store/progressStore';
 import { GomokuResultFX } from '../components/GomokuResultFX';
 import { enterFullscreen } from '../utils/fullscreen';
 import { playGomokuMove } from '../engine/gomokuSound';
+import {
+  loadGomokuMatchHistory, saveGomokuMatchRecord, clearGomokuMatchHistory,
+  exportGomokuMatchHistoryJson, genGomokuMatchRecordId,
+  type GomokuMatchRecord,
+} from '../engine/gomokuMatchHistory';
 
 type ResultInfo = { winner: GomokuColor | 'draw' | null; humanWin: boolean; detail: string; winningLine: Array<[number, number]> | null };
 
@@ -35,6 +40,8 @@ export const GomokuGame: React.FC = () => {
   const [showResultModal, setShowResultModal] = useState(false);
   const [hint, setHint] = useState<[number, number] | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [matchHistory, setMatchHistory] = useState<GomokuMatchRecord[]>(() => loadGomokuMatchHistory());
+  const [historyOpen, setHistoryOpen] = useState(false);
   const aiTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showToast = useCallback((msg: string) => {
@@ -60,7 +67,19 @@ export const GomokuGame: React.FC = () => {
     setShowResultModal(true);
     const humanWin = info.humanWin;
     recordResult(humanWin, g.moves.length, difficulty);
-  }, [difficulty, recordResult]);
+    // 保存近 10 盘对局记录（含完整落子序列，供复盘与 AI 训练参考）
+    const rec: GomokuMatchRecord = {
+      id: genGomokuMatchRecordId(),
+      timestamp: Date.now(),
+      difficultyKey: difficulty.key,
+      difficultyLabel: difficulty.label,
+      humanColor,
+      result: info.winner === 'draw' ? 'draw' : humanWin ? 'win' : 'loss',
+      totalPlies: g.moves.length,
+      moves: g.moves.map((m) => ({ color: m.color, r: m.r, c: m.c })),
+    };
+    setMatchHistory(saveGomokuMatchRecord(rec));
+  }, [difficulty, humanColor, recordResult]);
 
   const checkOver = useCallback((g: GomokuGameState) => {
     if (g.over && !result) {
@@ -133,6 +152,17 @@ export const GomokuGame: React.FC = () => {
     setResult(info);
     setShowResultModal(true);
     recordResult(false, game.moves.length, difficulty);
+    const rec: GomokuMatchRecord = {
+      id: genGomokuMatchRecordId(),
+      timestamp: Date.now(),
+      difficultyKey: difficulty.key,
+      difficultyLabel: difficulty.label,
+      humanColor,
+      result: 'loss',
+      totalPlies: game.moves.length,
+      moves: game.moves.map((m) => ({ color: m.color, r: m.r, c: m.c })),
+    };
+    setMatchHistory(saveGomokuMatchRecord(rec));
   };
 
   const handleUndo = () => {
@@ -144,6 +174,20 @@ export const GomokuGame: React.FC = () => {
     setResult(null);
     setShowResultModal(false);
     setHint(null);
+  };
+
+  const handleDownloadHistory = () => {
+    if (matchHistory.length === 0) return;
+    const json = exportGomokuMatchHistoryJson();
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `gomoku-match-history-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   };
 
   const handleHint = () => {
@@ -195,6 +239,7 @@ export const GomokuGame: React.FC = () => {
       <button className="ctrl-btn" onClick={handleHint} disabled={aiThinking || game.over}>💡 提示</button>
       <button className="ctrl-btn danger" onClick={handleResign} disabled={game.over}>🏳️ 认输</button>
       <button className="ctrl-btn" onClick={handleReset}>🔄 重新开始</button>
+      <button className="ctrl-btn" onClick={() => setHistoryOpen(true)}>📁 记录</button>
     </div>
   );
 
@@ -294,6 +339,36 @@ export const GomokuGame: React.FC = () => {
                 <h3 className="result-title">{result.detail}</h3>
                 <p className="result-detail">共 {moveCount} 手{humanWin ? ` (+${difficulty.key === 'hard' || difficulty.key === 'master' ? 60 : 30} XP)` : ''}</p>
                 <button className="play-again-btn" onClick={handleReset}>再来一局</button>
+              </div>
+            </div>
+          )}
+
+          {historyOpen && (
+            <div className="gomoku-history-modal" onClick={() => setHistoryOpen(false)}>
+              <div className="gomoku-history-modal-inner" onClick={(e) => e.stopPropagation()}>
+                <div className="gomoku-history-modal-header">
+                  <h3>📁 对局记录（近 {matchHistory.length}/10 盘）</h3>
+                  <button className="result-close-btn" onClick={() => setHistoryOpen(false)}>✕</button>
+                </div>
+                {matchHistory.length === 0 ? (
+                  <p className="empty-text">暂无对局记录，下完一盘棋后自动保存</p>
+                ) : (
+                  <div className="gomoku-history-list">
+                    {matchHistory.map((r) => (
+                      <div key={r.id} className="gomoku-history-item">
+                        <span className={`gomoku-history-result ${r.result}`}>{r.result === 'win' ? '胜' : r.result === 'loss' ? '负' : '和'}</span>
+                        <span className="gomoku-history-diff">{r.difficultyLabel}</span>
+                        <span className="gomoku-history-color">{r.humanColor === 'b' ? '执黑' : '执白'}</span>
+                        <span className="gomoku-history-plies">{r.totalPlies} 手</span>
+                        <span className="gomoku-history-time">{new Date(r.timestamp).toLocaleString([], { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="gomoku-history-actions">
+                  <button className="history-btn" onClick={handleDownloadHistory} disabled={matchHistory.length === 0}>⬇ 下载 JSON</button>
+                  <button className="history-btn danger" onClick={() => setMatchHistory(clearGomokuMatchHistory())} disabled={matchHistory.length === 0}>🗑 清空记录</button>
+                </div>
               </div>
             </div>
           )}
