@@ -3,7 +3,7 @@
  * 15×15 网格/星位/落子/last move/提示点，深色花梨木为主色调
  * 内置浮动窗口模式（全屏自适应）
  */
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GOMOKU_SIZE, GOMOKU_STAR_POINTS, type GomokuBoard as GomokuBoardT } from '../engine/gomoku';
 
 interface GomokuBoardProps {
@@ -37,6 +37,32 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const n = GOMOKU_SIZE;
 
+  // 全屏联动：浮动模式下自动进入浏览器全屏（隐藏窗口/地址栏），脱离浏览器限制
+  const requestFs = useCallback(() => {
+    try {
+      const el = document.documentElement;
+      if (!document.fullscreenElement) {
+        const p = el.requestFullscreen?.();
+        if (p && typeof p.catch === 'function') p.catch(() => {});
+      }
+    } catch { /* 非用户手势调用可能被浏览器拒绝，静默降级为 fixed 全屏层 */ }
+  }, []);
+  const exitFs = useCallback(() => {
+    try {
+      if (document.fullscreenElement) {
+        const p = document.exitFullscreen?.();
+        if (p && typeof p.catch === 'function') p.catch(() => {});
+      }
+    } catch { /* 忽略 */ }
+  }, []);
+  const enterFloat = useCallback(() => { setFloating(true); requestFs(); }, [requestFs]);
+  const exitFloat = useCallback(() => { setFloating(false); exitFs(); }, [exitFs]);
+  // 默认浮动（进入对局即 2D 全屏）：尝试自动全屏，非手势被拒则保持 fixed 全屏层
+  useEffect(() => {
+    if (defaultFloating) requestFs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // 浮动窗口模式：随窗口自动缩放
   const floatSize = useMemo(() => {
     if (!floating) return 0;
@@ -45,7 +71,8 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
     const hasInboard = React.Children.count(children) > 0;
     // 内嵌功能按钮栏约 64px：浮动尺寸为其预留空间，避免溢出视口
     const avail = Math.min(vw - 24, vh - (hasInboard ? 160 : 96));
-    return Math.max(240, Math.min(avail, 900));
+    // 自动匹配终端全屏：不设固定上限，随视口实时自适应
+    return Math.max(280, avail);
   }, [floating]);
 
   useEffect(() => {
@@ -210,7 +237,7 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
         <g className="gomoku-stones">{renderStones()}</g>
       </svg>
       {floating && (
-        <button className="gomoku-float-close" onClick={() => setFloating(false)} title="退出浮动窗口">✕</button>
+        <button className="gomoku-float-close" onClick={exitFloat} title="退出浮动窗口（退出全屏）">✕</button>
       )}
       {children}
     </div>
@@ -220,7 +247,7 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
     <div className="gomoku-board-container" ref={containerRef}>
       {!floating && (
         <div className="gomoku-board-toolbar">
-          <button className="gomoku-float-btn" onClick={() => setFloating(true)} title="浮动窗口（全屏自适应）">⛶ 浮动窗口</button>
+          <button className="gomoku-float-btn" onClick={enterFloat} title="浮动窗口（全屏自适应，隐藏浏览器窗口）">⛶ 浮动窗口</button>
         </div>
       )}
       {boardEl}

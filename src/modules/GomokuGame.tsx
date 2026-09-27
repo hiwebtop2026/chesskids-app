@@ -11,7 +11,6 @@ import {
 } from '../engine/gomoku';
 import { gomokuBestMove, gomokuHintMove, GOMOKU_DIFFICULTIES, type GomokuDifficulty } from '../engine/gomokuAI';
 import { useProgressStore } from '../store/progressStore';
-import { supportsWebGL } from '../utils/webgl';
 import { GomokuResultFX } from '../components/GomokuResultFX';
 import { playGomokuMove } from '../engine/gomokuSound';
 
@@ -26,7 +25,8 @@ export const GomokuGame: React.FC = () => {
   const [humanColor, setHumanColor] = useState<GomokuColor>('b');
   const [selectedDifficulty, setSelectedDifficulty] = useState<GomokuDifficulty>(GOMOKU_DIFFICULTIES[1]);
   const [selectedColor, setSelectedColor] = useState<GomokuColor>('b');
-  const [viewMode, setViewMode] = useState<'2d' | '3d'>(() => (typeof window !== 'undefined' && supportsWebGL() ? '3d' : '2d'));
+  // 默认 2D 棋盘（启动即 2D + 浮动全屏，脱离浏览器布局限制）
+  const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
 
   const [game, setGame] = useState<GomokuGameState>(() => createGomokuGame());
   const [aiThinking, setAiThinking] = useState(false);

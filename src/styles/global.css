@@ -6564,6 +6564,7 @@ ul {
 .gomoku-float-btn { padding: 6px 14px; border-radius: 8px; border: 1px solid #b8906a; background: #f5e8d8; color: #6b4a2a; cursor: pointer; font-size: 13px; }
 .gomoku-float-btn:hover { background: #eed9b8; }
 .gomoku-board-wrap { position: relative; width: min(100%, 780px, calc(100dvh - 200px)); aspect-ratio: auto; display: flex; flex-direction: column; align-items: center; }
+.gomoku-board-wrap .gomoku-board-svg { width: 100%; aspect-ratio: 1 / 1; }
 .gomoku-board-svg { width: 100%; aspect-ratio: 1; height: auto; display: block; border-radius: 10px; box-shadow: 0 4px 18px rgba(0,0,0,0.28); touch-action: manipulation; }
 .gomoku-board-bg { fill: #e6d6ae; }
 .gomoku-line { stroke: #2b2b2b; stroke-width: 0.45; }
@@ -6577,10 +6578,10 @@ ul {
 .gomoku-float-close { position: absolute; top: 8px; right: 8px; z-index: 5; width: 34px; height: 34px; border-radius: 50%; border: none; background: rgba(0,0,0,0.55); color: #fff; font-size: 16px; cursor: pointer; }
 .gomoku-float-close:hover { background: rgba(0,0,0,0.75); }
 
-.gomoku-floating { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; width: min(94vw, 86dvh, 880px) !important; height: auto; display: flex; flex-direction: column; align-items: center; }
-.gomoku-floating .gomoku-board-svg { width: 100%; }
+.gomoku-floating { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; width: min(96vw, 92dvh, 1600px) !important; height: auto; display: flex; flex-direction: column; align-items: center; box-shadow: 0 0 0 100vmax rgba(12, 8, 2, 0.6); }
+.gomoku-floating .gomoku-board-svg { width: 100%; aspect-ratio: 1 / 1; }
 .gomoku-inboard-controls { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px; width: 100%; padding: 12px 4px 2px; }
-.gomoku-inboard-controls .ctrl-btn { padding: 10px 18px; border-radius: 10px; border: 1px solid #b8906a; background: linear-gradient(180deg, #fff8ec, #f5e8d8); color: #5a4a2f; cursor: pointer; font-size: 14px; font-weight: 600; box-shadow: 0 2px 6px rgba(0,0,0,0.10); min-height: 42px; touch-action: manipulation; }
+.gomoku-inboard-controls .ctrl-btn { padding: 10px 18px; border-radius: 10px; border: 1px solid #b8906a; background: linear-gradient(180deg, #fff8ec, #f5e8d8); color: #5a4a2f; cursor: pointer; font-size: 14px; font-weight: 600; box-shadow: 0 2px 6px rgba(0,0,0,0.10); min-height: 42px; touch-action: manipulation; flex: 1 1 auto; min-width: 92px; max-width: 220px; white-space: nowrap; }
 .gomoku-inboard-controls .ctrl-btn:hover:not(:disabled) { background: #f0e0b8; }
 .gomoku-inboard-controls .ctrl-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .gomoku-inboard-controls .ctrl-btn.danger { border-color: #e0a0a0; color: #c0392b; }
@@ -6672,6 +6673,10 @@ ul {
 
 @media (max-width: 640px) {
   .gomoku-board-wrap { width: min(100%, calc(100dvh - 260px)); }
+  .gomoku-inboard-controls .ctrl-btn { flex: 1 1 42%; min-width: 0; max-width: none; padding: 10px 10px; font-size: 13px; min-height: 40px; }
+  .gomoku-inboard-controls { gap: 8px; padding: 10px 2px 2px; }
+  .gomoku-floating { width: min(98vw, 94dvh, 1400px) !important; }
+  .gomoku-float-close { top: 6px; right: 6px; width: 30px; height: 30px; }
 }
 .gomoku-stone-shadow { filter: blur(0.5px); }
 .gomoku-stone-glint { pointer-events: none; }

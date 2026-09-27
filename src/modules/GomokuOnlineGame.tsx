@@ -10,7 +10,6 @@ import {
   type GomokuGameState,
 } from '../engine/gomoku';
 import { useGomokuMultiplayerStore } from '../store/gomokuMultiplayerStore';
-import { supportsWebGL } from '../utils/webgl';
 import { GomokuResultFX } from '../components/GomokuResultFX';
 import { playGomokuMove } from '../engine/gomokuSound';
 
@@ -62,7 +61,8 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
   const [joinInput, setJoinInput] = useState('');
   const [chatInput, setChatInput] = useState('');
   const [chatOpen, setChatOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<'2d' | '3d'>(() => (typeof window !== 'undefined' && supportsWebGL() ? '3d' : '2d'));
+  // 默认 2D 棋盘（启动即 2D + 浮动全屏）
+  const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
   const [result, setResult] = useState<{ title: string; detail: string; emoji: string; winningLine: Array<[number, number]> | null } | null>(null);
   const [recording, setRecording] = useState(false);
   const [recordingSec, setRecordingSec] = useState(0);
@@ -225,6 +225,15 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
     </div>
   );
 
+  // 功能按钮：2D 内嵌棋盘容器下方（浮动跟随）；3D 显示侧栏
+  const onlineCtrlButtons = (
+    <div className="gomoku-controls gomoku-inboard-controls">
+      <button className={`ctrl-btn ${chatOpen ? 'active' : ''}`} onClick={() => setChatOpen((v) => !v)}>💬 聊天</button>
+      <button className="ctrl-btn danger" onClick={handleResign} disabled={game.over}>🏳️ 认输</button>
+      <button className="ctrl-btn" onClick={handleReset}>🔄 重新开始</button>
+    </div>
+  );
+
   return (
     <div className="module gomoku-game">
       <div className="module-header">
@@ -238,7 +247,7 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
             <div className="view-switch-row">
               <button className={`view-tab-btn ${viewMode === '3d' ? 'active' : ''}`} onClick={() => setViewMode('3d')}>3D 棋盘</button>
               <button className={`view-tab-btn ${viewMode === '2d' ? 'active' : ''}`} onClick={() => setViewMode('2d')}>2D 棋盘</button>
-              <button className={`view-tab-btn chat-btn ${chatOpen ? 'active' : ''}`} onClick={() => setChatOpen((v) => !v)}>💬 聊天</button>
+              {viewMode === '3d' && <button className={`view-tab-btn chat-btn ${chatOpen ? 'active' : ''}`} onClick={() => setChatOpen((v) => !v)}>💬 聊天</button>}
             </div>
             {viewMode === '3d' ? (
               <ThreeJSGomokuBoard
@@ -258,7 +267,9 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
                 disabled={!myTurn}
                 flipped={myColor === 'w'}
                 defaultFloating
-              />
+              >
+                {onlineCtrlButtons}
+              </GomokuBoard>
             )}
             {result && (
               <GomokuResultFX kind={result.emoji === '🎉' ? 'win' : result.title === '和棋' ? 'draw' : 'lose'} label={result.title} />
@@ -273,10 +284,12 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
               </span>
               <span className="gomoku-move-count">第 {Math.floor(moveCount / 2) + 1} 手</span>
             </div>
-            <div className="gomoku-controls">
-              <button className="ctrl-btn danger" onClick={handleResign} disabled={game.over}>🏳️ 认输</button>
-              <button className="ctrl-btn" onClick={handleReset}>🔄 重新开始</button>
-            </div>
+            {viewMode === '3d' && (
+              <div className="gomoku-controls">
+                <button className="ctrl-btn danger" onClick={handleResign} disabled={game.over}>🏳️ 认输</button>
+                <button className="ctrl-btn" onClick={handleReset}>🔄 重新开始</button>
+              </div>
+            )}
 
             {/* 聊天面板 */}
             <div className={`gomoku-chat-panel ${chatOpen ? 'open' : ''}`}>
