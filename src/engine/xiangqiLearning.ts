@@ -466,13 +466,23 @@ const BOOK_BRANCHES: Array<{ color: XiangqiColor; check: (b: XiangqiBoard) => bo
   { color: 'r', check: (b) => !!(b[1] && b[1][1] === 'a' && b[9] && b[9][8] === 'R'), from: [9, 8], to: [7, 8], note: '出直车' },
 ];
 
-/** 红方开局阶段（前 12 步内）的规范续着优先级（书着法/分支都不适用时的兜底） */
-const RED_BOOK_ORDER: Array<{ from: XiangqiSquare; to: XiangqiSquare; note: string }> = [
-  { from: [9, 8], to: [9, 7], note: '出直车' },      // 车一平二
-  { from: [9, 7], to: [7, 6], note: '跳正马' },      // 马二进三
-  { from: [9, 6], to: [7, 4], note: '补相' },        // 相三进五
-  { from: [6, 6], to: [5, 6], note: '活兵' },        // 兵七进一
-  { from: [6, 2], to: [5, 2], note: '活兵' },        // 兵三进一
+/** 红方开局阶段（前 12 步内）的规范续着优先级（书着法/分支都不适用时的兜底）。
+ * piece 字段用于校验源格棋子类型——原实现统一按 'R' 校验导致跳马/补相/活兵兜底全部失效 */
+const RED_BOOK_ORDER: Array<{ piece: string; from: XiangqiSquare; to: XiangqiSquare; note: string }> = [
+  { piece: 'R', from: [9, 8], to: [9, 7], note: '出直车' },  // 车一平二
+  { piece: 'N', from: [9, 7], to: [7, 6], note: '跳正马' },  // 马二进三
+  { piece: 'B', from: [9, 6], to: [7, 4], note: '补相' },    // 相三进五
+  { piece: 'P', from: [6, 6], to: [5, 6], note: '活兵' },    // 兵七进一
+  { piece: 'P', from: [6, 2], to: [5, 2], note: '活兵' },    // 兵三进一
+];
+
+/** 黑方开局阶段（前 12 步内）的规范续着优先级（AI 执黑时兜底，对称于红方） */
+const BLACK_BOOK_ORDER: Array<{ piece: string; from: XiangqiSquare; to: XiangqiSquare; note: string }> = [
+  { piece: 'r', from: [0, 8], to: [0, 7], note: '出直车' },  // 车1平2
+  { piece: 'n', from: [0, 7], to: [2, 6], note: '跳正马' },  // 马2进3
+  { piece: 'b', from: [0, 6], to: [2, 4], note: '补象' },    // 象3进5
+  { piece: 'p', from: [3, 6], to: [4, 6], note: '活卒' },    // 卒7进1
+  { piece: 'p', from: [3, 2], to: [4, 2], note: '活卒' },    // 卒3进1
 ];
 
 /**
@@ -529,19 +539,16 @@ export function getOpeningMove(
     }
   }
 
-  // 红方开局阶段兜底：玩家偏离主线/书与分支均不适用时，
-  // 按"出车→跳马→补相→活兵"优先级走规范续着（治开局怪棋，不回退深度搜索）
-  if (color === 'r') {
-    for (const o of RED_BOOK_ORDER) {
-      const [fr, fc] = o.from;
-      const [tr, tc] = o.to;
-      if (board[fr] && board[fr][fc] === 'R' || (board[fr] && board[fr][fc] === 'N' && fr === 9 && tc === 4)) {
-        // 校验目标格为空且走法基本合理
-        if (board[tr] && board[tr][tc] === undefined) {
-          return [o.from, o.to];
-        }
-      }
-    }
+  // 开局兜底：玩家偏离主线/书与分支均不适用时，
+  // 按"出车→跳马→补相(象)→活兵(卒)"优先级走规范续着（治开局怪棋，不回退深度搜索）
+  // 源格按 piece 类型精确匹配（原实现统一按 'R' 校验 → 跳马/补相/活兵兜底全部失效）
+  const bookOrder = color === 'r' ? RED_BOOK_ORDER : BLACK_BOOK_ORDER;
+  for (const o of bookOrder) {
+    const [fr, fc] = o.from;
+    const [tr, tc] = o.to;
+    if (!board[fr] || board[fr][fc] !== o.piece) continue;  // 源格棋子类型不匹配 → 下一个
+    if (!board[tr] || board[tr][tc] !== undefined) continue; // 目标格被占 → 下一个（如马未跳时车一平二目标被马占）
+    return [o.from, o.to];
   }
   return null;
 }

@@ -647,18 +647,43 @@ function evaluate(b: FlatBoard, c: 'r' | 'b', withMobility = true): number {
     }
   }
 
-  // 机动性评估（浅层：只计算己方；静态搜索等高频路径可关闭以提速）
-  // 同时统计侵略性威胁：己方走法能攻击敌方将帅/高价值子（捉子、将军）→ 走法更有侵略性
+  // 机动性评估 + 进攻威胁（合并单次伪着法循环——原实现分两遍全盘扫描，master 深搜下是性能瓶颈）
+  // 进攻威胁（轻量）：己方着法可攻击对方"无保护"的车/马/炮 → 加威胁分（治不进取/来回磨和）
   if (withMobility) {
     let myMobility = 0;
+    let attackThreat = 0;
     for (let i = 0; i < b.length; i++) {
-      if (b[i] && isRed(b[i]) === (c === 'r')) {
-        myMobility += pseudoMoves(b, i).length;
+      const p = b[i];
+      if (!p || isRed(p) !== (c === 'r')) continue;
+      const t = p.toLowerCase();
+      if (t === 'k' || t === 'a' || t === 'b') {
+        myMobility += pseudoMoves(b, i).length; // 王/士/象只计机动性
+        continue;
+      }
+      const moves = pseudoMoves(b, i);
+      myMobility += moves.length;
+      for (const d of moves) {
+        const q = b[d];
+        if (!q || isRed(q) === (c === 'r') || q.toLowerCase() === 'k') continue;
+        // 被攻击方该子是否有保护（四邻己方子近似）
+        const qx = d % COLS, qy = (d / COLS) | 0;
+        let qGuard = false;
+        for (const [dx, dy] of DIR4) {
+          const nx = qx + dx, ny = qy + dy;
+          if (!inBoard(nx, ny)) continue;
+          const gp = b[ny * COLS + nx];
+          if (gp && isRed(gp) === (c !== 'r')) { qGuard = true; break; }
+        }
+        if (!qGuard) {
+          const qt = q.toLowerCase();
+          if (qt === 'r') attackThreat += 10;
+          else if (qt === 'n' || qt === 'c') attackThreat += 6;
+          else if (qt === 'p') attackThreat += 2;
+        }
       }
     }
     mobility = myMobility * 2;
-    // 注：侵略性威胁分已移除——浅层搜索（4-6 层）下威胁分诱导"贪眼前将军/捉子"而失大局
-    // （实测 0:12 → 5:6；保留完整机动性评估即已体现活动力价值）
+    safety += attackThreat;
   }
 
   // 防守评估（轻量）：无保护且被对方直接攻击的己方子 → 每子惩罚
@@ -726,37 +751,6 @@ function evaluate(b: FlatBoard, c: 'r' | 'b', withMobility = true): number {
       }
     }
   }
-  // 进攻威胁（轻量）：己方着法能攻击对方"无保护"的高价值子 → 加威胁分（治不进取/来回磨和）
-  // 与防守惩罚互补：防守罚"己方被捉无保护"，此处奖励"己方可捉对方无保护"
-  let attackThreat = 0;
-  for (let i = 0; i < b.length; i++) {
-    const p = b[i];
-    if (!p || isRed(p) !== (c === 'r')) continue;
-    const t = p.toLowerCase();
-    if (t !== 'r' && t !== 'n' && t !== 'c' && t !== 'p') continue;
-    const moves = pseudoMoves(b, i);
-    for (const d of moves) {
-      const q = b[d];
-      if (!q || isRed(q) === (c === 'r') || q.toLowerCase() === 'k') continue;
-      // 被攻击方该子是否有保护（四邻己方子近似）
-      const qx = d % COLS, qy = (d / COLS) | 0;
-      let qGuard = false;
-      for (const [dx, dy] of DIR4) {
-        const nx = qx + dx, ny = qy + dy;
-        if (!inBoard(nx, ny)) continue;
-        const gp = b[ny * COLS + nx];
-        if (gp && isRed(gp) === (c !== 'r')) { qGuard = true; break; }
-      }
-      if (!qGuard) {
-        const qt = q.toLowerCase();
-        if (qt === 'r') attackThreat += 10;
-        else if (qt === 'n' || qt === 'c') attackThreat += 6;
-        else if (qt === 'p') attackThreat += 2;
-      }
-    }
-  }
-  safety += attackThreat;
-
   // 过河兵协同：多个过河兵相邻（兵阵推进更强）
   let crossedPawns = 0;
   for (let i = 0; i < b.length; i++) {
@@ -811,6 +805,20 @@ function evaluate(b: FlatBoard, c: 'r' | 'b', withMobility = true): number {
       if (!ownOnFile) coordination += enemyPawnOnFile ? 6 : 12; // 半开线 / 全开线
     }
 
+    // 弱兵惩罚：己方未过河兵正前方有对方兵顶住/直攻 → 该兵随时可被吃（治"对方卒连过河吃兵"）
+    for (let i = 0; i < b.length; i++) {
+      const p = b[i];
+      if (!p || p.toLowerCase() !== 'p' || isRed(p) !== (c === 'r')) continue;
+      const y = (i / COLS) | 0;
+      if (crossed(y, c)) continue; // 已过河兵有纵深，不算弱兵
+      const x = i % COLS;
+      const fy = c === 'r' ? y - 1 : y + 1; // 兵前进方向
+      if (!inBoard(x, fy)) continue;
+      const q = b[fy * COLS + x];
+      if (!q || isRed(q) === (c === 'r')) continue;
+      if (q.toLowerCase() === 'p') positional -= 40; // 对方兵顶住己方兵（随时兑吃）
+    }
+
     // 将帅安全：将帅周围被对方攻击的格数（暴露度惩罚）
     const kg = findGeneral(b, c);
     if (kg >= 0) {
@@ -821,7 +829,7 @@ function evaluate(b: FlatBoard, c: 'r' | 'b', withMobility = true): number {
         if (!inBoard(nx, ny)) continue;
         if (isAttacked(b, nx, ny, opp(c))) kExposed++;
       }
-      safety -= kExposed * 15;
+      safety -= kExposed * (endgame ? 25 : 15); // 残局无士象掩护，暴露惩罚加重
     }
   }
 
