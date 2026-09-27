@@ -77,7 +77,7 @@ export const GoBoard: React.FC<GoBoardProps> = ({
     }
     const isB = color === 'b';
     const cellPct = (100 - 2 * MARGIN_PCT) / (n - 1);   // 有效格宽（viewBox 单位）
-    const stoneR = Math.max(2.2, cellPct * 0.34);   // 棋子半径 ≈ 0.34 格（直径≈0.68格，比五子棋 0.37 更小）
+    const stoneR = Math.max(2.0, cellPct * 0.30);   // 棋子半径 ≈ 0.30 格（直径≈0.60格，与五子棋一致）
     return (
       <g>
         <circle

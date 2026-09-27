@@ -61,8 +61,8 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
     const color = board[r][c];
     if (!color) return null;
     const isB = color === 'b';
-    const cellPct = 100 / (n - 1);
-    const stoneR = Math.max(2.6, cellPct * 0.37);
+    const cellPct = (100 - 2 * MARGIN_PCT) / (n - 1);   // 有效格宽（扣除边沿留白）
+    const stoneR = Math.max(2.0, cellPct * 0.30);   // 直径≈0.60格
     const isWin = winningLine?.some(([wr, wc]) => wr === r && wc === c);
     const hx = -stoneR * 0.3;
     const hy = -stoneR * 0.35;
