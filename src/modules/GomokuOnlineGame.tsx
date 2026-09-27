@@ -1,0 +1,356 @@
+/**
+ * ChessKids - 五子棋联机对战模块
+ * PeerJS P2P：创建/加入房间，同步落子，聊天+语音消息，认输/重开
+ */
+import React, { useEffect, useRef, useState } from 'react';
+import { GomokuBoard } from '../components/GomokuBoard';
+import { ThreeJSGomokuBoard } from '../components/ThreeJSGomokuBoard';
+import {
+  createGomokuGame, gomokuPlayMove, findGomokuWinningLine,
+  type GomokuGameState,
+} from '../engine/gomoku';
+import { useGomokuMultiplayerStore } from '../store/gomokuMultiplayerStore';
+import { supportsWebGL } from '../utils/webgl';
+
+const EMOJI_LIST = ['😀', '😎', '🤗', '😋', '😍', '🤔', '😱', '😂', '🥳', '😴', '🤩', '😅', '👋', '👍', '👏', '🙌', '🤝', '✌️', '🙏', '💪', '❤️', '🔥', '⭐', '🎉', '🎊', '💯', '✨', '🌟', '🏆', '🎁', '🐱', '🐶', '🐰', '🦊', '🐼', '🦁'];
+
+function formatTime(ts: number): string {
+  const d = new Date(ts);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+/** PCM 音频块编码为 WAV base64 data URL */
+function encodeWAVBase64(chunks: Float32Array[], sampleRate: number): string {
+  const numChannels = 1, bitsPerSample = 16, bytesPerSample = bitsPerSample / 8;
+  const totalSamples = chunks.reduce((acc, c) => acc + c.length, 0);
+  const dataLength = totalSamples * bytesPerSample;
+  const buffer = new ArrayBuffer(44 + dataLength);
+  const view = new DataView(buffer);
+  const writeStr = (off: number, s: string) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); };
+  writeStr(0, 'RIFF'); view.setUint32(4, 36 + dataLength, true); writeStr(8, 'WAVE');
+  writeStr(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true);
+  view.setUint16(22, numChannels, true); view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * numChannels * bytesPerSample, true);
+  view.setUint16(32, numChannels * bytesPerSample, true); view.setUint16(34, bitsPerSample, true);
+  writeStr(36, 'data'); view.setUint32(40, dataLength, true);
+  let offset = 44;
+  for (const chunk of chunks) {
+    for (let i = 0; i < chunk.length; i++) {
+      const s = Math.max(-1, Math.min(1, chunk[i]));
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+      offset += 2;
+    }
+  }
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return 'data:audio/wav;base64,' + btoa(binary);
+}
+
+export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ autoJoinRoom }) => {
+  const {
+    connectionStatus, roomCode, myColor, opponentName,
+    chatMessages, notification,
+    createRoom, joinRoom,
+    sendMove, sendResign, sendReset, sendChat, sendVoiceMessage,
+    registerHandlers, clearNotification,
+  } = useGomokuMultiplayerStore();
+
+  const [game, setGame] = useState<GomokuGameState>(() => createGomokuGame());
+  const [joinInput, setJoinInput] = useState('');
+  const [chatInput, setChatInput] = useState('');
+  const [chatOpen, setChatOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'2d' | '3d'>(() => (typeof window !== 'undefined' && supportsWebGL() ? '3d' : '2d'));
+  const [result, setResult] = useState<{ title: string; detail: string; emoji: string; winningLine: Array<[number, number]> | null } | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [recordingSec, setRecordingSec] = useState(0);
+  const chatListRef = useRef<HTMLDivElement>(null);
+  const mediaRef = useRef<{ stream: MediaStream; chunks: Float32Array[]; ctx: AudioContext; recTimer: ReturnType<typeof setInterval>; processor: ScriptProcessorNode | null; source: MediaStreamAudioSourceNode | null } | null>(null);
+
+  const inGame = connectionStatus === 'connected';
+  const myTurn = inGame && game.turn === myColor;
+
+  // 自动加入房间
+  useEffect(() => {
+    if (autoJoinRoom && connectionStatus === 'disconnected') {
+      const code = autoJoinRoom.trim().toUpperCase();
+      if (code) joinRoom(code);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoJoinRoom, connectionStatus]);
+
+  // 聊天自动滚动
+  useEffect(() => {
+    chatListRef.current?.scrollTo({ top: chatListRef.current.scrollHeight, behavior: 'smooth' });
+  }, [chatMessages]);
+
+  // 注册对手动作处理器
+  useEffect(() => {
+    registerHandlers({
+      onOpponentMove: (r, c) => {
+        setGame((g) => {
+          const next = gomokuPlayMove(g, r, c);
+          if (next && next.over) {
+            const winningLine = next.winner && next.winner !== 'draw' ? findGomokuWinningLine(next.board, next.winner) : null;
+            setResult({
+              title: next.winner === 'draw' ? '和棋' : `${next.winner === 'b' ? '黑棋' : '白棋'}获胜！`,
+              detail: `共 ${next.moves.length} 手`,
+              emoji: next.winner === 'draw' ? '🤝' : '🏆',
+              winningLine,
+            });
+          }
+          return next || g;
+        });
+      },
+      onOpponentResign: () => {
+        setResult({ title: '你赢了！', detail: '对手认输', emoji: '🎉', winningLine: null });
+      },
+      onOpponentReset: () => {
+        setGame(createGomokuGame());
+        setResult(null);
+      },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [registerHandlers]);
+
+  const handleClick = (r: number, c: number) => {
+    if (!inGame || !myTurn || game.over) return;
+    const next = gomokuPlayMove(game, r, c);
+    if (!next) return;
+    setGame(next);
+    sendMove(r, c);
+    if (next.over) {
+      const winningLine = next.winner && next.winner !== 'draw' ? findGomokuWinningLine(next.board, next.winner) : null;
+      setResult({
+        title: next.winner === 'draw' ? '和棋' : `${next.winner === 'b' ? '黑棋' : '白棋'}获胜！`,
+        detail: `共 ${next.moves.length} 手`,
+        emoji: next.winner === 'draw' ? '🤝' : next.winner === myColor ? '🎉' : '😔',
+        winningLine,
+      });
+    }
+  };
+
+  const handleResign = () => {
+    if (!inGame || game.over) return;
+    sendResign();
+    setResult({ title: '你输了', detail: '你认输了', emoji: '😢', winningLine: null });
+  };
+
+  const handleReset = () => {
+    if (!inGame) return;
+    sendReset();
+    setGame(createGomokuGame());
+    setResult(null);
+  };
+
+  // ---- 语音录制 ----
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const source = ctx.createMediaStreamSource(stream);
+      const processor = ctx.createScriptProcessor(4096, 1, 1);
+      const chunks: Float32Array[] = [];
+      source.connect(processor);
+      processor.connect(ctx.destination);
+      processor.onaudioprocess = (e) => {
+        chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+      };
+      let sec = 0;
+      const recTimer = setInterval(() => { sec++; setRecordingSec(sec); }, 1000);
+      mediaRef.current = { stream, chunks, ctx, recTimer, processor, source };
+      setRecording(true);
+      setRecordingSec(0);
+    } catch (err) {
+      console.error('[gomoku] mic error:', err);
+      useGomokuMultiplayerStore.setState({ notification: '无法访问麦克风，请检查权限设置' });
+    }
+  };
+
+  const stopRecording = () => {
+    const rec = mediaRef.current;
+    if (!rec) return;
+    clearInterval(rec.recTimer);
+    try { rec.processor?.disconnect(); } catch {}
+    try { rec.source?.disconnect(); } catch {}
+    try { rec.stream.getTracks().forEach((t) => t.stop()); } catch {}
+    try { rec.ctx.close(); } catch {}
+    mediaRef.current = null;
+    setRecording(false);
+    if (rec.chunks.length > 0) {
+      const sampleRate = rec.ctx.sampleRate || 48000;
+      const dataUrl = encodeWAVBase64(rec.chunks, sampleRate);
+      sendVoiceMessage(dataUrl, recordingSec);
+    }
+  };
+
+  // ---- 界面 ----
+  const lastMove = game.moves.length ? [game.moves[game.moves.length - 1].r, game.moves[game.moves.length - 1].c] as [number, number] : null;
+  const moveCount = game.moves.length;
+
+  const lobby = (
+    <div className="gomoku-lobby">
+      <div className="gomoku-lobby-card">
+        <h3>🏠 创建房间</h3>
+        <p>创建一个房间，分享房间号给好友即可开始对局</p>
+        <button className="start-game-btn" onClick={async () => { await createRoom(); }}>➕ 创建房间</button>
+        {roomCode && connectionStatus !== 'connected' && (
+          <div className="gomoku-room-code">
+            <span>房间号：</span>
+            <strong>{roomCode}</strong>
+            <button className="copy-btn" onClick={() => { navigator.clipboard?.writeText(roomCode); }}>📋 复制</button>
+          </div>
+        )}
+      </div>
+      <div className="gomoku-lobby-divider"><span>或</span></div>
+      <div className="gomoku-lobby-card">
+        <h3>🚪 加入房间</h3>
+        <div className="gomoku-join-row">
+          <input
+            className="gomoku-join-input"
+            value={joinInput}
+            onChange={(e) => setJoinInput(e.target.value.toUpperCase())}
+            placeholder="输入房间号"
+            maxLength={7}
+          />
+          <button className="start-game-btn" onClick={() => joinRoom(joinInput)}>加入</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="module gomoku-game">
+      <div className="module-header">
+        <h2>🌐 五子棋 · 联机对战</h2>
+        <p>{inGame ? `房间 ${roomCode} · ${myColor === 'b' ? '⚫ 黑棋' : '⚪ 白棋'}` : '创建或加入房间，与好友实时对战'}</p>
+      </div>
+
+      {!inGame ? lobby : (
+        <div className="game-layout">
+          <div className="game-board-section gomoku-board-section">
+            <div className="view-switch-row">
+              <button className={`view-tab-btn ${viewMode === '3d' ? 'active' : ''}`} onClick={() => setViewMode('3d')}>3D 棋盘</button>
+              <button className={`view-tab-btn ${viewMode === '2d' ? 'active' : ''}`} onClick={() => setViewMode('2d')}>2D 棋盘</button>
+              <button className={`view-tab-btn chat-btn ${chatOpen ? 'active' : ''}`} onClick={() => setChatOpen((v) => !v)}>💬 聊天</button>
+            </div>
+            {viewMode === '3d' ? (
+              <ThreeJSGomokuBoard
+                board={game.board}
+                lastMove={lastMove}
+                winningLine={result?.winningLine || null}
+                onIntersectionClick={handleClick}
+                disabled={!myTurn}
+                flipped={myColor === 'w'}
+              />
+            ) : (
+              <GomokuBoard
+                board={game.board}
+                lastMove={lastMove}
+                winningLine={result?.winningLine || null}
+                onIntersectionClick={handleClick}
+                disabled={!myTurn}
+                flipped={myColor === 'w'}
+              />
+            )}
+          </div>
+
+          <div className="game-side-panel gomoku-side-panel">
+            <div className="gomoku-status-bar">
+              <span className={`gomoku-turn-dot ${game.turn === 'b' ? 'black' : 'white'}`} />
+              <span>
+                {game.over ? '对局结束' : myTurn ? '轮到你落子' : `等待 ${opponentName || '对手'} 落子`}
+              </span>
+              <span className="gomoku-move-count">第 {Math.floor(moveCount / 2) + 1} 手</span>
+            </div>
+            <div className="gomoku-controls">
+              <button className="ctrl-btn danger" onClick={handleResign} disabled={game.over}>🏳️ 认输</button>
+              <button className="ctrl-btn" onClick={handleReset}>🔄 重新开始</button>
+            </div>
+
+            {/* 聊天面板 */}
+            <div className={`gomoku-chat-panel ${chatOpen ? 'open' : ''}`}>
+              <div className="gomoku-chat-header">
+                <span>💬 聊天室</span>
+                <span className="gomoku-chat-opponent">{opponentName || '对手'}</span>
+              </div>
+              <div className="gomoku-chat-list" ref={chatListRef}>
+                {chatMessages.length === 0 && <p className="empty-text">还没有消息，打个招呼吧！</p>}
+                {chatMessages.map((msg, i) => (
+                  <div key={i} className={`gomoku-chat-msg ${msg.from}`}>
+                    <span className="gomoku-chat-time">{formatTime(msg.timestamp)}</span>
+                    {msg.isVoice ? (
+                      <audio controls src={msg.audioData} style={{ height: 30 }} />
+                    ) : (
+                      <span className="gomoku-chat-text">{msg.message}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="gomoku-chat-emoji">
+                {EMOJI_LIST.map((e) => (
+                  <button key={e} className="emoji-btn" onClick={() => sendChat(e)}>{e}</button>
+                ))}
+              </div>
+              <div className="gomoku-chat-input-row">
+                <input
+                  className="gomoku-chat-input"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && chatInput.trim()) { sendChat(chatInput); setChatInput(''); } }}
+                  placeholder="发送消息…"
+                />
+                <button className="send-btn" onClick={() => { if (chatInput.trim()) { sendChat(chatInput); setChatInput(''); } }}>发送</button>
+                {recording ? (
+                  <button className="rec-btn recording" onClick={stopRecording}>🔴 {recordingSec}s</button>
+                ) : (
+                  <button className="rec-btn" onClick={startRecording} title="按住说话">🎤</button>
+                )}
+              </div>
+            </div>
+
+            <div className="gomoku-move-history">
+              <h3>落子记录</h3>
+              {moveCount === 0 ? <p className="empty-text">暂无落子</p> : (
+                <div className="gomoku-move-list">
+                  {Array.from({ length: Math.ceil(moveCount / 2) }).map((_, i) => {
+                    const b = game.moves[i * 2];
+                    const w = game.moves[i * 2 + 1];
+                    const fmt = (m: GomokuGameState['moves'][0]) => `${m.color === 'b' ? '⚫' : '⚪'}(${m.r + 1},${m.c + 1})`;
+                    return (
+                      <div key={i} className="gomoku-move-row">
+                        <span className="gomoku-move-no">{i + 1}.</span>
+                        <span>{b ? fmt(b) : ''}</span>
+                        <span>{w ? fmt(w) : ''}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {result && (
+              <div className="game-result-modal gomoku-result-modal">
+                <div className="result-content">
+                  <button className="result-close-btn" onClick={() => setResult(null)}>✕</button>
+                  <div className="result-icon">{result.emoji}</div>
+                  <h3 className="result-title">{result.title}</h3>
+                  <p className="result-detail">{result.detail}</p>
+                  <button className="play-again-btn" onClick={handleReset}>再来一局</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {notification && (
+        <div className="gomoku-notification" onClick={clearNotification}>
+          {notification}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default GomokuOnlineGame;

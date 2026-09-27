@@ -22,3 +22,9 @@ export { GoRulesLearning } from './GoRulesLearning';
 export { GoGame } from './GoGame';
 export { GoLocalGame } from './GoLocalGame';
 export { GoOnlineGame } from './GoOnlineGame';
+
+// 五子棋模块
+export { GomokuRulesLearning } from './GomokuRulesLearning';
+export { GomokuGame } from './GomokuGame';
+export { GomokuLocalGame } from './GomokuLocalGame';
+export { GomokuOnlineGame } from './GomokuOnlineGame';

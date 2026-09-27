@@ -22,16 +22,21 @@ import {
   GoGame,
   GoLocalGame,
   GoOnlineGame,
+  GomokuRulesLearning,
+  GomokuGame,
+  GomokuLocalGame,
+  GomokuOnlineGame,
 } from './modules';
 import { UserProfile, ErrorBoundary, WeChatGuide } from './components';
 import { useProgressStore } from './store';
 import { isWeChatBrowser } from './utils/wechat';
 
-type GameType = 'chess' | 'xiangqi' | 'go';
+type GameType = 'chess' | 'xiangqi' | 'go' | 'gomoku';
 type ChessTabKey = 'learn' | 'rules' | 'tactics' | 'game' | 'local' | 'online' | 'progress';
 type XiangqiTabKey = 'xq-rules' | 'xq-tactics' | 'xq-ai' | 'xq-local' | 'xq-online' | 'progress';
 type GoTabKey = 'go-rules' | 'go-ai' | 'go-local' | 'go-online' | 'progress';
-type TabKey = ChessTabKey | XiangqiTabKey | GoTabKey;
+type GomokuTabKey = 'gomoku-rules' | 'gomoku-ai' | 'gomoku-local' | 'gomoku-online' | 'progress';
+type TabKey = ChessTabKey | XiangqiTabKey | GoTabKey | GomokuTabKey;
 
 const CHESS_TABS: { key: ChessTabKey; label: string; icon: string }[] = [
   { key: 'learn', label: '棋子学习', icon: '♟️' },
@@ -60,6 +65,14 @@ const GO_TABS: { key: GoTabKey; label: string; icon: string }[] = [
   { key: 'progress', label: '我的进度', icon: '🏆' },
 ];
 
+const GOMOKU_TABS: { key: GomokuTabKey; label: string; icon: string }[] = [
+  { key: 'gomoku-rules', label: '规则学习', icon: '📖' },
+  { key: 'gomoku-ai', label: '人机对战', icon: '🤖' },
+  { key: 'gomoku-local', label: '双人对战', icon: '👥' },
+  { key: 'gomoku-online', label: '联机对战', icon: '🌐' },
+  { key: 'progress', label: '我的进度', icon: '🏆' },
+];
+
 // 启动时解析 URL 参数，支持通过分享链接自动进入房间
 // 棋类判断优先级：game 参数 > 房间号前缀（C-/X-） > 默认国际象棋
 function parseUrlParams(): { game: GameType; tab: TabKey; room: string } | null {
@@ -77,6 +90,11 @@ function parseUrlParams(): { game: GameType; tab: TabKey; room: string } | null 
     detectedGame = 'chess';
   } else if (game === 'go') {
     detectedGame = 'go';
+  } else if (game === 'gomoku') {
+    detectedGame = 'gomoku';
+  } else if (roomUpper.startsWith('W-')) {
+    // 从房间号前缀识别五子棋
+    detectedGame = 'gomoku';
   } else if (roomUpper.startsWith('G-')) {
     // 从房间号前缀识别围棋
     detectedGame = 'go';
@@ -88,7 +106,10 @@ function parseUrlParams(): { game: GameType; tab: TabKey; room: string } | null 
     detectedGame = 'chess';
   }
 
-  const tab = detectedGame === 'xiangqi' ? 'xq-online' as TabKey : detectedGame === 'go' ? 'go-online' as TabKey : 'online' as TabKey;
+  const tab = detectedGame === 'xiangqi' ? 'xq-online' as TabKey
+    : detectedGame === 'go' ? 'go-online' as TabKey
+    : detectedGame === 'gomoku' ? 'gomoku-online' as TabKey
+    : 'online' as TabKey;
   return { game: detectedGame, tab, room: roomUpper };
 }
 
@@ -103,7 +124,7 @@ const App: React.FC = () => {
   const [weChatGame, setWeChatGame] = useState<GameType>('chess');
   const { progress } = useProgressStore();
 
-  const tabs = gameType === 'chess' ? CHESS_TABS : gameType === 'xiangqi' ? XIANGQI_TABS : GO_TABS;
+  const tabs = gameType === 'chess' ? CHESS_TABS : gameType === 'xiangqi' ? XIANGQI_TABS : gameType === 'go' ? GO_TABS : GOMOKU_TABS;
 
   /** 启动时检测 URL 参数，自动进入对应联机房间 */
   useEffect(() => {
@@ -137,7 +158,7 @@ const App: React.FC = () => {
   /** 首页选择棋类，进入对应模块 */
   const selectGame = (type: GameType) => {
     setGameType(type);
-    setActiveTab(type === 'chess' ? 'learn' : type === 'xiangqi' ? 'xq-rules' : 'go-rules');
+    setActiveTab(type === 'chess' ? 'learn' : type === 'xiangqi' ? 'xq-rules' : type === 'go' ? 'go-rules' : 'gomoku-rules');
   };
 
   /** 返回首页（重新选择棋类） */
@@ -215,6 +236,14 @@ const App: React.FC = () => {
         return <GoLocalGame />;
       case 'go-online':
         return <GoOnlineGame autoJoinRoom={autoRoom} />;
+      case 'gomoku-rules':
+        return <GomokuRulesLearning />;
+      case 'gomoku-ai':
+        return <GomokuGame />;
+      case 'gomoku-local':
+        return <GomokuLocalGame />;
+      case 'gomoku-online':
+        return <GomokuOnlineGame autoJoinRoom={autoRoom} />;
       default:
         return null;
     }
@@ -279,6 +308,17 @@ const App: React.FC = () => {
                 </span>
                 <span className="game-card-btn">进入游戏 →</span>
               </button>
+              <button
+                className="game-select-card game-card-gomoku"
+                onClick={() => selectGame('gomoku')}
+              >
+                <span className="game-card-icon">✖</span>
+                <span className="game-card-title">五子棋</span>
+                <span className="game-card-desc">
+                  规则学习 · 人机对战 · 双人对战 · 在线联机（花梨木 3D 棋盘）
+                </span>
+                <span className="game-card-btn">进入游戏 →</span>
+              </button>
             </div>
           </div>
         </main>
@@ -304,11 +344,11 @@ const App: React.FC = () => {
       <header className="app-header">
         <div className="header-left">
           <h1 className="app-title" onClick={goHome} style={{ cursor: 'pointer' }} title="返回首页">
-            <span className="app-logo">{gameType === 'chess' ? '♔' : gameType === 'xiangqi' ? '帥' : '⚫'}</span>
+            <span className="app-logo">{gameType === 'chess' ? '♔' : gameType === 'xiangqi' ? '帥' : gameType === 'go' ? '⚫' : '✖'}</span>
             棋乐园
           </h1>
           <span className="app-subtitle">
-            {gameType === 'chess' ? '国际象棋' : gameType === 'xiangqi' ? '中国象棋' : '围棋'}
+            {gameType === 'chess' ? '国际象棋' : gameType === 'xiangqi' ? '中国象棋' : gameType === 'go' ? '围棋' : '五子棋'}
           </span>
         </div>
         <div className="header-right">

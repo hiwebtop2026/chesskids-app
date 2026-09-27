@@ -1,0 +1,141 @@
+/**
+ * ChessKids - 五子棋双人对局模块（本地同屏）
+ * 黑先白后轮流落子：悔棋、认输、重新开始、2D/3D 切换
+ */
+import React, { useCallback, useState } from 'react';
+import { GomokuBoard } from '../components/GomokuBoard';
+import { ThreeJSGomokuBoard } from '../components/ThreeJSGomokuBoard';
+import {
+  createGomokuGame, gomokuPlayMove, gomokuUndo, findGomokuWinningLine,
+  type GomokuColor, type GomokuGameState,
+} from '../engine/gomoku';
+import { supportsWebGL } from '../utils/webgl';
+
+export const GomokuLocalGame: React.FC = () => {
+  const [viewMode, setViewMode] = useState<'2d' | '3d'>(() => (typeof window !== 'undefined' && supportsWebGL() ? '3d' : '2d'));
+  const [started, setStarted] = useState(false);
+  const [game, setGame] = useState<GomokuGameState>(() => createGomokuGame());
+  const [result, setResult] = useState<{ winner: GomokuColor | 'draw' | null; winningLine: Array<[number, number]> | null } | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const showToast = useCallback((msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2000);
+  }, []);
+
+  const handleClick = (r: number, c: number) => {
+    if (!started || game.over) return;
+    const next = gomokuPlayMove(game, r, c);
+    if (!next) { showToast('该位置已有棋子'); return; }
+    setGame(next);
+    if (next.over) {
+      const winningLine = next.winner && next.winner !== 'draw' ? findGomokuWinningLine(next.board, next.winner) : null;
+      setResult({ winner: next.winner, winningLine });
+    }
+  };
+
+  const handleUndo = () => {
+    if (game.moves.length === 0) return;
+    setGame(gomokuUndo(game, 1));
+    setResult(null);
+  };
+
+  const handleStart = () => {
+    setGame(createGomokuGame());
+    setResult(null);
+    setStarted(true);
+  };
+
+  if (!started) {
+    return (
+      <div className="module gomoku-game">
+        <div className="module-header">
+          <h2>👥 五子棋 · 双人对局</h2>
+          <p>两人同屏轮流落子，黑先白后，先连成五子者获胜。</p>
+        </div>
+        <div className="gomoku-setup-panel">
+          <button className="start-game-btn" onClick={handleStart}>🎮 开始对局</button>
+        </div>
+      </div>
+    );
+  }
+
+  const moveCount = game.moves.length;
+  const lastMove = moveCount ? [game.moves[moveCount - 1].r, game.moves[moveCount - 1].c] as [number, number] : null;
+
+  return (
+    <div className="module gomoku-game">
+      <div className="module-header">
+        <h2>👥 五子棋 · 双人对局</h2>
+        <p>15×15 棋盘 · 轮流落子</p>
+      </div>
+      <div className="game-layout">
+        <div className="game-board-section gomoku-board-section">
+          <div className="view-switch-row">
+            <button className={`view-tab-btn ${viewMode === '3d' ? 'active' : ''}`} onClick={() => setViewMode('3d')}>3D 棋盘</button>
+            <button className={`view-tab-btn ${viewMode === '2d' ? 'active' : ''}`} onClick={() => setViewMode('2d')}>2D 棋盘</button>
+          </div>
+          {viewMode === '3d' ? (
+            <ThreeJSGomokuBoard
+              board={game.board}
+              lastMove={lastMove}
+              winningLine={result?.winningLine || null}
+              onIntersectionClick={handleClick}
+            />
+          ) : (
+            <GomokuBoard
+              board={game.board}
+              lastMove={lastMove}
+              winningLine={result?.winningLine || null}
+              onIntersectionClick={handleClick}
+            />
+          )}
+          {toast && <div className="gomoku-toast">{toast}</div>}
+        </div>
+        <div className="game-side-panel gomoku-side-panel">
+          <div className="gomoku-status-bar">
+            <span className={`gomoku-turn-dot ${game.turn === 'b' ? 'black' : 'white'}`} />
+            <span>{game.over ? '对局结束' : game.turn === 'b' ? '黑棋落子' : '白棋落子'}</span>
+            <span className="gomoku-move-count">第 {Math.floor(moveCount / 2) + 1} 手</span>
+          </div>
+          <div className="gomoku-controls">
+            <button className="ctrl-btn" onClick={handleUndo} disabled={moveCount === 0}>↩️ 悔棋</button>
+            <button className="ctrl-btn" onClick={() => { setGame(createGomokuGame()); setResult(null); }}>🔄 重新开始</button>
+          </div>
+          <div className="gomoku-move-history">
+            <h3>落子记录</h3>
+            {moveCount === 0 ? <p className="empty-text">暂无落子</p> : (
+              <div className="gomoku-move-list">
+                {Array.from({ length: Math.ceil(moveCount / 2) }).map((_, i) => {
+                  const b = game.moves[i * 2];
+                  const w = game.moves[i * 2 + 1];
+                  const fmt = (m: GomokuGameState['moves'][0]) => `${m.color === 'b' ? '⚫' : '⚪'}(${m.r + 1},${m.c + 1})`;
+                  return (
+                    <div key={i} className="gomoku-move-row">
+                      <span className="gomoku-move-no">{i + 1}.</span>
+                      <span>{b ? fmt(b) : ''}</span>
+                      <span>{w ? fmt(w) : ''}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          {result && (
+            <div className="game-result-modal gomoku-result-modal">
+              <div className="result-content">
+                <button className="result-close-btn" onClick={() => setResult(null)}>✕</button>
+                <div className="result-icon">{result.winner === 'draw' ? '🤝' : result.winner === 'b' ? '⚫' : '⚪'}</div>
+                <h3 className="result-title">{result.winner === 'draw' ? '和棋' : `${result.winner === 'b' ? '黑棋' : '白棋'}获胜！`}</h3>
+                <p className="result-detail">共 {moveCount} 手</p>
+                <button className="play-again-btn" onClick={() => { setGame(createGomokuGame()); setResult(null); }}>再来一局</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default GomokuLocalGame;

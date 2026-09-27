@@ -6546,3 +6546,128 @@ ul {
 .go-3d-reset-btn:active {
   transform: scale(0.95);
 }
+
+/* ============================================================
+   五子棋模块（深色花梨木为主色调）
+   ============================================================ */
+.game-card-gomoku:hover {
+  border-color: #8a4b2d;
+}
+.game-card-gomoku .game-card-icon {
+  color: #8a4b2d;
+}
+.game-card-gomoku .game-card-btn {
+  background: #8a4b2d;
+}
+
+.gomoku-board-container { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; }
+.gomoku-board-toolbar { display: flex; justify-content: flex-end; width: 100%; }
+.gomoku-float-btn { padding: 6px 14px; border-radius: 8px; border: 1px solid #b8906a; background: #f5e8d8; color: #6b4a2a; cursor: pointer; font-size: 13px; }
+.gomoku-float-btn:hover { background: #eed9b8; }
+.gomoku-board-wrap { position: relative; width: min(100%, 640px, calc(100dvh - 200px)); aspect-ratio: 1; }
+.gomoku-board-svg { width: 100%; height: 100%; display: block; border-radius: 10px; box-shadow: 0 4px 18px rgba(0,0,0,0.28); touch-action: manipulation; }
+.gomoku-board-bg { fill: #e6d6ae; }
+.gomoku-line { stroke: #2b2b2b; stroke-width: 0.45; }
+.gomoku-stone { filter: drop-shadow(0 1px 1.2px rgba(0,0,0,0.3)); }
+.gomoku-stone-inner { opacity: 0.9; }
+.gomoku-star { fill: #1a1a1a; }
+.gomoku-coord { font-size: 2.6; fill: #6b5a42; font-weight: 600; }
+.gomoku-last-mark { stroke: #fff; stroke-width: 0.4; }
+.gomoku-hint { stroke: #ffb300; }
+.gomoku-win-ring { filter: drop-shadow(0 0 2px rgba(255,179,0,0.8)); }
+.gomoku-float-close { position: absolute; top: 8px; right: 8px; z-index: 5; width: 34px; height: 34px; border-radius: 50%; border: none; background: rgba(0,0,0,0.55); color: #fff; font-size: 16px; cursor: pointer; }
+.gomoku-float-close:hover { background: rgba(0,0,0,0.75); }
+
+.gomoku-floating { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; width: min(94vw, 86dvh, 880px) !important; height: auto; aspect-ratio: 1; }
+.gomoku-floating .gomoku-board-svg { box-shadow: 0 8px 40px rgba(0,0,0,0.5); }
+
+.gomoku-setup-panel { max-width: 560px; margin: 0 auto; padding: 20px; background: #fff9f0; border: 1px solid #e8d4b8; border-radius: 14px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+.gomoku-setup-row { margin-bottom: 18px; }
+.gomoku-setup-row h3 { margin: 0 0 10px; font-size: 15px; color: #5a4a2f; }
+.gomoku-option-group { display: flex; flex-wrap: wrap; gap: 8px; }
+.gomoku-opt { padding: 8px 16px; border-radius: 8px; border: 1px solid #d8c0a0; background: #fff; color: #5a4a2f; cursor: pointer; font-size: 14px; }
+.gomoku-opt.active { background: #8a4b2d; border-color: #8a4b2d; color: #fff; }
+.gomoku-setup-hint { margin: 6px 0 0; font-size: 12.5px; color: #8a7a5f; }
+
+.gomoku-board-section { position: relative; }
+.gomoku-status-bar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #fff8ec; border: 1px solid #e8d4b8; border-radius: 10px; font-size: 14px; color: #5a4a2f; }
+.gomoku-turn-dot { width: 14px; height: 14px; border-radius: 50%; border: 1px solid #999; }
+.gomoku-turn-dot.black { background: #1a1a1a; }
+.gomoku-turn-dot.white { background: #f7f7f7; }
+.gomoku-move-count { margin-left: auto; font-weight: 600; color: #8a6d3b; }
+.gomoku-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+.gomoku-controls .ctrl-btn { padding: 7px 12px; border-radius: 8px; border: 1px solid #d8c0a0; background: #fff8ec; color: #5a4a2f; cursor: pointer; font-size: 13px; }
+.gomoku-controls .ctrl-btn:hover:not(:disabled) { background: #f0e0b8; }
+.gomoku-controls .ctrl-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.gomoku-controls .ctrl-btn.danger { border-color: #e0a0a0; color: #c0392b; }
+
+.gomoku-rules-tip { padding: 10px 14px; background: #fff8ec; border: 1px solid #e8d4b8; border-radius: 10px; }
+.gomoku-rules-tip p { margin: 0 0 6px; font-weight: 600; color: #5a4a2f; }
+.gomoku-rules-tip ul { margin: 0; padding-left: 18px; color: #6b5a42; font-size: 13px; line-height: 1.7; }
+
+.gomoku-move-history { padding: 10px 14px; background: #fff9f0; border: 1px solid #e8d4b8; border-radius: 10px; max-height: 220px; overflow-y: auto; }
+.gomoku-move-history h3 { margin: 0 0 8px; font-size: 14px; color: #5a4a2f; }
+.gomoku-move-list { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 10px; font-size: 13px; }
+.gomoku-move-row { display: contents; }
+.gomoku-move-row span { padding: 2px 0; border-bottom: 1px dashed #f0e6d0; }
+.gomoku-move-no { color: #8a7a5f; font-weight: 600; }
+.gomoku-toast { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 20; padding: 8px 16px; background: rgba(0,0,0,0.75); color: #fff; border-radius: 8px; font-size: 13px; white-space: nowrap; }
+
+.gomoku-board-3d { width: 100%; height: 100%; min-height: 420px; border-radius: 12px; overflow: hidden; position: relative; background: linear-gradient(145deg, #8a6a4e, #6e5842); }
+.gomoku-board-3d canvas { display: block; border-radius: 12px; }
+.gomoku-3d-fallback { padding: 40px 20px; text-align: center; color: #8a6d3b; background: #fff8ec; border-radius: 12px; border: 1px solid #e8d4b8; }
+.gomoku-3d-reset-btn { position: absolute; top: 12px; right: 12px; z-index: 5; padding: 6px 12px; border: none; border-radius: 8px; background: rgba(40, 25, 12, 0.72); color: #ffe8c8; font-size: 12.5px; cursor: pointer; }
+.gomoku-3d-reset-btn:hover { background: rgba(40, 25, 12, 0.92); }
+.gomoku-3d-reset-btn:active { transform: scale(0.95); }
+
+/* 规则学习 */
+.gomoku-rules-content { display: flex; flex-direction: column; gap: 14px; max-width: 680px; margin: 0 auto; }
+.gomoku-rules-card { padding: 16px 20px; background: #fff9f0; border: 1px solid #e8d4b8; border-radius: 12px; }
+.gomoku-rules-card h3 { margin: 0 0 8px; color: #6b4a2a; font-size: 16px; }
+.gomoku-rules-card p { margin: 0; color: #5a4a2f; line-height: 1.7; font-size: 14px; }
+.gomoku-rules-card ul { margin: 0; padding-left: 18px; color: #5a4a2f; line-height: 1.8; font-size: 14px; }
+.gomoku-rules-card b { color: #8a4b2d; }
+.demo-card { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.gomoku-demo-board { width: 100%; max-width: 480px; }
+
+/* 联机大厅与聊天 */
+.gomoku-lobby { max-width: 520px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+.gomoku-lobby-card { padding: 18px 20px; background: #fff9f0; border: 1px solid #e8d4b8; border-radius: 12px; }
+.gomoku-lobby-card h3 { margin: 0 0 8px; color: #6b4a2a; }
+.gomoku-lobby-card p { margin: 0 0 12px; color: #6b5a42; font-size: 13.5px; }
+.gomoku-room-code { margin-top: 12px; padding: 10px 14px; background: #f5e8d8; border-radius: 8px; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+.gomoku-room-code strong { font-size: 18px; letter-spacing: 2px; color: #8a4b2d; }
+.copy-btn { margin-left: auto; padding: 4px 10px; border: 1px solid #b8906a; border-radius: 6px; background: #fff; color: #6b4a2a; cursor: pointer; font-size: 12px; }
+.gomoku-lobby-divider { text-align: center; color: #8a7a5f; font-size: 13px; }
+.gomoku-join-row { display: flex; gap: 8px; }
+.gomoku-join-input { flex: 1; padding: 10px 12px; border: 1px solid #d8c0a0; border-radius: 8px; font-size: 15px; letter-spacing: 2px; text-transform: uppercase; }
+
+.chat-btn { margin-left: auto; }
+.gomoku-chat-panel { display: none; flex-direction: column; border: 1px solid #e8d4b8; border-radius: 10px; background: #fff9f0; overflow: hidden; }
+.gomoku-chat-panel.open { display: flex; }
+.gomoku-chat-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: #f0dcc0; color: #5a4a2f; font-size: 13px; font-weight: 600; }
+.gomoku-chat-opponent { color: #8a6d3b; font-weight: 400; }
+.gomoku-chat-list { height: 160px; overflow-y: auto; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+.gomoku-chat-msg { display: flex; flex-direction: column; max-width: 85%; padding: 6px 10px; border-radius: 8px; font-size: 13px; }
+.gomoku-chat-msg.me { align-self: flex-end; background: #f0dcc0; }
+.gomoku-chat-msg.opponent { align-self: flex-start; background: #eef0e6; }
+.gomoku-chat-msg.system { align-self: center; background: transparent; color: #8a7a5f; font-size: 12px; }
+.gomoku-chat-time { font-size: 11px; color: #8a7a5f; margin-bottom: 2px; }
+.gomoku-chat-text { color: #3a3a3a; }
+.gomoku-chat-emoji { display: flex; flex-wrap: wrap; gap: 2px; padding: 4px 8px; border-top: 1px dashed #e8d4b8; }
+.emoji-btn { background: none; border: none; font-size: 18px; cursor: pointer; padding: 2px; border-radius: 4px; }
+.emoji-btn:hover { background: #f0e0b8; }
+.gomoku-chat-input-row { display: flex; gap: 6px; padding: 8px; border-top: 1px solid #e8d4b8; }
+.gomoku-chat-input { flex: 1; padding: 8px 10px; border: 1px solid #d8c0a0; border-radius: 8px; font-size: 13px; }
+.send-btn { padding: 8px 14px; border: none; border-radius: 8px; background: #8a4b2d; color: #fff; cursor: pointer; font-size: 13px; }
+.rec-btn { width: 42px; border: 1px solid #d8c0a0; border-radius: 8px; background: #fff; color: #8a4b2d; cursor: pointer; font-size: 16px; }
+.rec-btn.recording { background: #e53935; color: #fff; font-size: 13px; font-weight: 600; animation: gomoku-pulse 1s infinite; }
+@keyframes gomoku-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+.gomoku-notification { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); z-index: 200; padding: 10px 18px; background: rgba(40, 25, 12, 0.9); color: #ffe8c8; border-radius: 10px; font-size: 13.5px; cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,0.3); max-width: 90vw; }
+
+@media (max-width: 640px) {
+  .gomoku-board-wrap { width: min(100%, calc(100dvh - 260px)); }
+}
+.gomoku-stone-shadow { filter: blur(0.5px); }
+.gomoku-stone-glint { pointer-events: none; }
+.gomoku-wood-grain { pointer-events: none; }
