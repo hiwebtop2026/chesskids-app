@@ -627,6 +627,10 @@ function evaluate(b: FlatBoard, c: 'r' | 'b', withMobility = true): number {
   if (king >= 0) {
     const kx = king % COLS, ky = (king / COLS) | 0;
     if (kx === 4 && (ky === 8 || ky === 1)) safety += 8; // 王在宫心
+    // 出帅重罚：帅偏离中宫（col≠4）→ 暴露于侧翼攻击（治"帅五平六被车捉"式恶手）
+    if (kx !== 4) safety -= 28;
+    // 帅离开己方底线（红 y!=9 / 黑 y!=0）→ 无士相保护的高危暴露
+    if (c === 'r' ? ky !== 9 : ky !== 0) safety -= 20;
   }
   safety += myAdvisors * 5 + myElephants * 5;
 
@@ -722,6 +726,37 @@ function evaluate(b: FlatBoard, c: 'r' | 'b', withMobility = true): number {
       }
     }
   }
+  // 进攻威胁（轻量）：己方着法能攻击对方"无保护"的高价值子 → 加威胁分（治不进取/来回磨和）
+  // 与防守惩罚互补：防守罚"己方被捉无保护"，此处奖励"己方可捉对方无保护"
+  let attackThreat = 0;
+  for (let i = 0; i < b.length; i++) {
+    const p = b[i];
+    if (!p || isRed(p) !== (c === 'r')) continue;
+    const t = p.toLowerCase();
+    if (t !== 'r' && t !== 'n' && t !== 'c' && t !== 'p') continue;
+    const moves = pseudoMoves(b, i);
+    for (const d of moves) {
+      const q = b[d];
+      if (!q || isRed(q) === (c === 'r') || q.toLowerCase() === 'k') continue;
+      // 被攻击方该子是否有保护（四邻己方子近似）
+      const qx = d % COLS, qy = (d / COLS) | 0;
+      let qGuard = false;
+      for (const [dx, dy] of DIR4) {
+        const nx = qx + dx, ny = qy + dy;
+        if (!inBoard(nx, ny)) continue;
+        const gp = b[ny * COLS + nx];
+        if (gp && isRed(gp) === (c !== 'r')) { qGuard = true; break; }
+      }
+      if (!qGuard) {
+        const qt = q.toLowerCase();
+        if (qt === 'r') attackThreat += 10;
+        else if (qt === 'n' || qt === 'c') attackThreat += 6;
+        else if (qt === 'p') attackThreat += 2;
+      }
+    }
+  }
+  safety += attackThreat;
+
   // 过河兵协同：多个过河兵相邻（兵阵推进更强）
   let crossedPawns = 0;
   for (let i = 0; i < b.length; i++) {
@@ -804,7 +839,7 @@ function evaluate(b: FlatBoard, c: 'r' | 'b', withMobility = true): number {
         if (isRed(p) === (c === 'r')) my += v; else opp += v;
       }
     }
-    if (my < opp) return Math.round(total * 0.5);
+    if (my < opp) return Math.round(total * 0.65); // 收敛但保留进取：守方防守、攻方有磨胜动力
   }
   return total;
 }
