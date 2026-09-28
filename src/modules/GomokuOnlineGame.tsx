@@ -287,6 +287,49 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
     </div>
   );
 
+  // 聊天面板：2D 模式作为棋盘容器 children 渲染（浮动层内，不跳出窗口）；3D 模式显示在侧栏
+  const chatPanelEl = (
+    <div className={`gomoku-chat-panel ${chatOpen ? 'open' : ''} ${viewMode === '2d' ? 'float-inboard' : ''}`}>
+      <div className="gomoku-chat-header">
+        <span>💬 聊天室</span>
+        <span className="gomoku-chat-opponent">{opponentName || '对手'}</span>
+      </div>
+      <div className="gomoku-chat-list" ref={chatListRef}>
+        {chatMessages.length === 0 && <p className="empty-text">还没有消息，打个招呼吧！</p>}
+        {chatMessages.map((msg, i) => (
+          <div key={i} className={`gomoku-chat-msg ${msg.from}`}>
+            <span className="gomoku-chat-time">{formatTime(msg.timestamp)}</span>
+            {msg.isVoice ? (
+              <audio controls src={msg.audioData} style={{ height: 30 }} />
+            ) : (
+              <span className="gomoku-chat-text">{msg.message}</span>
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="gomoku-chat-emoji">
+        {EMOJI_LIST.map((e) => (
+          <button key={e} className="emoji-btn" onClick={() => sendChat(e)}>{e}</button>
+        ))}
+      </div>
+      <div className="gomoku-chat-input-row">
+        <input
+          className="gomoku-chat-input"
+          value={chatInput}
+          onChange={(e) => setChatInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && chatInput.trim()) { sendChat(chatInput); setChatInput(''); } }}
+          placeholder="发送消息…"
+        />
+        <button className="send-btn" onClick={() => { if (chatInput.trim()) { sendChat(chatInput); setChatInput(''); } }}>发送</button>
+        {recording ? (
+          <button className="rec-btn recording" onClick={stopRecording}>🔴 {recordingSec}s</button>
+        ) : (
+          <button className="rec-btn" onClick={startRecording} title="按住说话">🎤</button>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="module gomoku-game">
       <div className="module-header">
@@ -329,6 +372,7 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
                 defaultFloating
               >
                 {onlineCtrlButtons}
+                {chatOpen && viewMode === '2d' && chatPanelEl}
                 {result && (
                   <GomokuResultFX kind={result.emoji === '🎉' ? 'win' : result.title === '和棋' ? 'draw' : 'lose'} label={result.title} />
                 )}
@@ -356,46 +400,8 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
               </div>
             )}
 
-            {/* 聊天面板 */}
-            <div className={`gomoku-chat-panel ${chatOpen ? 'open' : ''}`}>
-              <div className="gomoku-chat-header">
-                <span>💬 聊天室</span>
-                <span className="gomoku-chat-opponent">{opponentName || '对手'}</span>
-              </div>
-              <div className="gomoku-chat-list" ref={chatListRef}>
-                {chatMessages.length === 0 && <p className="empty-text">还没有消息，打个招呼吧！</p>}
-                {chatMessages.map((msg, i) => (
-                  <div key={i} className={`gomoku-chat-msg ${msg.from}`}>
-                    <span className="gomoku-chat-time">{formatTime(msg.timestamp)}</span>
-                    {msg.isVoice ? (
-                      <audio controls src={msg.audioData} style={{ height: 30 }} />
-                    ) : (
-                      <span className="gomoku-chat-text">{msg.message}</span>
-                    )}
-                  </div>
-                ))}
-              </div>
-              <div className="gomoku-chat-emoji">
-                {EMOJI_LIST.map((e) => (
-                  <button key={e} className="emoji-btn" onClick={() => sendChat(e)}>{e}</button>
-                ))}
-              </div>
-              <div className="gomoku-chat-input-row">
-                <input
-                  className="gomoku-chat-input"
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && chatInput.trim()) { sendChat(chatInput); setChatInput(''); } }}
-                  placeholder="发送消息…"
-                />
-                <button className="send-btn" onClick={() => { if (chatInput.trim()) { sendChat(chatInput); setChatInput(''); } }}>发送</button>
-                {recording ? (
-                  <button className="rec-btn recording" onClick={stopRecording}>🔴 {recordingSec}s</button>
-                ) : (
-                  <button className="rec-btn" onClick={startRecording} title="按住说话">🎤</button>
-                )}
-              </div>
-            </div>
+            {/* 聊天面板（3D 模式显示在侧栏；2D 模式渲染在棋盘容器内） */}
+            {viewMode === '3d' && chatPanelEl}
 
             <div className="gomoku-move-history">
               <h3>落子记录</h3>
