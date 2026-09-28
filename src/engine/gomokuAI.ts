@@ -138,8 +138,9 @@ interface Pattern {
 /** 沿方向扫描落子 (r,c)（视为已落 color）后的 5 子窗口模式 */
 function scanPattern(b: GomokuBoard, r: number, c: number, dr: number, dc: number, color: GomokuColor): Pattern {
   const cells: string[] = [];
-  for (let k = -4; k <= 4; k++) {
-    const nr = r + dr * k, nc = c + dc * k;
+  // 9 格窗口：索引 4 必须是落子点 (r,c)（cells[4] 由下方覆盖为 color）
+  for (let k = 0; k <= 8; k++) {
+    const nr = r + dr * (k - 4), nc = c + dc * (k - 4);
     cells.push(inBoard(nr, nc) ? b[nr][nc] : '#');
   }
   cells[4] = color; // 落子点视为已落
@@ -185,7 +186,7 @@ const PATTERN_VALUE = (p: Pattern): number => {
  * 落子点威胁评分（color 视角）：
  * 单线分求和 + 组合威胁（双活三/四三/双冲四/活四 = 对手无法同时化解的必胜杀形）
  */
-function pointScore(b: GomokuBoard, r: number, c: number, color: GomokuColor): number {
+export function pointScore(b: GomokuBoard, r: number, c: number, color: GomokuColor): number {
   const lines = DIRS.map(([dr, dc]) => scanPattern(b, r, c, dr, dc, color));
   if (lines.some((p) => p.sub >= 5)) return 10_000_000; // 含跳型：一子补缝即成五
 
@@ -260,6 +261,26 @@ export function evaluateGomoku(b: GomokuBoard, color: GomokuColor): number {
       else if (cell !== '') { if (pointScore(b, r, c, cell) >= 800_000) theirs += 900_000; }
     }
   }
+  // v6：威胁潜力修正——统计双方"落 X 即形成 >=700k 组合"的空点数。
+  // 对手潜力点越多，局面越危险（双杀/活四成型在即），评分相应下调，促使 AI 提前防守做棋苗头
+  const cands = gomokuCandidates(b);
+  // v6.2：潜力分级修正——对手落 X 即形成的组合威胁按强度加权，
+  // 使"活三/跳三升级点"在做棋早期就在静态评估中显性（修复只堵成型、不防做棋的滞后）
+  let myPot = 0, oppPot = 0;
+  for (const [r, c] of cands) {
+    const mv = pointScore(b, r, c, color);
+    const ov = pointScore(b, r, c, opp);
+    if (mv >= 700_000) myPot += 120_000;
+    else if (mv >= 450_000) myPot += 40_000;
+    else if (mv >= 200_000) myPot += 15_000;
+    else if (mv >= 50_000) myPot += 8_000;
+    if (ov >= 700_000) oppPot += 120_000;
+    else if (ov >= 450_000) oppPot += 40_000;
+    else if (ov >= 200_000) oppPot += 15_000;
+    else if (ov >= 50_000) oppPot += 8_000;
+  }
+  mine += myPot;
+  theirs += oppPot;
   return mine - theirs * 1.18;
 }
 
@@ -270,10 +291,17 @@ export function evaluateGomoku(b: GomokuBoard, color: GomokuColor): number {
 function orderedCandidates(b: GomokuBoard, color: GomokuColor, learn?: GomokuLearnData | null): Array<[number, number]> {
   const cands = gomokuCandidates(b);
   const defK = 1.25 + (learn?.defenseLevel || 0) * 0.08;
+  const opp = color === 'b' ? 'w' : 'b';
   const scored = cands.map(([r, c]) => {
     const atk = pointScore(b, r, c, color);
-    const def = pointScore(b, r, c, color === 'b' ? 'w' : 'b');
-    return { r, c, v: atk + def * defK + Math.random() * 0.001 };
+    const def = pointScore(b, r, c, opp);
+    // v6：对手落此子即形成 >=700k 组合威胁（活三+跳三/双杀苗头）→ 防守分加权强制前置，
+    // 让深度搜索一定把"提前封缝/封端"纳入候选（修复对局记录中"只堵成型、不防做棋"的滞后）
+    let d = def;
+    if (def >= 700_000) d *= 3.0;
+    else if (def >= 450_000) d *= 1.6;
+    else if (def >= 200_000) d *= 1.2;
+    return { r, c, v: atk + d * defK + Math.random() * 0.001 };
   });
   scored.sort((a, b2) => b2.v - a.v);
   return scored.map((s) => [s.r, s.c] as [number, number]);
@@ -413,7 +441,6 @@ export function gomokuBestMove(
   if (cands.length === 0) return null;
   const opp = color === 'b' ? 'w' : 'b';
   // 自学习：防守激进度 → 组合威胁必堵阈值下调（更早堵）/ 防守系数上调
-  const threatK = Math.max(400_000, 800_000 - (learn?.defenseLevel || 0) * 60_000);
 
   // 空盘先手：自学习加权开局（保持多样性，但偏好历史胜率高的开局点）
   const isEmpty = board.every((row) => row.every((cell) => cell === ''));
@@ -448,24 +475,48 @@ export function gomokuBestMove(
     if (nb && checkGomokuWin(nb, r, c, opp)) return [r, c];
   }
 
-  // 我方组合威胁：本手能直接形成必胜组合（活四/双冲四/四三/双活三）→ 优先走出
+  // v6 威胁分级（修复：旧版">=800k 立即返回"让 master 中局不做深算，只堵眼前成型、
+  // 看不到对手 2-3 手后的做棋升级，导致对局记录中 5 局全部死于"活四/双杀成型"）
+  // 1) 我方活四（>=1.2M）：必胜，直接走出
   if (diff.depth >= 3) {
     for (const [r, c] of cands) {
-      const v = pointScore(board, r, c, color);
-      if (v >= 800_000) return [r, c];
+      if (pointScore(board, r, c, color) >= 1_200_000) return [r, c];
     }
   }
-
-  // 对方"落子即形成必胜组合"的威胁点必须提前堵（组合级必防）。
-  // v5：自学习输局多时阈值下调（threatK），更早干预对手做棋
+  // 2) 对方活四成型点（>=1.2M）：必堵（活四不可防，除己方已有必胜杀外优先堵）
   if (diff.depth >= 2) {
-    const threats: Array<[number, number]> = [];
+    const oppFours: Array<[number, number]> = [];
     for (const [r, c] of cands) {
-      if (pointScore(board, r, c, opp) >= threatK) threats.push([r, c]);
+      if (pointScore(board, r, c, opp) >= 1_200_000) oppFours.push([r, c]);
     }
-    if (threats.length > 0) {
-      // 多个威胁无法全堵时，选防守后己方局面最优者
-      const scored = threats.map(([r, c]) => ({
+    if (oppFours.length > 0) {
+      const scored = oppFours.map(([r, c]) => ({
+        r, c, v: pointScore(board, r, c, color) + pointScore(board, r, c, opp) + Math.random() * 0.001,
+      }));
+      scored.sort((a, b2) => b2.v - a.v);
+      return [scored[0].r, scored[0].c];
+    }
+  }
+  // 3) 我方 >=900k 组合（四三杀/双冲四/双活三）且对方无 >=900k 威胁 → 直接进攻（快速路径）
+  //    对方有 >=900k 威胁 → 必须优先堵（多威胁选攻防最优）
+  if (diff.depth >= 3) {
+    const my900: Array<[number, number]> = [];
+    const opp900: Array<[number, number]> = [];
+    for (const [r, c] of cands) {
+      const av = pointScore(board, r, c, color);
+      if (av >= 900_000 && av < 1_200_000) my900.push([r, c]);
+      if (pointScore(board, r, c, opp) >= 900_000) opp900.push([r, c]);
+    }
+    if (opp900.length > 0) {
+      const scored = opp900.map(([r, c]) => ({
+        r, c, v: pointScore(board, r, c, color) + pointScore(board, r, c, opp) + Math.random() * 0.001,
+      }));
+      scored.sort((a, b2) => b2.v - a.v);
+      return [scored[0].r, scored[0].c];
+    }
+    if (my900.length > 0) {
+      // 取攻防综合最优者（避免堵点浪费）
+      const scored = my900.map(([r, c]) => ({
         r, c, v: pointScore(board, r, c, color) + pointScore(board, r, c, opp) + Math.random() * 0.001,
       }));
       scored.sort((a, b2) => b2.v - a.v);
