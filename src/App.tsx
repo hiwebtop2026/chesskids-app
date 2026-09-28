@@ -30,7 +30,7 @@ import {
 import { UserProfile, ErrorBoundary, WeChatGuide } from './components';
 import { useProgressStore } from './store';
 import { isWeChatBrowser } from './utils/wechat';
-import { isIOS } from './utils/fullscreen';
+import { isImmersive, enterImmersive } from './utils/fullscreen';
 
 type GameType = 'chess' | 'xiangqi' | 'go' | 'gomoku';
 type ChessTabKey = 'learn' | 'rules' | 'tactics' | 'game' | 'local' | 'online' | 'progress';
@@ -170,22 +170,14 @@ const App: React.FC = () => {
   };
 
   const toggleFullscreen = useCallback(() => {
-    // iOS Safari 不支持 document 全屏：切换沉浸模式（隐藏页面头部/底部导航，棋盘占满可视区）
-    if (isIOS()) {
-      const has = document.body.classList.contains('ios-immersive');
-      if (has) document.body.classList.remove('ios-immersive');
-      else {
-        document.body.classList.add('ios-immersive');
-        try {
-          window.scrollTo(0, 0);
-          const se = document.scrollingElement;
-          if (se) { se.scrollTop = 1; setTimeout(() => { se.scrollTop = 0; }, 80); }
-        } catch { /* 忽略 */ }
-      }
+    // 沉浸模式优先退出（iOS Safari / Android WebView 等全屏不可用时的兜底）
+    if (isImmersive()) {
+      document.body.classList.remove('ios-immersive');
       return;
     }
     const onRejected = () => {
-      // 全屏被拒绝时静默忽略，不产生未捕获的 Promise 拒绝
+      // 全屏被拒绝（iOS Safari/Android WebView 等不支持时）→ 进入沉浸模式兜底
+      try { enterImmersive(); } catch { /* 忽略 */ }
     };
     if (!document.fullscreenElement && !(document as any).webkitFullscreenElement) {
       const docEl = document.documentElement as any;

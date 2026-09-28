@@ -8,9 +8,14 @@ export function isIOS(): boolean {
   return navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
 }
 
-/** iOS Safari 不支持 document 全屏：进入"沉浸模式"——隐藏页面非棋盘 UI、收起地址栏，
+/** 当前是否处于沉浸模式（iOS Safari / Android WebView 等不支持 document 全屏时的兜底方案） */
+export function isImmersive(): boolean {
+  return typeof document !== 'undefined' && document.body.classList.contains('ios-immersive');
+}
+
+/** 进入"沉浸模式"（全终端通用）：隐藏页面非棋盘 UI、收起浏览器工具栏，
  *  配合 .ios-immersive 让浮动棋盘占满可视区，实现浏览器内最佳全屏效果 */
-function enterIOSImmersive(): void {
+export function enterImmersive(): void {
   document.body.classList.add('ios-immersive');
   try {
     window.scrollTo(0, 0);
@@ -24,18 +29,23 @@ function enterIOSImmersive(): void {
 }
 
 export function enterFullscreen(): void {
-  if (isIOS()) { enterIOSImmersive(); return; }
+  if (isIOS()) { enterImmersive(); return; }
   try {
     const el = document.documentElement;
     if (!document.fullscreenElement) {
-      const p = el.requestFullscreen?.();
-      if (p && typeof p.catch === 'function') p.catch(() => {});
+      if (!el.requestFullscreen) {
+        // Android WebView/微信内置浏览器等：无 Fullscreen API → 直接沉浸兜底
+        enterImmersive();
+        return;
+      }
+      const p = el.requestFullscreen();
+      if (p && typeof p.catch === 'function') p.catch(() => { enterImmersive(); }); // 被拒（手势外/权限）→ 沉浸兜底
     }
-  } catch { /* 忽略：非手势调用等被拒时静默 */ }
+  } catch { enterImmersive(); }
 }
 
 export function exitFullscreen(): void {
-  if (isIOS()) { document.body.classList.remove('ios-immersive'); return; }
+  if (isImmersive()) { document.body.classList.remove('ios-immersive'); }
   try {
     if (document.fullscreenElement) {
       const p = document.exitFullscreen?.();
