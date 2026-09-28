@@ -70,8 +70,9 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
   const chatListRef = useRef<HTMLDivElement>(null);
   const mediaRef = useRef<{ stream: MediaStream; chunks: Float32Array[]; ctx: AudioContext; recTimer: ReturnType<typeof setInterval>; processor: ScriptProcessorNode | null; source: MediaStreamAudioSourceNode | null } | null>(null);
 
-  const inGame = connectionStatus === 'connected';
-  const myTurn = inGame && game.turn === myColor;
+  // 创建房间/加入房间后（connecting=等待对手）立即进入游戏界面（2D 棋盘），对手加入后（connected）才可落子
+  const inGame = connectionStatus !== 'disconnected';
+  const myTurn = connectionStatus === 'connected' && game.turn === myColor;
 
   // 自动加入房间
   useEffect(() => {
@@ -120,7 +121,7 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
   }, [registerHandlers]);
 
   const handleClick = (r: number, c: number) => {
-    if (!inGame || !myTurn || game.over) return;
+    if (connectionStatus !== 'connected' || !myTurn || game.over) return;
     const next = gomokuPlayMove(game, r, c);
     if (!next) return;
     setGame(next);
@@ -241,8 +242,8 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
     <div className="gomoku-controls gomoku-inboard-controls">
       {viewSwitchOnline}
       <button className={`ctrl-btn ${chatOpen ? 'active' : ''}`} onClick={() => setChatOpen((v) => !v)}>💬 聊天</button>
-      <button className="ctrl-btn danger" onClick={handleResign} disabled={game.over}>🏳️ 认输</button>
-      <button className="ctrl-btn" onClick={handleReset}>🔄 重新开始</button>
+      <button className="ctrl-btn danger" onClick={handleResign} disabled={game.over || connectionStatus !== 'connected'}>🏳️ 认输</button>
+      <button className="ctrl-btn" onClick={handleReset} disabled={connectionStatus !== 'connected'}>🔄 重新开始</button>
     </div>
   );
 
@@ -262,7 +263,7 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
                 lastMove={lastMove}
                 winningLine={result?.winningLine || null}
                 onIntersectionClick={handleClick}
-                disabled={!myTurn}
+                disabled={!inGame || !myTurn}
                 flipped={myColor === 'w'}
               />
             ) : (
@@ -271,7 +272,7 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
                 lastMove={lastMove}
                 winningLine={result?.winningLine || null}
                 onIntersectionClick={handleClick}
-                disabled={!myTurn}
+                disabled={!inGame || !myTurn}
                 flipped={myColor === 'w'}
                 defaultFloating
               >
@@ -290,15 +291,15 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
             <div className="gomoku-status-bar">
               <span className={`gomoku-turn-dot ${game.turn === 'b' ? 'black' : 'white'}`} />
               <span>
-                {game.over ? '对局结束' : myTurn ? '轮到你落子' : `等待 ${opponentName || '对手'} 落子`}
+                {connectionStatus === 'connecting' ? '⏳ 等待对手加入…' : game.over ? '对局结束' : myTurn ? '轮到你落子' : `等待 ${opponentName || '对手'} 落子`}
               </span>
               <span className="gomoku-move-count">第 {Math.floor(moveCount / 2) + 1} 手</span>
             </div>
             {viewSwitchOnline}
             {viewMode === '3d' && (
               <div className="gomoku-controls">
-                <button className="ctrl-btn danger" onClick={handleResign} disabled={game.over}>🏳️ 认输</button>
-                <button className="ctrl-btn" onClick={handleReset}>🔄 重新开始</button>
+                <button className="ctrl-btn danger" onClick={handleResign} disabled={game.over || connectionStatus !== 'connected'}>🏳️ 认输</button>
+                <button className="ctrl-btn" onClick={handleReset} disabled={connectionStatus !== 'connected'}>🔄 重新开始</button>
               </div>
             )}
 
