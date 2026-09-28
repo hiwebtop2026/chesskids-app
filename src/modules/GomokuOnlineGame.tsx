@@ -62,6 +62,45 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
   const [joinInput, setJoinInput] = useState('');
   const [chatInput, setChatInput] = useState('');
   const [chatOpen, setChatOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 复制房间号（点击按钮或长按房间号均可触发）
+  const copyRoomCode = () => {
+    if (!roomCode) return;
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(roomCode).catch(() => fallbackCopy(roomCode));
+      } else {
+        fallbackCopy(roomCode);
+      }
+    } catch {
+      fallbackCopy(roomCode);
+    }
+    setCopied(true);
+    if (copyTimer.current) clearTimeout(copyTimer.current);
+    copyTimer.current = setTimeout(() => setCopied(false), 2000);
+  };
+  const fallbackCopy = (text: string) => {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    } catch { /* 忽略复制失败 */ }
+  };
+  const roomLongPressProps = {
+    onTouchStart: () => { if (longPressTimer.current) clearTimeout(longPressTimer.current); longPressTimer.current = setTimeout(copyRoomCode, 400); },
+    onTouchEnd: () => { if (longPressTimer.current) clearTimeout(longPressTimer.current); },
+    onTouchMove: () => { if (longPressTimer.current) clearTimeout(longPressTimer.current); },
+    onClick: copyRoomCode,
+    title: '点击或长按复制房间号',
+  };
   // 默认 2D 棋盘（启动即 2D + 浮动全屏）
   const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
   const [result, setResult] = useState<{ title: string; detail: string; emoji: string; winningLine: Array<[number, number]> | null } | null>(null);
@@ -241,6 +280,7 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
   const onlineCtrlButtons = (
     <div className="gomoku-controls gomoku-inboard-controls">
       {viewSwitchOnline}
+      <button className="ctrl-btn copy-room-btn" onClick={copyRoomCode} title="复制房间号发送给好友">{copied ? '✅ 已复制' : '📋 房间号'}</button>
       <button className={`ctrl-btn ${chatOpen ? 'active' : ''}`} onClick={() => setChatOpen((v) => !v)}>💬 聊天</button>
       <button className="ctrl-btn danger" onClick={handleResign} disabled={game.over || connectionStatus !== 'connected'}>🏳️ 认输</button>
       <button className="ctrl-btn" onClick={handleReset} disabled={connectionStatus !== 'connected'}>🔄 重新开始</button>
@@ -251,7 +291,19 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
     <div className="module gomoku-game">
       <div className="module-header">
         <h2>🌐 五子棋 · 联机对战</h2>
-        <p>{inGame ? `房间 ${roomCode} · ${myColor === 'b' ? '⚫ 黑棋' : '⚪ 白棋'}` : '创建或加入房间，与好友实时对战'}</p>
+        <p>
+          {inGame ? (
+            <>
+              房间{' '}
+              <button className={`gomoku-room-code ${copied ? 'copied' : ''}`} {...roomLongPressProps}>
+                {copied ? '✅ 已复制' : `📋 ${roomCode}`}
+              </button>
+              {' '}· {myColor === 'b' ? '⚫ 黑棋' : '⚪ 白棋'}
+            </>
+          ) : (
+            '创建或加入房间，与好友实时对战'
+          )}
+        </p>
       </div>
 
       {!inGame ? lobby : (
@@ -298,6 +350,7 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
             {viewSwitchOnline}
             {viewMode === '3d' && (
               <div className="gomoku-controls">
+                <button className="ctrl-btn" onClick={copyRoomCode}>{copied ? '✅ 已复制' : '📋 房间号'}</button>
                 <button className="ctrl-btn danger" onClick={handleResign} disabled={game.over || connectionStatus !== 'connected'}>🏳️ 认输</button>
                 <button className="ctrl-btn" onClick={handleReset} disabled={connectionStatus !== 'connected'}>🔄 重新开始</button>
               </div>

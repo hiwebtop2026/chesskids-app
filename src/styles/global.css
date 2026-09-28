@@ -6584,6 +6584,14 @@ ul {
 .gomoku-floating::before { content: ''; position: fixed; inset: 0; background: rgba(12, 8, 2, 0.62); z-index: -1; }
 .gomoku-floating .gomoku-board-svg { width: 100%; aspect-ratio: 1 / 1; display: block; }
 div.gomoku-inboard-controls { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px; width: calc(100% + 28px); max-width: none; margin: -3px auto 0; padding: 10px 14px; background: linear-gradient(180deg, #ead9b2, #d9c293); border: 1px solid rgba(110, 78, 40, 0.45); border-top: 2px solid rgba(110, 78, 40, 0.55); border-radius: 0 0 16px 16px; box-shadow: inset 0 3px 8px rgba(110, 78, 40, 0.22); }
+/* 联机房间号：可点击/长按复制的金色胶囊 */
+.gomoku-room-code { display: inline-flex; align-items: center; gap: 4px; margin: 0 2px; padding: 1px 9px; border-radius: 999px; border: 1.5px dashed rgba(200, 150, 42, 0.65); background: rgba(255, 215, 0, 0.16); color: #9a6b1f; font-weight: 700; font-size: 0.95em; cursor: pointer; vertical-align: baseline; transition: background .18s, transform .15s; -webkit-user-select: all; user-select: all; touch-action: manipulation; }
+.gomoku-room-code:hover { background: rgba(255, 215, 0, 0.30); transform: translateY(-1px); }
+.gomoku-room-code.copied { border-color: rgba(46, 160, 67, 0.7); background: rgba(46, 160, 67, 0.15); color: #2e9a43; }
+/* 容器按钮栏内的复制房间号按钮：金色强调 */
+div.gomoku-inboard-controls .ctrl-btn.copy-room-btn { background: linear-gradient(180deg, #fff3d0, #f7dfa6); border-color: rgba(180, 130, 40, 0.5); color: #8a5f14; font-weight: 700; }
+div.gomoku-inboard-controls .ctrl-btn.copy-room-btn:hover:not(:disabled) { background: linear-gradient(180deg, #ffeec2, #f3d690); }
+div.gomoku-inboard-controls .ctrl-btn.copy-room-btn:disabled { opacity: 0.42; }
 /* 2D/3D 切换组（容器内）：与功能按钮同栏排布 */
 div.gomoku-inboard-controls .view-switch-inboard { display: flex; gap: 6px; align-items: center; }
 div.gomoku-inboard-controls .view-tab-btn { display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 8px 14px; border-radius: 999px; border: 1px solid rgba(110, 78, 40, 0.38); background: linear-gradient(180deg, #fffaf0, #f0e2c2); color: #5a4a2f; font-size: 13.5px; font-weight: 600; cursor: pointer; min-height: 40px; touch-action: manipulation; white-space: nowrap; transition: background .18s, transform .15s, border-color .18s, box-shadow .18s; box-shadow: 0 2px 5px rgba(90, 60, 30, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.7); }
