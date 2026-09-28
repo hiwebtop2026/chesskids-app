@@ -114,6 +114,47 @@ function parseUrlParams(): { game: GameType; tab: TabKey; room: string } | null 
   return { game: detectedGame, tab, room: roomUpper };
 }
 
+/**
+ * 五子棋专属 Logo：五颗黑白棋子连线成五（对应"成五获胜"），替代原"✖"字符。
+ * 黑子带高光、白子带细描边，兼具立体感与辨识度。
+ */
+function GomokuLogoIcon() {
+  return (
+    <svg
+      viewBox="0 0 44 44"
+      width="1.15em"
+      height="1.15em"
+      xmlns="http://www.w3.org/2000/svg"
+      role="img"
+      aria-label="五子棋"
+    >
+      {[0, 1, 2, 3, 4].map((i) => {
+        const x = 7 + i * 10;
+        const y = 22;
+        const isBlack = i % 2 === 0;
+        return (
+          <g key={i}>
+            <circle
+              cx={x}
+              cy={y}
+              r={4.6}
+              fill={isBlack ? '#1c1c1c' : '#ffffff'}
+              stroke={isBlack ? 'none' : '#c9c9c9'}
+              strokeWidth={0.7}
+            />
+            {isBlack && (
+              <circle cx={x - 1.3} cy={y - 1.5} r={1.3} fill="rgba(255,255,255,0.55)" />
+            )}
+            {!isBlack && (
+              <circle cx={x - 1.2} cy={y - 1.4} r={1.2} fill="rgba(0,0,0,0.06)" />
+            )}
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
 const App: React.FC = () => {
   // null = 尚未选择棋类（显示首页选择界面）
   const [gameType, setGameType] = useState<GameType | null>(null);
@@ -351,7 +392,7 @@ const App: React.FC = () => {
       <header className="app-header">
         <div className="header-left">
           <h1 className="app-title" onClick={goHome} style={{ cursor: 'pointer' }} title="返回首页">
-            <span className="app-logo">{gameType === 'chess' ? '♔' : gameType === 'xiangqi' ? '帥' : gameType === 'go' ? '⚫' : '✖'}</span>
+            <span className="app-logo">{gameType === 'chess' ? '♔' : gameType === 'xiangqi' ? '帥' : gameType === 'go' ? '⚫' : <GomokuLogoIcon />}</span>
             棋乐园
           </h1>
           <span className="app-subtitle">
