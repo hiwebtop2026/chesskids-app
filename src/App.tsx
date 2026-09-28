@@ -30,6 +30,7 @@ import {
 import { UserProfile, ErrorBoundary, WeChatGuide } from './components';
 import { useProgressStore } from './store';
 import { isWeChatBrowser } from './utils/wechat';
+import { isIOS } from './utils/fullscreen';
 
 type GameType = 'chess' | 'xiangqi' | 'go' | 'gomoku';
 type ChessTabKey = 'learn' | 'rules' | 'tactics' | 'game' | 'local' | 'online' | 'progress';
@@ -169,6 +170,20 @@ const App: React.FC = () => {
   };
 
   const toggleFullscreen = useCallback(() => {
+    // iOS Safari 不支持 document 全屏：切换沉浸模式（隐藏页面头部/底部导航，棋盘占满可视区）
+    if (isIOS()) {
+      const has = document.body.classList.contains('ios-immersive');
+      if (has) document.body.classList.remove('ios-immersive');
+      else {
+        document.body.classList.add('ios-immersive');
+        try {
+          window.scrollTo(0, 0);
+          const se = document.scrollingElement;
+          if (se) { se.scrollTop = 1; setTimeout(() => { se.scrollTop = 0; }, 80); }
+        } catch { /* 忽略 */ }
+      }
+      return;
+    }
     const onRejected = () => {
       // 全屏被拒绝时静默忽略，不产生未捕获的 Promise 拒绝
     };

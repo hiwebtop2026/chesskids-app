@@ -6578,7 +6578,9 @@ ul {
 .gomoku-float-close { position: absolute; top: 8px; right: 8px; z-index: 5; width: 34px; height: 34px; border-radius: 50%; border: none; background: rgba(0,0,0,0.55); color: #fff; font-size: 16px; cursor: pointer; }
 .gomoku-float-close:hover { background: rgba(0,0,0,0.75); }
 
-.gomoku-floating { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; width: min(96vw, 92dvh, 1600px) !important; height: auto; display: flex; flex-direction: column; align-items: center; box-shadow: 0 0 0 100vmax rgba(12, 8, 2, 0.6); }
+.gomoku-floating { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; width: min(96vw, 92dvh, 1600px) !important; height: auto; display: flex; flex-direction: column; align-items: center; }
+/* 全屏遮罩：独立背景层（100vmax box-shadow 在 iOS Safari 不渲染，改用 ::before 固定层） */
+.gomoku-floating::before { content: ''; position: fixed; inset: 0; background: rgba(12, 8, 2, 0.62); z-index: -1; }
 .gomoku-floating .gomoku-board-svg { width: 100%; aspect-ratio: 1 / 1; }
 .gomoku-inboard-controls { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px; width: 100%; padding: 12px 4px 2px; }
 .gomoku-inboard-controls .ctrl-btn { padding: 10px 18px; border-radius: 10px; border: 1px solid #b8906a; background: linear-gradient(180deg, #fff8ec, #f5e8d8); color: #5a4a2f; cursor: pointer; font-size: 14px; font-weight: 600; box-shadow: 0 2px 6px rgba(0,0,0,0.10); min-height: 42px; touch-action: manipulation; flex: 1 1 auto; min-width: 92px; max-width: 220px; white-space: nowrap; }
@@ -6878,4 +6880,16 @@ ul {
   42%  { transform: translateY(-110px) scale(1.1) rotate(-8deg); opacity: 1; }
   70%  { transform: translateY(-220px) scale(1.25) rotate(10deg) scaleX(1.15); opacity: 0.9; }
   100% { transform: translateY(-330px) scale(0.9) rotate(8deg); opacity: 0; }
+}
+
+/* iOS 沉浸模式：进入对局后隐藏页面非棋盘 UI，浮动棋盘占满可视区（配合 safe-area） */
+.ios-immersive .app-header { display: none !important; }
+.ios-immersive .app-nav { display: none !important; }
+.ios-immersive .app-main { padding: 0 !important; }
+.ios-immersive .app { padding: 0 !important; }
+.ios-immersive .gomoku-floating {
+  width: min(100vw, 100dvh, 1600px) !important;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  box-sizing: border-box;
 }
