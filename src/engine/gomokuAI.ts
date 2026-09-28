@@ -1,12 +1,15 @@
 /**
- * ChessKids - 五子棋 AI 引擎（v2 增强版）
+ * ChessKids - 五子棋 AI 引擎（v5 增强版）
  *
- * 核心升级（相对 v1）：
- * 1. 威胁组合评估：识别"活四/双活三/冲四+活三/双冲四"等必胜组合，
- *    并优先制造/防守此类杀棋（传统单点求和会低估双威胁的价值）
- * 2. 时间预算：master 深度搜索带 deadline，超时自动降级，避免 19 路卡顿
- * 3. 难度分层更明确：easy=贪心随机 / medium=深度2 防守 / hard=深度3 攻守 /
- *    master=深度4 + 必胜组合优先
+ * 核心升级（相对 v4）：
+ * 1. 跳型（断点）威胁识别：X_XXX / XX_XX / X_XX 等跳四/跳三一子补缝即成五，
+ *    不再被连续计数低估（v4 已上线）
+ * 2. VCF 强制行棋搜索：master 下探测"连续冲四必胜链"，能杀时直接连杀，
+ *    不再依赖大深度搜索偶然发现
+ * 3. Zobrist 哈希 + 置换表（TT）：迭代加深跨层复用搜索结果，大幅提速，
+ *    master 深度升至 5 层
+ * 4. 自学习：结合近 10 盘对局记录（开局胜负加权 + 输局防守激进度），
+ *    越下越了解对手弱项、越防越稳
  * 保留特性：先手/首手随机（候选点池）、中盘并列最高分随机、easy 随机扰动
  */
 
@@ -26,13 +29,59 @@ export const GOMOKU_DIFFICULTIES: GomokuDifficulty[] = [
   { key: 'easy', label: '简单', depth: 0, desc: '初级水平：只看眼前一步，偶尔会失误，适合刚入门的小朋友' },
   { key: 'medium', label: '中等', depth: 2, desc: '会看两步棋，能挡住你的冲四与活三，防守稳健' },
   { key: 'hard', label: '困难', depth: 3, desc: '三步推算 + 攻守兼顾，会主动做棋制造杀形' },
-  { key: 'master', label: '大师', depth: 4, desc: '四步深算 + 必胜组合识别，向高手水平看齐' },
+  { key: 'master', label: '大师', depth: 5, desc: '五步深算 + VCF 连杀 + 必胜组合识别，向高手水平看齐' },
 ];
 
 // ============ 方向 ============
 const DIRS: Array<[number, number]> = [[1, 0], [0, 1], [1, 1], [1, -1]];
 
 const inBoard = (r: number, c: number) => r >= 0 && r < GOMOKU_SIZE && c >= 0 && c < GOMOKU_SIZE;
+
+// ============ 自学习（v5） ============
+
+/** 自学习数据：开局胜负加权 + 防守激进度（由 gomokuLearn 分析对局记录生成） */
+export interface GomokuLearnData {
+  /** 加权开局池：AI 先手空盘时按权重随机落子（胜率高的开局权重高） */
+  opening: Array<{ r: number; c: number; w: number }>;
+  /** 防守激进度 0..3：历史输局越多越激进（越早堵组合威胁） */
+  defenseLevel: number;
+}
+
+// ============ Zobrist 哈希 + 置换表（v5） ============
+
+/** 随机表：ZOBRIST[r][c][0=黑 1=白] */
+const ZOBRIST: number[][][] = (() => {
+  const t: number[][][] = [];
+  for (let r = 0; r < GOMOKU_SIZE; r++) {
+    t.push([]);
+    for (let c = 0; c < GOMOKU_SIZE; c++) {
+      t[r].push([
+        (Math.random() * 0xffffffff) >>> 0,
+        (Math.random() * 0xffffffff) >>> 0,
+      ]);
+    }
+  }
+  return t;
+})();
+
+/** 全局面哈希（仅初始/根层调用，搜索内用增量） */
+function boardHash(b: GomokuBoard): number {
+  let h = 0;
+  for (let r = 0; r < GOMOKU_SIZE; r++) {
+    for (let c = 0; c < GOMOKU_SIZE; c++) {
+      const v = b[r][c];
+      if (v === 'b') h ^= ZOBRIST[r][c][0];
+      else if (v === 'w') h ^= ZOBRIST[r][c][1];
+    }
+  }
+  return h;
+}
+
+interface TTEntry { d: number; f: 0 | 1 | 2; v: number; } // f: 0=精确 1=下界 2=上界
+let tt = new Map<number, TTEntry>();
+const TT_MAX = 400_000;
+/** 每次 gomokuBestMove 开始时清空（rootColor 视角固定，避免符号串扰） */
+function ttClear() { tt = new Map(); }
 
 // ============ 候选 ============
 
@@ -214,13 +263,17 @@ export function evaluateGomoku(b: GomokuBoard, color: GomokuColor): number {
   return mine - theirs * 1.18;
 }
 
-/** 启发排序：候选按"落此子进攻分+防守分"降序 */
-function orderedCandidates(b: GomokuBoard, color: GomokuColor): Array<[number, number]> {
+/**
+ * 启发排序：候选按"落此子进攻分+防守分"降序。
+ * v5：自学习防守激进度提升防守系数（历史输局多 → 更早堵对手苗头）
+ */
+function orderedCandidates(b: GomokuBoard, color: GomokuColor, learn?: GomokuLearnData | null): Array<[number, number]> {
   const cands = gomokuCandidates(b);
+  const defK = 1.25 + (learn?.defenseLevel || 0) * 0.08;
   const scored = cands.map(([r, c]) => {
     const atk = pointScore(b, r, c, color);
     const def = pointScore(b, r, c, color === 'b' ? 'w' : 'b');
-    return { r, c, v: atk + def * 1.25 + Math.random() * 0.001 };
+    return { r, c, v: atk + def * defK + Math.random() * 0.001 };
   });
   scored.sort((a, b2) => b2.v - a.v);
   return scored.map((s) => [s.r, s.c] as [number, number]);
@@ -240,8 +293,17 @@ function search(
   beta: number,
   rootColor: GomokuColor,
   deadline: number,
+  hash: number,
 ): number {
   if (performance.now() > deadline) return evaluateGomoku(b, rootColor);
+
+  // 置换表查询（深度不足/界限不符时忽略）
+  const entry = tt.get(hash);
+  if (entry && entry.d >= depth) {
+    if (entry.f === 0) return entry.v;
+    if (entry.f === 1 && entry.v >= beta) return entry.v;
+    if (entry.f === 2 && entry.v <= alpha) return entry.v;
+  }
 
   const cands = gomokuCandidates(b);
   if (depth === 0 || cands.length === 0) return evaluateGomoku(b, rootColor);
@@ -267,28 +329,108 @@ function search(
   const picks = ordered.slice(0, limit);
 
   let best = -Infinity;
+  const alphaOrig = alpha;
   for (const [r, c] of picks) {
     const nb = gomokuPlaceStone(b, r, c, color)!;
-    const v = -search(nb, color === 'b' ? 'w' : 'b', depth - 1, -beta, -alpha, rootColor, deadline);
+    const childHash = hash ^ ZOBRIST[r][c][color === 'b' ? 0 : 1];
+    const v = -search(nb, color === 'b' ? 'w' : 'b', depth - 1, -beta, -alpha, rootColor, deadline, childHash);
     if (v > best) best = v;
     if (best > alpha) alpha = best;
     if (alpha >= beta) break;
   }
+  // 置换表写入（内存上限保护）
+  if (tt.size > TT_MAX) ttClear();
+  if (best >= beta) tt.set(hash, { d: depth, f: 1, v: best });
+  else if (best <= alphaOrig) tt.set(hash, { d: depth, f: 2, v: best });
+  else tt.set(hash, { d: depth, f: 0, v: best });
   return best;
+}
+
+// ============ VCF 强制行棋（v5） ============
+
+/**
+ * VCF（连续冲四）必胜链探测：我方沿"单端冲四→对手唯一应对→再冲四…"连杀至成五。
+ * 标准 VCF 每一步都是唯一应对（单端冲四），分支极小，深度可达 10+ 手。
+ * @returns 链首着法（我方当前应落点）；找不到必胜链返回 null
+ */
+function vcfAttack(
+  board: GomokuBoard,
+  color: GomokuColor,
+  depth = 0,
+  maxDepth = 12,
+  budget: { n: number } = { n: 0 },
+): [number, number] | null {
+  budget.n++;
+  if (budget.n > 5000) return null;   // 节点预算保护
+  if (depth >= maxDepth) return null;
+
+  const cands = gomokuCandidates(board);
+  // 一步成五 / 一步组合杀（含活四：对手堵不住两端）
+  for (const [r, c] of cands) {
+    const v = pointScore(board, r, c, color);
+    if (v >= 10_000_000) return [r, c];
+    if (v >= 900_000) return [r, c];
+  }
+
+  // 严格冲四候选：落 X 后形成"单端冲四"（对手唯一应对点=开放端）
+  const opp = color === 'b' ? 'w' : 'b';
+  const cds: Array<{ r: number; c: number; end: [number, number]; sc: number }> = [];
+  for (const [r, c] of cands) {
+    const nb = gomokuPlaceStone(board, r, c, color)!;
+    for (const [dr, dc] of DIRS) {
+      const p = scanPattern(nb, r, c, dr, dc, color);
+      if (p.sub === 4 && p.brk === 0 && p.openL + p.openR === 1) {
+        const [sr, sc2] = p.mainStart;
+        const end: [number, number] = p.openL ? [sr - dr, sc2 - dc] : [sr + 4 * dr, sc2 + 4 * dc];
+        cds.push({ r, c, end, sc: pointScore(board, r, c, color) });
+        break;
+      }
+    }
+  }
+  if (cds.length === 0) return null;
+  cds.sort((a, b2) => b2.sc - a.sc);
+
+  // 逐个尝试：我方落 X → 对手必堵 end → 递归续冲四链
+  for (const cd of cds.slice(0, 6)) {
+    const nb = gomokuPlaceStone(board, cd.r, cd.c, color)!;
+    const nb2 = gomokuPlaceStone(nb, cd.end[0], cd.end[1], opp)!;
+    const chain = vcfAttack(nb2, color, depth + 1, maxDepth, budget);
+    if (chain) return [cd.r, cd.c];
+  }
+  return null;
 }
 
 // ============ 对外主入口 ============
 
-/** 五子棋最佳落子（按难度） */
-export function gomokuBestMove(board: GomokuBoard, color: GomokuColor, diff: GomokuDifficulty): [number, number] | null {
+/** 五子棋最佳落子（按难度 + 可选自学习数据） */
+export function gomokuBestMove(
+  board: GomokuBoard,
+  color: GomokuColor,
+  diff: GomokuDifficulty,
+  learn?: GomokuLearnData | null,
+): [number, number] | null {
   const cands = gomokuCandidates(board);
   if (cands.length === 0) return null;
+  const opp = color === 'b' ? 'w' : 'b';
+  // 自学习：防守激进度 → 组合威胁必堵阈值下调（更早堵）/ 防守系数上调
+  const threatK = Math.max(400_000, 800_000 - (learn?.defenseLevel || 0) * 60_000);
+
+  // 空盘先手：自学习加权开局（保持多样性，但偏好历史胜率高的开局点）
+  const isEmpty = board.every((row) => row.every((cell) => cell === ''));
+  if (isEmpty && learn && learn.opening.length > 0) {
+    const total = learn.opening.reduce((s, e) => s + e.w, 0);
+    if (total > 0) {
+      let roll = Math.random() * total;
+      for (const e of learn.opening) { roll -= e.w; if (roll <= 0) return [e.r, e.c]; }
+      return [learn.opening[learn.opening.length - 1].r, learn.opening[learn.opening.length - 1].c];
+    }
+  }
 
   // easy：贪心（进攻+防守评分），带明显随机，水平弱但有变化
   if (diff.depth === 0) {
     const scored = cands.map(([r, c]) => {
       const atk = pointScore(board, r, c, color);
-      const def = pointScore(board, r, c, color === 'b' ? 'w' : 'b');
+      const def = pointScore(board, r, c, opp);
       return { r, c, v: atk + def * 0.9 + Math.random() * 0.3 };
     });
     scored.sort((a, b2) => b2.v - a.v);
@@ -301,7 +443,6 @@ export function gomokuBestMove(board: GomokuBoard, color: GomokuColor, diff: Gom
     if (nb && checkGomokuWin(nb, r, c, color)) return [r, c];
   }
   // 必须防守：对方一步胜
-  const opp = color === 'b' ? 'w' : 'b';
   for (const [r, c] of cands) {
     const nb = gomokuPlaceStone(board, r, c, opp);
     if (nb && checkGomokuWin(nb, r, c, opp)) return [r, c];
@@ -315,12 +456,12 @@ export function gomokuBestMove(board: GomokuBoard, color: GomokuColor, diff: Gom
     }
   }
 
-  // v3 关键：对方"落子即形成必胜组合"的威胁点必须提前堵（组合级必防，
-  // 比"一步成五"更早——玩家做对角/双线时往往先形成组合威胁再成五）
+  // 对方"落子即形成必胜组合"的威胁点必须提前堵（组合级必防）。
+  // v5：自学习输局多时阈值下调（threatK），更早干预对手做棋
   if (diff.depth >= 2) {
     const threats: Array<[number, number]> = [];
     for (const [r, c] of cands) {
-      if (pointScore(board, r, c, opp) >= 800_000) threats.push([r, c]);
+      if (pointScore(board, r, c, opp) >= threatK) threats.push([r, c]);
     }
     if (threats.length > 0) {
       // 多个威胁无法全堵时，选防守后己方局面最优者
@@ -332,10 +473,18 @@ export function gomokuBestMove(board: GomokuBoard, color: GomokuColor, diff: Gom
     }
   }
 
-  // 深度搜索：master 迭代加深（1→depth，超时保留最近完成的完整层，避免浅层降级）
-  const budgetMs = diff.key === 'master' ? 2600 : diff.key === 'hard' ? 1400 : 900;
+  // VCF 强制行棋（master）：有连续冲四必胜链时直接连杀（先于深度搜索）
+  if (diff.depth >= 4) {
+    const vcf = vcfAttack(board, color);
+    if (vcf) return vcf;
+  }
+
+  // 深度搜索：master 迭代加深（1→depth，超时保留最近完成的完整层），带置换表提速
+  const budgetMs = diff.key === 'master' ? 3200 : diff.key === 'hard' ? 1400 : 900;
   const t0 = performance.now();
-  const picks = orderedCandidates(board, color).slice(0, diff.depth >= 3 ? 18 : 12);
+  ttClear(); // 每次决策独立 TT（rootColor 视角固定）
+  const rootHash = boardHash(board);
+  const picks = orderedCandidates(board, color, learn).slice(0, diff.depth >= 3 ? 18 : 12);
   let bestMoves: Array<[number, number]> = [];
   for (let d = 1; d <= diff.depth; d++) {
     const deadline = t0 + budgetMs * (d / diff.depth);
@@ -344,7 +493,8 @@ export function gomokuBestMove(board: GomokuBoard, color: GomokuColor, diff: Gom
     for (const [r, c] of picks) {
       if (performance.now() > deadline) break;
       const nb = gomokuPlaceStone(board, r, c, color)!;
-      const v = -search(nb, opp, d - 1, -Infinity, Infinity, color, deadline);
+      const childHash = rootHash ^ ZOBRIST[r][c][color === 'b' ? 0 : 1];
+      const v = -search(nb, opp, d - 1, -Infinity, Infinity, color, deadline, childHash);
       if (v > bv) { bv = v; bm.length = 0; bm.push([r, c]); }
       else if (v === bv) { bm.push([r, c]); }
     }

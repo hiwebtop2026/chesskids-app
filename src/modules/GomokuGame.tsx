@@ -19,6 +19,8 @@ import {
   exportGomokuMatchHistoryJson, genGomokuMatchRecordId,
   type GomokuMatchRecord,
 } from '../engine/gomokuMatchHistory';
+import { analyzeHistory, saveGomokuLearning, loadGomokuLearning } from '../engine/gomokuLearn';
+import type { GomokuLearnData } from '../engine/gomokuAI';
 
 type ResultInfo = { winner: GomokuColor | 'draw' | null; humanWin: boolean; detail: string; winningLine: Array<[number, number]> | null };
 
@@ -41,6 +43,8 @@ export const GomokuGame: React.FC = () => {
   const [hint, setHint] = useState<[number, number] | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [matchHistory, setMatchHistory] = useState<GomokuMatchRecord[]>(() => loadGomokuMatchHistory());
+  /** 自学习数据：开局加权 + 防守激进度（随对局记录自动更新） */
+  const [learning, setLearning] = useState<GomokuLearnData | null>(() => loadGomokuLearning());
   const [historyOpen, setHistoryOpen] = useState(false);
   const aiTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -78,7 +82,10 @@ export const GomokuGame: React.FC = () => {
       totalPlies: g.moves.length,
       moves: g.moves.map((m) => ({ color: m.color, r: m.r, c: m.c })),
     };
-    setMatchHistory(saveGomokuMatchRecord(rec));
+    const list = saveGomokuMatchRecord(rec);
+    setMatchHistory(list);
+    // 自学习：根据最新对局记录刷新开局加权与防守激进度
+    setLearning(saveGomokuLearning(analyzeHistory(list)));
   }, [difficulty, humanColor, recordResult]);
 
   const checkOver = useCallback((g: GomokuGameState) => {
@@ -97,7 +104,7 @@ export const GomokuGame: React.FC = () => {
     setAiThinking(true);
     setHint(null);
     aiTimer.current = setTimeout(() => {
-      const mv = gomokuBestMove(g.board, g.turn, diff);
+      const mv = gomokuBestMove(g.board, g.turn, diff, learning);
       if (mv) {
         const next = gomokuPlayMove(g, mv[0], mv[1]);
         if (next) { setGame(next); playGomokuMove(); checkOver(next); }
@@ -162,7 +169,10 @@ export const GomokuGame: React.FC = () => {
       totalPlies: game.moves.length,
       moves: game.moves.map((m) => ({ color: m.color, r: m.r, c: m.c })),
     };
-    setMatchHistory(saveGomokuMatchRecord(rec));
+    const list = saveGomokuMatchRecord(rec);
+    setMatchHistory(list);
+    // 自学习：认输也是输局，同样刷新学习数据
+    setLearning(saveGomokuLearning(analyzeHistory(list)));
   };
 
   const handleUndo = () => {
