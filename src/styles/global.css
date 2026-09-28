@@ -6566,11 +6566,12 @@ ul {
 .gomoku-board-wrap { position: relative; width: min(100%, 780px, calc(100dvh - 200px)); aspect-ratio: auto; display: flex; flex-direction: column; align-items: center; }
 .gomoku-board-wrap .gomoku-board-svg { width: 100%; aspect-ratio: 1 / 1; }
 .gomoku-board-svg { width: 100%; aspect-ratio: 1; height: auto; display: block; border-radius: 10px; box-shadow: 0 4px 18px rgba(0,0,0,0.28); touch-action: manipulation; }
-.gomoku-board-bg { fill: #e6d6ae; }
-.gomoku-line { stroke: #2b2b2b; stroke-width: 0.45; }
+.gomoku-board-bg { fill: #dfe8cc; }
+/* 护眼：网格线用柔和深绿灰，降低黑白对比眩光 */
+.gomoku-line { stroke: rgba(74, 94, 58, 0.62); stroke-width: 0.45; }
 .gomoku-stone { filter: drop-shadow(0 1px 1.2px rgba(0,0,0,0.3)); }
 .gomoku-stone-inner { opacity: 0.9; }
-.gomoku-star { fill: #1a1a1a; }
+.gomoku-star { fill: #5a6b4e; }
 .gomoku-coord { font-size: 2.6; fill: #6b5a42; font-weight: 600; }
 .gomoku-last-mark { stroke: #fff; stroke-width: 0.4; }
 .gomoku-hint { stroke: #ffb300; }
@@ -6581,7 +6582,7 @@ ul {
 
 .gomoku-floating { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; width: min(96vw, 92dvh, 1600px) !important; height: auto; display: flex; flex-direction: column; align-items: center; }
 /* 全屏遮罩：独立背景层（100vmax box-shadow 在 iOS Safari 不渲染，改用 ::before 固定层） */
-.gomoku-floating::before { content: ''; position: fixed; inset: 0; background: rgba(12, 8, 2, 0.62); z-index: -1; }
+.gomoku-floating::before { content: ''; position: fixed; inset: 0; background: rgba(22, 34, 20, 0.68); z-index: -1; }
 .gomoku-floating .gomoku-board-svg { width: 100%; aspect-ratio: 1 / 1; display: block; }
 div.gomoku-inboard-controls { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px; width: calc(100% + 28px); max-width: none; margin: -3px auto 0; padding: 10px 14px; background: linear-gradient(180deg, #ead9b2, #d9c293); border: 1px solid rgba(110, 78, 40, 0.45); border-top: 2px solid rgba(110, 78, 40, 0.55); border-radius: 0 0 16px 16px; box-shadow: inset 0 3px 8px rgba(110, 78, 40, 0.22); }
 /* 联机房间号：可点击/长按复制的金色胶囊 */

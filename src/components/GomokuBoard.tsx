@@ -87,7 +87,7 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
     return (
       <g>
         {/* 落子阴影（贴地感） */}
-        <circle cx="0.6" cy="0.9" r={stoneR} fill="rgba(0,0,0,0.28)" className="gomoku-stone-shadow" />
+        <circle cx="0.6" cy="0.9" r={stoneR} fill="rgba(0,0,0,0.22)" className="gomoku-stone-shadow" />
         {/* 云子主体：径向渐变模拟温润光泽 */}
         <circle
           cx="0" cy="0"
@@ -128,7 +128,7 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
         cx={`${MARGIN_PCT + (c * (100 - MARGIN_PCT * 2)) / (n - 1)}%`}
         cy={`${MARGIN_PCT + (r * (100 - MARGIN_PCT * 2)) / (n - 1)}%`}
         r={Math.max(1.2, 100 / (n - 1) * 0.13)}
-        fill="#1a1a1a"
+        fill="#5a6b4e"
         className="gomoku-star"
       />
     ));
@@ -185,11 +185,11 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
         }}
       >
         <defs>
-          {/* 花梨木渐变底 */}
+          {/* 护眼豆沙绿渐变底（低饱和、低反射，长时间对弈不刺眼） */}
           <linearGradient id="gBoardWood" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#ead9b5" />
-            <stop offset="50%" stopColor="#e2cfa6" />
-            <stop offset="100%" stopColor="#d6c095" />
+            <stop offset="0%" stopColor="#e9efd9" />
+            <stop offset="50%" stopColor="#dde8c6" />
+            <stop offset="100%" stopColor="#cfdbb3" />
           </linearGradient>
           {/* 黑云子：乌黑带温润高光 */}
           <radialGradient id="gStoneBlack" cx="42%" cy="38%" r="80%">
@@ -208,16 +208,16 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
         <rect x="0" y="0" width="100" height="100" fill="url(#gBoardWood)" className="gomoku-board-bg" />
         <g className="gomoku-wood-grain">
           {Array.from({ length: 24 }).map((_, i) => (
-            <line key={`wg${i}`} x1="0" y1={1.6 + i * 4.1} x2="100" y2={1.6 + i * 4.1} stroke="rgba(120,88,48,0.07)" strokeWidth={0.5 + (i % 3) * 0.45} />
+            <line key={`wg${i}`} x1="0" y1={1.6 + i * 4.1} x2="100" y2={1.6 + i * 4.1} stroke="rgba(88,110,66,0.10)" strokeWidth={0.5 + (i % 3) * 0.45} />
           ))}
           {Array.from({ length: 9 }).map((_, i) => (
-            <line key={`wl${i}`} x1="0" y1={3.2 + i * 11.2} x2="100" y2={3.2 + i * 11.2} stroke="rgba(90,64,34,0.05)" strokeWidth={0.3 + (i % 2) * 0.35} />
+            <line key={`wl${i}`} x1="0" y1={3.2 + i * 11.2} x2="100" y2={3.2 + i * 11.2} stroke="rgba(70,92,52,0.07)" strokeWidth={0.3 + (i % 2) * 0.35} />
           ))}
           {Array.from({ length: 3 }).map((_, i) => (
-            <ellipse key={`wr${i}`} cx={18 + i * 30} cy={82 - i * 14} rx={26 + i * 8} ry={5 + i * 1.6} fill="none" stroke="rgba(120,88,48,0.06)" strokeWidth="1.1" />
+            <ellipse key={`wr${i}`} cx={18 + i * 30} cy={82 - i * 14} rx={26 + i * 8} ry={5 + i * 1.6} fill="none" stroke="rgba(88,110,66,0.08)" strokeWidth="1.1" />
           ))}
         </g>
-        <rect x="0" y="0" width="100" height="100" fill="none" stroke="#2b2b2b" strokeWidth="0.9" opacity="0.9" />
+        <rect x="0" y="0" width="100" height="100" fill="none" stroke="#5d7050" strokeWidth="0.9" opacity="0.85" />
         <g className="gomoku-grid">{renderGrid()}</g>
         <g className="gomoku-stars">{renderStars()}</g>
         <g className="gomoku-stones">{renderStones()}</g>
