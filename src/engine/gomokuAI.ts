@@ -29,7 +29,7 @@ export const GOMOKU_DIFFICULTIES: GomokuDifficulty[] = [
   { key: 'easy', label: '简单', depth: 0, desc: '初级水平：只看眼前一步，偶尔会失误，适合刚入门的小朋友' },
   { key: 'medium', label: '中等', depth: 2, desc: '会看两步棋，能挡住你的冲四与活三，防守稳健' },
   { key: 'hard', label: '困难', depth: 3, desc: '三步推算 + 攻守兼顾，会主动做棋制造杀形' },
-  { key: 'master', label: '大师', depth: 5, desc: '五步深算 + VCF 连杀 + 必胜组合识别，向高手水平看齐' },
+  { key: 'master', label: '大师', depth: 6, desc: '六步深算 + VCF 连杀 + 必胜组合识别，向高手水平看齐' },
 ];
 
 // ============ 方向 ============
@@ -270,14 +270,16 @@ export function evaluateGomoku(b: GomokuBoard, color: GomokuColor): number {
   for (const [r, c] of cands) {
     const mv = pointScore(b, r, c, color);
     const ov = pointScore(b, r, c, opp);
-    if (mv >= 700_000) myPot += 120_000;
-    else if (mv >= 450_000) myPot += 40_000;
-    else if (mv >= 200_000) myPot += 15_000;
-    else if (mv >= 50_000) myPot += 8_000;
-    if (ov >= 700_000) oppPot += 120_000;
-    else if (ov >= 450_000) oppPot += 40_000;
-    else if (ov >= 200_000) oppPot += 15_000;
-    else if (ov >= 50_000) oppPot += 8_000;
+    // v6.3：权重强化——对手落 X 即双活三/四三/活四（>=700k）是局面翻转点，重罚；
+    //        对手落 X 即活三/冲四/跳四（>=50k）是做棋苗头，显著罚
+    if (mv >= 700_000) myPot += 200_000;
+    else if (mv >= 450_000) myPot += 60_000;
+    else if (mv >= 200_000) myPot += 25_000;
+    else if (mv >= 50_000) myPot += 15_000;
+    if (ov >= 700_000) oppPot += 200_000;
+    else if (ov >= 450_000) oppPot += 60_000;
+    else if (ov >= 200_000) oppPot += 25_000;
+    else if (ov >= 50_000) oppPot += 15_000;
   }
   mine += myPot;
   theirs += oppPot;
@@ -295,13 +297,22 @@ function orderedCandidates(b: GomokuBoard, color: GomokuColor, learn?: GomokuLea
   const scored = cands.map(([r, c]) => {
     const atk = pointScore(b, r, c, color);
     const def = pointScore(b, r, c, opp);
-    // v6：对手落此子即形成 >=700k 组合威胁（活三+跳三/双杀苗头）→ 防守分加权强制前置，
+    // v6：对手落此子即形成组合威胁 → 防守分加权强制前置，
     // 让深度搜索一定把"提前封缝/封端"纳入候选（修复对局记录中"只堵成型、不防做棋"的滞后）
+    // v6.3：新增 >=50k（对手活三/跳三成型点）x1.5——对手活三一手升活四/组合，
+    //       必须让搜索候选必然包含这些点
+    // v6.4：进攻分同样加权（己方组合威胁/活三成型点前置）——攻守双链都进候选
     let d = def;
     if (def >= 700_000) d *= 3.0;
     else if (def >= 450_000) d *= 1.6;
     else if (def >= 200_000) d *= 1.2;
-    return { r, c, v: atk + d * defK + Math.random() * 0.001 };
+    else if (def >= 50_000) d *= 1.5;
+    let a = atk;
+    if (a >= 700_000) a *= 3.0;
+    else if (a >= 450_000) a *= 1.6;
+    else if (a >= 200_000) a *= 1.2;
+    else if (a >= 50_000) a *= 1.3;
+    return { r, c, v: a + d * defK + Math.random() * 0.001 };
   });
   scored.sort((a, b2) => b2.v - a.v);
   return scored.map((s) => [s.r, s.c] as [number, number]);
@@ -353,7 +364,7 @@ function search(
   }
 
   const ordered = orderedCandidates(b, color);
-  const limit = depth >= 3 ? 18 : 12;
+  const limit = depth >= 5 ? 16 : depth >= 3 ? 14 : 12;
   const picks = ordered.slice(0, limit);
 
   let best = -Infinity;
@@ -497,15 +508,17 @@ export function gomokuBestMove(
       return [scored[0].r, scored[0].c];
     }
   }
-  // 3) 我方 >=900k 组合（四三杀/双冲四/双活三）且对方无 >=900k 威胁 → 直接进攻（快速路径）
-  //    对方有 >=900k 威胁 → 必须优先堵（多威胁选攻防最优）
+  // 3) 组合威胁分级（v6.3：阈值 900k -> 700k，把"双活三 800k / 活三+眠三 700k"
+  //    成型点也纳入必堵——对局记录实证 AI 多次死于对手一手成双活三后无解）
+  //    我方 >=700k 组合且对方无同级威胁 → 直接进攻（快速路径）
+  //    对方有 >=700k 威胁 → 必须优先堵（多威胁选攻防最优）
   if (diff.depth >= 3) {
     const my900: Array<[number, number]> = [];
     const opp900: Array<[number, number]> = [];
     for (const [r, c] of cands) {
       const av = pointScore(board, r, c, color);
-      if (av >= 900_000 && av < 1_200_000) my900.push([r, c]);
-      if (pointScore(board, r, c, opp) >= 900_000) opp900.push([r, c]);
+      if (av >= 700_000 && av < 1_200_000) my900.push([r, c]);
+      if (pointScore(board, r, c, opp) >= 700_000) opp900.push([r, c]);
     }
     if (opp900.length > 0) {
       const scored = opp900.map(([r, c]) => ({
@@ -535,7 +548,7 @@ export function gomokuBestMove(
   const t0 = performance.now();
   ttClear(); // 每次决策独立 TT（rootColor 视角固定）
   const rootHash = boardHash(board);
-  const picks = orderedCandidates(board, color, learn).slice(0, diff.depth >= 3 ? 18 : 12);
+  const picks = orderedCandidates(board, color, learn).slice(0, diff.depth >= 5 ? 20 : diff.depth >= 3 ? 18 : 12);
   let bestMoves: Array<[number, number]> = [];
   for (let d = 1; d <= diff.depth; d++) {
     const deadline = t0 + budgetMs * (d / diff.depth);
