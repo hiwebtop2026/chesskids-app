@@ -115,43 +115,49 @@ function parseUrlParams(): { game: GameType; tab: TabKey; room: string } | null 
 }
 
 /**
- * 五子棋专属 Logo：五颗棋子连线成五（对应"成五获胜"），替代原"✖"字符。
- * - allBlack=true：五颗同色黑棋（首页卡片用，简洁统一）
- * - allBlack=false：黑白交替（顶部导航用），黑子带高光、白子带细描边
+ * 五子棋专属统一 Logo：木色棋盘背景 + 五颗黑棋横排在交叉点（对应"成五获胜"）。
+ * 棋盘网格 5×5 交叉点，5 颗黑子正好落在线中点，替代原"✖"字符，更应景。
  */
-function GomokuLogoIcon({ allBlack = false, size = 1.15 }: { allBlack?: boolean; size?: number }) {
+function GomokuLogoIcon({ size = 1.1 }: { size?: number }) {
   return (
     <svg
-      viewBox="0 0 44 44"
+      viewBox="0 0 64 64"
       width={`${size}em`}
       height={`${size}em`}
       xmlns="http://www.w3.org/2000/svg"
       role="img"
       aria-label="五子棋"
     >
-      {[0, 1, 2, 3, 4].map((i) => {
-        const x = 7 + i * 10;
-        const y = 22;
-        const isBlack = allBlack || i % 2 === 0;
-        return (
-          <g key={i}>
-            <circle
-              cx={x}
-              cy={y}
-              r={4.6}
-              fill={isBlack ? '#1c1c1c' : '#ffffff'}
-              stroke={isBlack ? 'none' : '#c9c9c9'}
-              strokeWidth={0.7}
-            />
-            {isBlack && (
-              <circle cx={x - 1.3} cy={y - 1.5} r={1.3} fill="rgba(255,255,255,0.55)" />
-            )}
-            {!isBlack && (
-              <circle cx={x - 1.2} cy={y - 1.4} r={1.2} fill="rgba(0,0,0,0.06)" />
-            )}
+      <defs>
+        <linearGradient id="gwood" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#ecd3a4" />
+          <stop offset="1" stopColor="#d9a86b" />
+        </linearGradient>
+      </defs>
+      {/* 棋盘背景（圆角木色板） */}
+      <rect x="3" y="3" width="58" height="58" rx="10" fill="url(#gwood)" stroke="#9c6a33" strokeWidth="1.6" />
+      {/* 5×5 网格线 */}
+      <g stroke="#8a5a2b" strokeWidth="1.1" strokeLinecap="round">
+        {[12, 22, 32, 42, 52].map((p) => (
+          <g key={p}>
+            <line x1={p} y1={12} x2={p} y2={52} />
+            <line x1={12} y1={p} x2={52} y2={p} />
           </g>
-        );
-      })}
+        ))}
+      </g>
+      {/* 星位（天元与四星） */}
+      <g fill="#8a5a2b">
+        {[[32, 32], [12, 12], [52, 12], [12, 52], [52, 52]].map(([sx, sy], i) => (
+          <circle key={i} cx={sx} cy={sy} r="1.6" />
+        ))}
+      </g>
+      {/* 5 颗黑棋横排在交叉点上 */}
+      {[12, 22, 32, 42, 52].map((x) => (
+        <g key={x}>
+          <circle cx={x} cy={32} r={4.4} fill="#1c1c1c" />
+          <circle cx={x - 1.2} cy={32 - 1.4} r={1.3} fill="rgba(255,255,255,0.5)" />
+        </g>
+      ))}
     </svg>
   );
 }
@@ -362,7 +368,7 @@ const App: React.FC = () => {
                 onClick={() => selectGame('gomoku')}
               >
                 <span className="game-card-icon">
-                  <GomokuLogoIcon allBlack size={1.5} />
+                  <GomokuLogoIcon size={1.45} />
                 </span>
                 <span className="game-card-title">五子棋</span>
                 <span className="game-card-desc">
@@ -395,7 +401,7 @@ const App: React.FC = () => {
       <header className="app-header">
         <div className="header-left">
           <h1 className="app-title" onClick={goHome} style={{ cursor: 'pointer' }} title="返回首页">
-            <span className="app-logo">{gameType === 'chess' ? '♔' : gameType === 'xiangqi' ? '帥' : gameType === 'go' ? '⚫' : <GomokuLogoIcon />}</span>
+            <span className="app-logo">{gameType === 'chess' ? '♔' : gameType === 'xiangqi' ? '帥' : gameType === 'go' ? '⚫' : <GomokuLogoIcon size={1.15} />}</span>
             棋乐园
           </h1>
           <span className="app-subtitle">
