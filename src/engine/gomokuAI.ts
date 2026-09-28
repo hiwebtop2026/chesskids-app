@@ -71,35 +71,64 @@ export function gomokuCandidates(b: GomokuBoard): Array<[number, number]> {
 
 // ============ 威胁评估（v2 核心） ============
 
-interface LineInfo {
-  count: number;   // 该方向通过 (r,c) 的连续同色子数（含 (r,c)）
-  openEnds: number; // 两端开放端数 0/1/2
+/**
+ * v4 跳型（断点）威胁识别。
+ * 传统"连续子"计数会把 X_XXX / XX_XX / X_XX 等跳型威胁低估为"三连/散子"，
+ * 导致 AI 对对手沿对角/竖线逐步做棋（跳三→跳四→成五）反应滞后（对局记录实证）。
+ * scanPattern 沿方向取 9 格窗口（含落子点），统计"总子数 + 断点数 + 两端开度"，
+ * 一子补缝即可成五的跳型（sub>=5）会被立即识别。
+ */
+interface Pattern {
+  sub: number;          // 窗口内同色子总数（落子点视为已落，截断到 5）
+  brk: number;          // 断点数（0/1/2，两端各至多一段次连）
+  openL: number;        // 主段左端是否开放（空位）
+  openR: number;        // 主段右端是否开放
+  mainStart: [number, number]; // 主连续段起点（供线级去重）
 }
 
-/** 沿方向统计通过 (r,c) 的连子长度与两端状态 */
-function countLine(b: GomokuBoard, r: number, c: number, dr: number, dc: number, color: GomokuColor): LineInfo {
-  let count = 1;
-  let openEnds = 0;
-  {
-    let nr = r + dr, nc = c + dc;
-    while (inBoard(nr, nc) && b[nr][nc] === color) { count++; nr += dr; nc += dc; }
-    if (inBoard(nr, nc) && b[nr][nc] === '') openEnds++;
+/** 沿方向扫描落子 (r,c)（视为已落 color）后的 5 子窗口模式 */
+function scanPattern(b: GomokuBoard, r: number, c: number, dr: number, dc: number, color: GomokuColor): Pattern {
+  const cells: string[] = [];
+  for (let k = -4; k <= 4; k++) {
+    const nr = r + dr * k, nc = c + dc * k;
+    cells.push(inBoard(nr, nc) ? b[nr][nc] : '#');
   }
-  {
-    let nr = r - dr, nc = c - dc;
-    while (inBoard(nr, nc) && b[nr][nc] === color) { count++; nr -= dr; nc -= dc; }
-    if (inBoard(nr, nc) && b[nr][nc] === '') openEnds++;
-  }
-  return { count, openEnds };
+  cells[4] = color; // 落子点视为已落
+  let li = 4, ri = 4, main = 1;
+  while (li - 1 >= 0 && cells[li - 1] === color) { main++; li--; }
+  while (ri + 1 <= 8 && cells[ri + 1] === color) { main++; ri++; }
+  const openL = li - 1 >= 0 && cells[li - 1] === '' ? 1 : 0;
+  const openR = ri + 1 <= 8 && cells[ri + 1] === '' ? 1 : 0;
+  let leftSub = 0, rightSub = 0;
+  if (openL) { let k = li - 2; while (k >= 0 && cells[k] === color) { leftSub++; k--; } }
+  if (openR) { let k = ri + 2; while (k <= 8 && cells[k] === color) { rightSub++; k--; } }
+  let sub = main, brk = 0;
+  if (leftSub > 0) { sub += leftSub; brk++; }
+  if (rightSub > 0) { sub += rightSub; brk++; }
+  if (sub > 5) sub = 5;
+  return {
+    sub, brk,
+    openL: openL as 0 | 1, openR: openR as 0 | 1,
+    mainStart: [r + dr * (li - 4), c + dc * (li - 4)] as [number, number],
+  };
 }
 
-// 单线分值（未加组合加成）
-const LINE_VALUE = (L: LineInfo): number => {
-  if (L.count >= 5) return 10_000_000;
-  if (L.openEnds === 0) return 0;                 // 两端堵死
-  if (L.count === 4) return L.openEnds === 2 ? 1_000_000 : 200_000; // 活四 / 冲四
-  if (L.count === 3) return L.openEnds === 2 ? 50_000 : 10_000;     // 活三 / 眠三
-  if (L.count === 2) return L.openEnds === 2 ? 5_000 : 1_000;       // 活二 / 眠二
+/** 跳型模式分值（含断点型四/三，v4 核心升级） */
+const PATTERN_VALUE = (p: Pattern): number => {
+  const open = p.openL + p.openR;
+  if (p.sub >= 5) return 10_000_000;                // 成五（含一子补缝成五）
+  if (p.sub === 4) {
+    if (p.brk === 0) return open === 2 ? 1_000_000 : open === 1 ? 200_000 : 0; // 活四 / 冲四
+    return open === 2 ? 150_000 : open === 1 ? 80_000 : 0;                     // 跳四（活/眠）
+  }
+  if (p.sub === 3) {
+    if (p.brk === 0) return open === 2 ? 50_000 : open === 1 ? 10_000 : 0;     // 活三 / 眠三
+    return open === 2 ? 30_000 : open === 1 ? 8_000 : 0;                       // 跳三（活/眠）
+  }
+  if (p.sub === 2) {
+    if (p.brk === 0) return open === 2 ? 5_000 : open === 1 ? 800 : 0;         // 活二 / 眠二
+    return open === 2 ? 2_000 : open === 1 ? 400 : 0;                          // 跳二
+  }
   return 100;
 };
 
@@ -108,30 +137,35 @@ const LINE_VALUE = (L: LineInfo): number => {
  * 单线分求和 + 组合威胁（双活三/四三/双冲四/活四 = 对手无法同时化解的必胜杀形）
  */
 function pointScore(b: GomokuBoard, r: number, c: number, color: GomokuColor): number {
-  const lines = DIRS.map(([dr, dc]) => countLine(b, r, c, dr, dc, color));
-  if (lines.some((L) => L.count >= 5)) return 10_000_000;
+  const lines = DIRS.map(([dr, dc]) => scanPattern(b, r, c, dr, dc, color));
+  if (lines.some((p) => p.sub >= 5)) return 10_000_000; // 含跳型：一子补缝即成五
 
   let total = 0;
-  let fours = 0;      // 四子线数（含活四/冲四）
-  let openFours = 0;  // 活四
-  let threes = 0;     // 三子线数（含活三/眠三）
-  let openThrees = 0; // 活三
-  let openTwos = 0;   // 活二
-  for (const L of lines) {
-    if (L.openEnds === 0) continue;
-    total += LINE_VALUE(L);
-    if (L.count === 4) { fours++; if (L.openEnds === 2) openFours++; }
-    else if (L.count === 3) { threes++; if (L.openEnds === 2) openThrees++; }
-    else if (L.count === 2 && L.openEnds === 2) openTwos++;
+  let fours = 0;       // 四子威胁线（活四/冲四/跳四）
+  let openFours = 0;   // 活四
+  let threatThrees = 0;// 三子威胁线（活三/眠三/跳三）
+  let openThrees = 0;  // 活三（含跳三活）
+  let openTwos = 0;    // 活二
+  for (const p of lines) {
+    const open = p.openL + p.openR;
+    if (open === 0) continue;
+    total += PATTERN_VALUE(p);
+    const isFour = p.sub === 4 && (p.brk === 0 ? open >= 1 : open === 2);
+    const isThree = p.sub === 3 && (p.brk === 0 ? open >= 1 : open === 2);
+    const isOpenThree = p.sub === 3 && p.brk === 0 && open === 2;
+    const isOpenTwo = p.sub === 2 && p.brk === 0 && open === 2;
+    if (isFour) { fours++; if (p.brk === 0 && open === 2) openFours++; }
+    else if (isThree) { threatThrees++; if (isOpenThree) openThrees++; }
+    else if (isOpenTwo) openTwos++;
   }
 
   // ---- 组合威胁（对手只能挡一处 → 必胜级） ----
-  if (openFours >= 1) return 1_200_000;                // 活四：下一步必成五
-  if (fours >= 2) return 1_100_000;                    // 双冲四
-  if (fours >= 1 && threes >= 1) return 900_000;       // 冲四 + 活三/眠三（四三杀）
-  if (openThrees >= 2) return 800_000;                 // 双活三
-  if (openThrees >= 1 && threes >= 2) return 700_000;  // 活三 + 眠三
-  if (openTwos >= 2) total += 20_000;                  // 双活二（做棋苗头）
+  if (openFours >= 1) return 1_200_000;                    // 活四：下一步必成五
+  if (fours >= 2) return 1_100_000;                        // 双冲四/冲四+跳四
+  if (fours >= 1 && threatThrees >= 1) return 900_000;     // 四三杀（含跳三）
+  if (openThrees >= 2) return 800_000;                     // 双活三（含跳三）
+  if (openThrees >= 1 && threatThrees >= 2) return 700_000;// 活三 + 眠/跳三
+  if (openTwos >= 2) total += 20_000;                      // 双活二
 
   return total;
 }
@@ -150,22 +184,13 @@ function lineSum(b: GomokuBoard, color: GomokuColor): number {
     for (let c = 0; c < n; c++) {
       if (b[r][c] !== color) continue;
       for (const [dr, dc] of DIRS) {
-        const key = `${r},${c},${dr},${dc}`;
+        const p = scanPattern(b, r, c, dr, dc, color);
+        // 按主段起点去重：同一条连段的多个格子只计一次（跳型段起点=主段左端）
+        const [sr, sc] = p.mainStart;
+        const key = `${sr},${sc},${dr},${dc}`;
         if (seen.has(key)) continue;
-        // 回溯到该段起点
-        let sr = r, sc = c;
-        while (inBoard(sr - dr, sc - dc) && b[sr - dr][sc - dc] === color) { sr -= dr; sc -= dc; }
-        // 沿方向统计段长
-        let len = 0, or = sr, oc = sc;
-        const keys: string[] = [];
-        while (inBoard(or, oc) && b[or][oc] === color) {
-          len++; keys.push(`${or},${oc},${dr},${dc}`);
-          or += dr; oc += dc;
-        }
-        const openL = inBoard(sr - dr, sc - dc) && b[sr - dr][sc - dc] === '' ? 1 : 0;
-        const openR = inBoard(or, oc) && b[or][oc] === '' ? 1 : 0;
-        for (const k of keys) seen.add(k);
-        total += LINE_VALUE({ count: len, openEnds: openL + openR });
+        seen.add(key);
+        total += PATTERN_VALUE(p);
       }
     }
   }
@@ -238,7 +263,7 @@ function search(
   }
 
   const ordered = orderedCandidates(b, color);
-  const limit = depth >= 3 ? 16 : 12;
+  const limit = depth >= 3 ? 18 : 12;
   const picks = ordered.slice(0, limit);
 
   let best = -Infinity;
@@ -310,7 +335,7 @@ export function gomokuBestMove(board: GomokuBoard, color: GomokuColor, diff: Gom
   // 深度搜索：master 迭代加深（1→depth，超时保留最近完成的完整层，避免浅层降级）
   const budgetMs = diff.key === 'master' ? 2600 : diff.key === 'hard' ? 1400 : 900;
   const t0 = performance.now();
-  const picks = orderedCandidates(board, color).slice(0, diff.depth >= 3 ? 16 : 12);
+  const picks = orderedCandidates(board, color).slice(0, diff.depth >= 3 ? 18 : 12);
   let bestMoves: Array<[number, number]> = [];
   for (let d = 1; d <= diff.depth; d++) {
     const deadline = t0 + budgetMs * (d / diff.depth);
