@@ -236,9 +236,10 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
     </div>
   );
 
-  // 功能按钮：2D 内嵌棋盘容器下方（浮动跟随）；3D 显示侧栏
+  // 功能按钮：2D 内嵌棋盘容器下方（浮动跟随）；3D 显示侧栏（2D/3D 切换与功能按钮同排一体）
   const onlineCtrlButtons = (
     <div className="gomoku-controls gomoku-inboard-controls">
+      {viewSwitchOnline}
       <button className={`ctrl-btn ${chatOpen ? 'active' : ''}`} onClick={() => setChatOpen((v) => !v)}>💬 聊天</button>
       <button className="ctrl-btn danger" onClick={handleResign} disabled={game.over}>🏳️ 认输</button>
       <button className="ctrl-btn" onClick={handleReset}>🔄 重新开始</button>
@@ -274,7 +275,6 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
                 flipped={myColor === 'w'}
                 defaultFloating
               >
-                {viewSwitchOnline}
                 {onlineCtrlButtons}
                 {result && (
                   <GomokuResultFX kind={result.emoji === '🎉' ? 'win' : result.title === '和棋' ? 'draw' : 'lose'} label={result.title} />

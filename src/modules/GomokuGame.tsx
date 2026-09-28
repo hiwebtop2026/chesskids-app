@@ -240,9 +240,10 @@ export const GomokuGame: React.FC = () => {
     </div>
   );
 
-  // 功能按钮：2D 内嵌到棋盘容器下方；3D 显示在侧栏
+  // 功能按钮：2D 内嵌到棋盘容器下方；3D 显示在侧栏（2D/3D 切换与功能按钮同排，构成一体式棋盘底座）
   const ctrlButtons = (
     <div className="gomoku-controls gomoku-inboard-controls">
+      {viewSwitchCtrl}
       <button className="ctrl-btn" onClick={handleUndo} disabled={aiThinking || moveCount === 0}>↩️ 悔棋</button>
       <button className="ctrl-btn" onClick={handleHint} disabled={aiThinking || game.over}>💡 提示</button>
       <button className="ctrl-btn danger" onClick={handleResign} disabled={game.over}>🏳️ 认输</button>
@@ -280,7 +281,6 @@ export const GomokuGame: React.FC = () => {
               flipped={humanColor === 'w'}
               defaultFloating
             >
-              {viewSwitchCtrl}
               {ctrlButtons}
               {result && showResultModal && (
                 <GomokuResultFX kind={result.humanWin ? 'win' : result.winner === 'draw' ? 'draw' : 'lose'} label={result.detail} />
