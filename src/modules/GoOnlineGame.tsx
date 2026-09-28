@@ -252,10 +252,10 @@ export const GoOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ autoJ
             <div className="online-join-row">
               <input
                 className="online-input"
-                placeholder="输入 6 位房间号"
+                placeholder="输入 7 位房间号"
                 value={joinInput}
                 onChange={(e) => setJoinInput(e.target.value.toUpperCase())}
-                maxLength={6}
+                maxLength={7}
               />
               <button className="ctrl-btn" onClick={async () => {
                 if (joinInput.trim()) {
