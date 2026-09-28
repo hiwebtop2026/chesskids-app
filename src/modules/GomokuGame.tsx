@@ -232,6 +232,14 @@ export const GomokuGame: React.FC = () => {
   const humanWin = result ? result.humanWin : null;
   const moveCount = game.moves.length;
 
+  // 2D/3D 切换：集成到棋盘容器按钮栏（浮动全屏下也可操作）
+  const viewSwitchCtrl = (
+    <div className="view-switch-inboard">
+      <button className={`view-tab-btn ${viewMode === '3d' ? 'active' : ''}`} onClick={() => setViewMode('3d')} title="切换 3D 棋盘">🀄 3D</button>
+      <button className={`view-tab-btn ${viewMode === '2d' ? 'active' : ''}`} onClick={() => setViewMode('2d')} title="切换 2D 棋盘">📐 2D</button>
+    </div>
+  );
+
   // 功能按钮：2D 内嵌到棋盘容器下方；3D 显示在侧栏
   const ctrlButtons = (
     <div className="gomoku-controls gomoku-inboard-controls">
@@ -251,10 +259,6 @@ export const GomokuGame: React.FC = () => {
       </div>
       <div className="game-layout">
         <div className="game-board-section gomoku-board-section">
-          <div className="view-switch-row">
-            <button className={`view-tab-btn ${viewMode === '3d' ? 'active' : ''}`} onClick={() => setViewMode('3d')}>3D 棋盘</button>
-            <button className={`view-tab-btn ${viewMode === '2d' ? 'active' : ''}`} onClick={() => setViewMode('2d')}>2D 棋盘</button>
-          </div>
           {viewMode === '3d' ? (
             <ThreeJSGomokuBoard
               board={game.board}
@@ -276,6 +280,7 @@ export const GomokuGame: React.FC = () => {
               flipped={humanColor === 'w'}
               defaultFloating
             >
+              {viewSwitchCtrl}
               {ctrlButtons}
               {result && showResultModal && (
                 <GomokuResultFX kind={result.humanWin ? 'win' : result.winner === 'draw' ? 'draw' : 'lose'} label={result.detail} />
@@ -303,6 +308,7 @@ export const GomokuGame: React.FC = () => {
             <span className="gomoku-move-count">第 {Math.floor(moveCount / 2) + 1} 手</span>
           </div>
 
+          {viewSwitchCtrl}
           {viewMode === '3d' && ctrlButtons}
 
           <div className="gomoku-rules-tip">

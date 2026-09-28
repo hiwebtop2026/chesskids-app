@@ -6584,6 +6584,12 @@ ul {
 .gomoku-floating::before { content: ''; position: fixed; inset: 0; background: rgba(12, 8, 2, 0.62); z-index: -1; }
 .gomoku-floating .gomoku-board-svg { width: 100%; aspect-ratio: 1 / 1; }
 div.gomoku-inboard-controls { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px; width: auto; max-width: 100%; margin: 12px auto 0; padding: 8px 14px; background: rgba(24, 16, 8, 0.48); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 999px; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.38); }
+/* 2D/3D 切换组（容器内）：与功能按钮同栏排布 */
+div.gomoku-inboard-controls .view-switch-inboard { display: flex; gap: 6px; align-items: center; }
+div.gomoku-inboard-controls .view-tab-btn { display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 8px 14px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.18); background: rgba(255, 255, 255, 0.10); color: #f5ead8; font-size: 13.5px; font-weight: 600; cursor: pointer; min-height: 40px; touch-action: manipulation; white-space: nowrap; transition: background .18s, transform .15s, border-color .18s, box-shadow .18s; }
+div.gomoku-inboard-controls .view-tab-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.22); transform: translateY(-1px); }
+div.gomoku-inboard-controls .view-tab-btn:active:not(:disabled) { transform: scale(0.95); }
+div.gomoku-inboard-controls .view-tab-btn.active { background: rgba(255, 190, 100, 0.28); border-color: rgba(255, 210, 140, 0.70); color: #ffe6b8; box-shadow: 0 0 12px rgba(255, 190, 100, 0.35); }
 div.gomoku-inboard-controls .ctrl-btn { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 16px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.18); background: rgba(255, 255, 255, 0.10); color: #f5ead8; font-size: 14px; font-weight: 600; cursor: pointer; min-height: 44px; touch-action: manipulation; white-space: nowrap; transition: background .18s, transform .15s, box-shadow .18s, border-color .18s; box-shadow: 0 2px 8px rgba(0,0,0,0.22); flex: 1 1 auto; min-width: 88px; max-width: 210px; }
 div.gomoku-inboard-controls .ctrl-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.20); border-color: rgba(255, 210, 140, 0.55); box-shadow: 0 4px 14px rgba(255, 190, 100, 0.28); transform: translateY(-1px); }
 div.gomoku-inboard-controls .ctrl-btn:active:not(:disabled) { transform: scale(0.95); }
@@ -6763,15 +6769,22 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
   .gomoku-board-wrap { width: min(100%, calc(100dvh - 260px)); }
   div.gomoku-inboard-controls .ctrl-btn { flex: 1 1 42%; min-width: 0; max-width: none; padding: 9px 8px; font-size: 13px; min-height: 40px; gap: 4px; }
   div.gomoku-inboard-controls { gap: 8px; margin-top: 10px; padding: 7px 10px; border-radius: 18px; }
+  div.gomoku-inboard-controls .view-switch-inboard { flex: 1 1 100%; justify-content: center; gap: 8px; }
+  div.gomoku-inboard-controls .view-tab-btn { flex: 1 1 42%; min-width: 0; max-width: none; min-height: 36px; padding: 7px 8px; font-size: 13px; }
   .gomoku-floating { width: min(98vw, 94dvh, 1400px) !important; }
   .gomoku-float-close { top: 8px; right: 8px; width: 34px; height: 34px; font-size: 16px; }
 }
 
-/* 横屏（手机/平板横置全屏）：按钮栏与关闭按钮更紧凑，避免遮挡棋盘 */
-@media (orientation: landscape) and (max-height: 600px) {
-  div.gomoku-inboard-controls { gap: 7px; margin-top: 8px; padding: 6px 10px; }
-  div.gomoku-inboard-controls .ctrl-btn { min-height: 38px; padding: 7px 12px; font-size: 13px; gap: 4px; min-width: 70px; }
-  .gomoku-float-close { width: 32px; height: 32px; font-size: 15px; }
+/* 横屏（手机/平板横置，约 320-820 高）：按钮栏移至棋盘右侧竖排，棋盘自动占满可用高度，
+   棋盘+按钮整体居中，不再因 92dvh 上限导致棋盘过小或按钮溢出视口 */
+@media (orientation: landscape) and (max-height: 820px) and (max-width: 1200px) {
+  .gomoku-floating { flex-direction: row; align-items: center; gap: 12px; width: min(96vw, calc(94dvh + 240px)) !important; }
+  .gomoku-floating .gomoku-board-svg { width: min(92dvh, calc(96vw - 250px)) !important; height: auto; flex: none; }
+  div.gomoku-inboard-controls { flex-direction: column; justify-content: center; align-items: stretch; gap: 8px; margin: 0; padding: 10px 12px; width: auto; max-width: none; border-radius: 22px; }
+  div.gomoku-inboard-controls .view-switch-inboard { flex-direction: column; gap: 6px; }
+  div.gomoku-inboard-controls .ctrl-btn, div.gomoku-inboard-controls .view-tab-btn { flex: 0 0 auto; min-width: 104px; min-height: 38px; font-size: 13px; padding: 7px 12px; }
+  div.gomoku-inboard-controls .view-tab-btn { width: 100%; }
+  .gomoku-float-close { top: 10px; right: 10px; width: 34px; height: 34px; font-size: 15px; }
 }
 .gomoku-stone-shadow { filter: blur(0.5px); }
 .gomoku-stone-glint { pointer-events: none; }

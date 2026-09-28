@@ -227,6 +227,15 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
     </div>
   );
 
+  // 2D/3D 切换：集成到棋盘容器按钮栏（浮动全屏下也可操作）
+  const viewSwitchOnline = (
+    <div className="view-switch-inboard">
+      <button className={`view-tab-btn ${viewMode === '3d' ? 'active' : ''}`} onClick={() => setViewMode('3d')} title="切换 3D 棋盘">🀄 3D</button>
+      <button className={`view-tab-btn ${viewMode === '2d' ? 'active' : ''}`} onClick={() => setViewMode('2d')} title="切换 2D 棋盘">📐 2D</button>
+      {viewMode === '3d' && <button className={`view-tab-btn chat-btn ${chatOpen ? 'active' : ''}`} onClick={() => setChatOpen((v) => !v)}>💬 聊天</button>}
+    </div>
+  );
+
   // 功能按钮：2D 内嵌棋盘容器下方（浮动跟随）；3D 显示侧栏
   const onlineCtrlButtons = (
     <div className="gomoku-controls gomoku-inboard-controls">
@@ -246,11 +255,6 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
       {!inGame ? lobby : (
         <div className="game-layout">
           <div className="game-board-section gomoku-board-section">
-            <div className="view-switch-row">
-              <button className={`view-tab-btn ${viewMode === '3d' ? 'active' : ''}`} onClick={() => setViewMode('3d')}>3D 棋盘</button>
-              <button className={`view-tab-btn ${viewMode === '2d' ? 'active' : ''}`} onClick={() => setViewMode('2d')}>2D 棋盘</button>
-              {viewMode === '3d' && <button className={`view-tab-btn chat-btn ${chatOpen ? 'active' : ''}`} onClick={() => setChatOpen((v) => !v)}>💬 聊天</button>}
-            </div>
             {viewMode === '3d' ? (
               <ThreeJSGomokuBoard
                 board={game.board}
@@ -270,6 +274,7 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
                 flipped={myColor === 'w'}
                 defaultFloating
               >
+                {viewSwitchOnline}
                 {onlineCtrlButtons}
                 {result && (
                   <GomokuResultFX kind={result.emoji === '🎉' ? 'win' : result.title === '和棋' ? 'draw' : 'lose'} label={result.title} />
@@ -289,6 +294,7 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
               </span>
               <span className="gomoku-move-count">第 {Math.floor(moveCount / 2) + 1} 手</span>
             </div>
+            {viewSwitchOnline}
             {viewMode === '3d' && (
               <div className="gomoku-controls">
                 <button className="ctrl-btn danger" onClick={handleResign} disabled={game.over}>🏳️ 认输</button>
