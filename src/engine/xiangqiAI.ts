@@ -8,8 +8,9 @@
  * 棋子：红方大写（K A B N R C P），黑方小写（k a b n r c p）
  */
 import type { XiangqiBoard, XiangqiColor, XiangqiSquare } from '../types/xiangqi';
-import { isXiangqiMoveLegal } from './xiangqi';
+import { isXiangqiMoveLegal, applyXiangqiMove, cloneXiangqiBoard, XIANGQI_INITIAL_BOARD, xiangqiInBounds } from './xiangqi';
 import { getOpeningMove } from './xiangqiLearning';
+import type { XiangqiMove } from '../types/xiangqi';
 
 const COLS = 9;
 const ROWS = 10;
@@ -1218,6 +1219,32 @@ function negamax(
 }
 
 // ===== 对外接口 =====
+
+/**
+ * 计算对局历史局面序列的 Zobrist hash（含初始局面）。
+ * 供 AI 搜索注入"历史重复检测"：AI 单步决策即可感知"此走法将导致第 2/3 次重复
+ * （长将/长捉循环），从而主动规避反复将军逼和。
+ * 历史走法异常时返回空数组（不启用历史规避，保守降级）。
+ */
+export function computeXiangqiHistoryHashes(moves: XiangqiMove[]): number[] {
+  const hashes: number[] = [];
+  try {
+    let b = cloneXiangqiBoard(XIANGQI_INITIAL_BOARD);
+    hashes.push(computeHash(toFlat(b), 'r'));
+    for (const m of moves) {
+      if (!xiangqiInBounds(m.from[0], m.from[1]) || !xiangqiInBounds(m.to[0], m.to[1]) || !b[m.from[0]]?.[m.from[1]]) break;
+      const applied = applyXiangqiMove(b, m.from, m.to);
+      b = applied.board;
+      // 走子后轮到对方：黑子（小写）走完轮红，红子（大写）走完轮黑
+      const nextTurn: 'r' | 'b' = m.piece && m.piece === m.piece.toLowerCase() ? 'r' : 'b';
+      hashes.push(computeHash(toFlat(b), nextTurn));
+    }
+  } catch {
+    return [];
+  }
+  return hashes;
+}
+
 export type XiangqiAIDifficulty = 'easy' | 'medium' | 'hard' | 'master';
 
 export const XIANGQI_AI_DIFFICULTIES: XiangqiAIDifficulty[] = ['easy', 'medium', 'hard', 'master'];
@@ -1248,6 +1275,7 @@ export function xiangqiBestMove(
   difficulty: XiangqiAIDifficulty = 'medium',
   weights?: Record<string, number> | null,
   ply?: number | null,
+  historyHash?: number[],
 ): XiangqiSquare[] | null {
   if (weights) learnedBias = weights;
   // 开局阶段优先走开局库着法（规范开局，孩子可学到标准套路）；着法不合法自动回退搜索
@@ -1275,6 +1303,8 @@ export function xiangqiBestMove(
   const b = toFlat(board);
   const c: 'r' | 'b' = color;
   const initialHash = computeHash(b, c);
+  // 历史局面序列注入：单步决策即可识别"将导致第 3 次重复（长将逼和）"的走法并罚分规避
+  const repInit: number[] = historyHash && historyHash.length > 0 ? historyHash.slice(-28) : [];
 
   // 先获取所有合法着法
   const firstMoves = legalMovesOrdered(b, c, -1, -1);
@@ -1327,10 +1357,10 @@ export function xiangqiBestMove(
       try {
         // 记录搜索时的窗口（循环中 alpha 会更新，fail 判定必须用搜索时窗口）
         const winAlpha = alpha, winBeta = beta;
-        score = -negamax(b, opp(c), d - 1, -winBeta, -winAlpha, 1, true, newHash);
+        score = -negamax(b, opp(c), d - 1, -winBeta, -winAlpha, 1, true, newHash, repInit);
         // Aspiration 失败：分数落在窄窗口外 → 用全窗口重搜本走法（保证分数正确，不丢 fail-high/fail-low）
         if (aspiration && (score <= winAlpha || score >= winBeta)) {
-          score = -negamax(b, opp(c), d - 1, -INF, INF, 1, true, newHash);
+          score = -negamax(b, opp(c), d - 1, -INF, INF, 1, true, newHash, repInit);
         }
       } catch {
         timedOut = true;

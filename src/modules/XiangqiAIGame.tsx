@@ -29,6 +29,7 @@ import {
   isXiangqiRed,
 } from '../engine/xiangqi';
 import { xiangqiBestMoveAsync } from '../utils/xiangqiAIAsync';
+import { computeXiangqiHistoryHashes } from '../engine/xiangqiAI';
 import type { XiangqiAIDifficulty } from '../engine/xiangqiAI';
 import { isXiangqiGameOver } from '../types/xiangqi';
 import type {
@@ -301,6 +302,8 @@ export const XiangqiAIGame: React.FC = () => {
         mv = await xiangqiBestMoveAsync(b, t, resolved.actual, {
           ply,
           weights: getLearnedPieceBias(),
+          // 注入历史局面序列：AI 感知长将/重复循环，主动规避反复将军逼和
+          historyHash: computeXiangqiHistoryHashes(movesRef.current),
         });
       } catch (err) {
         console.error('[XiangqiAI] AI 计算失败:', err);
@@ -407,7 +410,10 @@ export const XiangqiAIGame: React.FC = () => {
     if (thinking || gameOver) return;
     setThinking(true);
     try {
-      const mv = await xiangqiBestMoveAsync(board, turn, 'hard');
+      const mv = await xiangqiBestMoveAsync(board, turn, 'hard', {
+        ply: movesRef.current.length,
+        historyHash: computeXiangqiHistoryHashes(movesRef.current),
+      });
       if (mv) setHint([mv[0] as XiangqiSquare, mv[1] as XiangqiSquare]);
     } catch (err) {
       console.error('[XiangqiAI] 提示计算失败:', err);

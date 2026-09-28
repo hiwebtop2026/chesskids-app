@@ -49,17 +49,18 @@ ctx.onmessage = (e: MessageEvent) => {
   }
 
   // 常规最佳着法请求
-  const { requestId, board, color, difficulty, weights = null, ply = null } = data as {
+  const { requestId, board, color, difficulty, weights = null, ply = null, historyHash = null } = data as {
     requestId: number;
     board: XiangqiBoard;
     color: XiangqiColor;
     difficulty: XiangqiAIDifficulty;
     weights?: Record<string, number> | null;
     ply?: number | null;
+    historyHash?: number[] | null;
   };
   try {
     // 开局库校验已统一集成在 xiangqiBestMove 内（ply < 8 时优先走规范开局）
-    const moves: XiangqiSquare[] | null = xiangqiBestMove(board, color, difficulty, weights, ply);
+    const moves: XiangqiSquare[] | null = xiangqiBestMove(board, color, difficulty, weights, ply, historyHash || undefined);
     ctx.postMessage({ requestId, moves });
   } catch (err: any) {
     ctx.postMessage({ requestId, moves: null, error: err?.message || String(err) });

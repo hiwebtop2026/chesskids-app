@@ -114,9 +114,9 @@ export function xiangqiBestMoveAsync(
   board: XiangqiBoard,
   color: XiangqiColor,
   difficulty: XiangqiAIDifficulty,
-  opts?: { ply?: number; weights?: Record<string, number> | null },
+  opts?: { ply?: number; weights?: Record<string, number> | null; historyHash?: number[] },
 ): Promise<XiangqiSquare[] | null> {
-  const { ply = null, weights = null } = opts || {};
+  const { ply = null, weights = null, historyHash = null } = opts || {};
   return new Promise((resolve, reject) => {
     const requestId = ++seq;
     let settled = false;
@@ -135,7 +135,7 @@ export function xiangqiBestMoveAsync(
       pendingMoves.delete(requestId);
       console.warn('[AI Worker] 走子请求超时（15s），回退主线程计算');
       try {
-        resolve(xiangqiBestMove(board, color, difficulty, weights, ply));
+        resolve(xiangqiBestMove(board, color, difficulty, weights, ply, historyHash || undefined));
       } catch (e2) {
         reject(e2 as Error);
       }
@@ -143,13 +143,13 @@ export function xiangqiBestMoveAsync(
     pendingMoves.set(requestId, { resolve: (v) => finish(v), reject: (e) => finish(null, e) });
     try {
       const w = getWorker();
-      w.postMessage({ requestId, board, color, difficulty, weights, ply });
+      w.postMessage({ requestId, board, color, difficulty, weights, ply, historyHash });
     } catch (err) {
       pendingMoves.delete(requestId);
       clearTimeout(timeoutId);
       // Worker 不可用（如受限环境）时回退主线程同步计算，保证功能可用
       try {
-        resolve(xiangqiBestMove(board, color, difficulty, weights, ply));
+        resolve(xiangqiBestMove(board, color, difficulty, weights, ply, historyHash || undefined));
       } catch (e2) {
         reject(e2 as Error);
       }
