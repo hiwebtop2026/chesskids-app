@@ -115,15 +115,16 @@ function parseUrlParams(): { game: GameType; tab: TabKey; room: string } | null 
 }
 
 /**
- * 五子棋专属 Logo：五颗黑白棋子连线成五（对应"成五获胜"），替代原"✖"字符。
- * 黑子带高光、白子带细描边，兼具立体感与辨识度。
+ * 五子棋专属 Logo：五颗棋子连线成五（对应"成五获胜"），替代原"✖"字符。
+ * - allBlack=true：五颗同色黑棋（首页卡片用，简洁统一）
+ * - allBlack=false：黑白交替（顶部导航用），黑子带高光、白子带细描边
  */
-function GomokuLogoIcon() {
+function GomokuLogoIcon({ allBlack = false, size = 1.15 }: { allBlack?: boolean; size?: number }) {
   return (
     <svg
       viewBox="0 0 44 44"
-      width="1.15em"
-      height="1.15em"
+      width={`${size}em`}
+      height={`${size}em`}
       xmlns="http://www.w3.org/2000/svg"
       role="img"
       aria-label="五子棋"
@@ -131,7 +132,7 @@ function GomokuLogoIcon() {
       {[0, 1, 2, 3, 4].map((i) => {
         const x = 7 + i * 10;
         const y = 22;
-        const isBlack = i % 2 === 0;
+        const isBlack = allBlack || i % 2 === 0;
         return (
           <g key={i}>
             <circle
@@ -360,7 +361,9 @@ const App: React.FC = () => {
                 className="game-select-card game-card-gomoku"
                 onClick={() => selectGame('gomoku')}
               >
-                <span className="game-card-icon">✖</span>
+                <span className="game-card-icon">
+                  <GomokuLogoIcon allBlack size={1.5} />
+                </span>
                 <span className="game-card-title">五子棋</span>
                 <span className="game-card-desc">
                   规则学习 · 人机对战 · 双人对战 · 在线联机（花梨木 3D 棋盘）
