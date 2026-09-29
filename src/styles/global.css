@@ -6566,12 +6566,12 @@ ul {
 .gomoku-board-wrap { position: relative; width: min(100%, 780px, calc(100dvh - 200px)); aspect-ratio: auto; display: flex; flex-direction: column; align-items: center; }
 .gomoku-board-wrap .gomoku-board-svg { width: 100%; aspect-ratio: 1 / 1; }
 .gomoku-board-svg { width: 100%; aspect-ratio: 1; height: auto; display: block; border-radius: 10px; box-shadow: 0 4px 18px rgba(0,0,0,0.28); touch-action: manipulation; }
-.gomoku-board-bg { fill: #dfe8cc; }
+.gomoku-board-bg { fill: #ece6d0; }
 /* 护眼：网格线用柔和深绿灰，降低黑白对比眩光 */
-.gomoku-line { stroke: rgba(74, 94, 58, 0.62); stroke-width: 0.45; }
+.gomoku-line { stroke: rgba(146, 108, 64, 0.66); stroke-width: 0.45; }
 .gomoku-stone { filter: drop-shadow(0 1px 1.2px rgba(0,0,0,0.3)); }
 .gomoku-stone-inner { opacity: 0.9; }
-.gomoku-star { fill: #5a6b4e; }
+.gomoku-star { fill: #8a5a2b; }
 .gomoku-coord { font-size: 2.6; fill: #6b5a42; font-weight: 600; }
 .gomoku-last-mark { stroke: #fff; stroke-width: 0.4; }
 .gomoku-hint { stroke: #ffb300; }
