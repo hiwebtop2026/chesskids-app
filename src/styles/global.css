@@ -7078,8 +7078,8 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
 .gomoku-theme-dark .gomoku-side-panel { background: #211b13; border-color: #3a2f1e; }
 .gomoku-theme-dark .gomoku-side-panel h3 { color: #ecd9a8; }
 .gomoku-theme-dark .gomoku-side-panel p, .gomoku-theme-dark .gomoku-side-panel span { color: #b7a98f; }
-.gomoku-theme-dark .gomoku-board-bg { fill: #5a4128; }
-.gomoku-theme-dark .gomoku-line { stroke: rgba(230, 192, 128, 0.58); }
+.gomoku-theme-dark .gomoku-board-bg { fill: #2e3b31; }
+.gomoku-theme-dark .gomoku-line { stroke: rgba(222, 186, 130, 0.56); }
 .gomoku-theme-dark .gomoku-star { fill: #c9a264; }
 /* 按钮：深色底 + 暖色字，毛玻璃风格 */
 .gomoku-theme-dark .ctrl-btn,

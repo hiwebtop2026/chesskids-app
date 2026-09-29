@@ -256,7 +256,7 @@ export const ThreeJSGomokuBoard: React.FC<ThreeJSGomokuBoardProps> = ({
     if (height < 10) height = 480;
 
     const scene = new T.Scene();
-    scene.background = new T.Color(dark ? 0x1c1711 : 0x6e5842);
+    scene.background = new T.Color(dark ? 0x1e2622 : 0x6e5842);
     scene.fog = new T.Fog(0x6e5842, 26, 54);
 
     const camera = new T.PerspectiveCamera(40, width / height, 0.1, 120);
