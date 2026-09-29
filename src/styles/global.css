@@ -6583,6 +6583,10 @@ ul {
 .gomoku-floating { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; width: min(96vw, 92dvh, 1600px) !important; height: auto; display: flex; flex-direction: column; align-items: center; }
 /* 全屏遮罩：独立背景层（100vmax box-shadow 在 iOS Safari 不渲染，改用 ::before 固定层） */
 .gomoku-floating::before { content: ''; position: fixed; inset: 0; background: rgba(22, 34, 20, 0.68); z-index: -1; }
+/* 浮动层顶部预留状态胶囊专用区（胶囊上移到棋盘上方，不遮挡棋盘与棋子；弹窗仍相对 wrap 棋盘容器） */
+.gomoku-floating { padding-top: 48px; }
+/* 非浮动布局有侧栏状态，隐藏胶囊避免叠在棋盘上 */
+.gomoku-board-wrap:not(.gomoku-floating) .gomoku-float-status { display: none; }
 .gomoku-floating .gomoku-board-svg { width: 100%; aspect-ratio: 1 / 1; display: block; }
 div.gomoku-inboard-controls { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px; width: calc(100% + 28px); max-width: none; margin: -3px auto 0; padding: 10px 14px; background: linear-gradient(180deg, #ead9b2, #d9c293); border: 1px solid rgba(110, 78, 40, 0.45); border-top: 2px solid rgba(110, 78, 40, 0.55); border-radius: 0 0 16px 16px; box-shadow: inset 0 3px 8px rgba(110, 78, 40, 0.22); }
 /* 联机房间号：可点击/长按复制的金色胶囊 */
@@ -6818,7 +6822,8 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
    棋盘+按钮整体居中，不再因 92dvh 上限导致棋盘过小或按钮溢出视口 */
 @media (orientation: landscape) and (max-height: 820px) and (max-width: 1200px) {
   .gomoku-floating { flex-direction: row; align-items: center; gap: 12px; width: min(96vw, calc(94dvh + 240px)) !important; }
-  .gomoku-floating .gomoku-board-svg { width: min(92dvh, calc(96vw - 250px)) !important; height: auto; flex: none; }
+  .gomoku-floating { padding-top: 0; }
+  .gomoku-floating .gomoku-board-svg { width: min(calc(92dvh - 64px), calc(96vw - 300px)) !important; height: auto; flex: none; margin-left: 52px; }
   div.gomoku-inboard-controls { flex-direction: column; justify-content: center; align-items: stretch; gap: 8px; margin: 0 0 0 6px; padding: 10px 12px; width: auto; max-width: none; border-radius: 18px; background: linear-gradient(90deg, #ead9b2, #d9c293); border-top-width: 1px; }
   div.gomoku-inboard-controls .view-switch-inboard { flex-direction: column; gap: 6px; }
   div.gomoku-inboard-controls .ctrl-btn, div.gomoku-inboard-controls .view-tab-btn { flex: 0 0 auto; min-width: 104px; min-height: 38px; font-size: 13px; padding: 7px 12px; }
@@ -6981,7 +6986,7 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
 /* 浮动顶部状态胶囊（棋盘容器内嵌，替代被隐藏的侧栏状态栏） */
 .gomoku-float-status {
   position: absolute;
-  top: 10px;
+  top: -46px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 8;
@@ -7060,12 +7065,12 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
 
 /* 移动端浮动适配：状态胶囊不遮挡棋盘 */
 @media (max-width: 640px) {
-  .gomoku-float-status { top: 6px; gap: 6px; padding: 5px 12px; font-size: 12px; }
+  .gomoku-float-status { top: -42px; gap: 6px; padding: 5px 12px; font-size: 12px; }
   .gomoku-float-result-modal .result-content { padding: 22px 24px; min-width: 0; }
 }
 /* 横屏：状态胶囊移到棋盘左侧竖排，避免与右侧按钮栏重叠 */
 @media (orientation: landscape) and (max-height: 820px) and (max-width: 1200px) {
-  .gomoku-float-status { top: 50%; left: 10px; transform: translateY(-50%); flex-direction: column; align-items: flex-start; gap: 6px; max-width: none; white-space: normal; }
+  .gomoku-float-status { top: 50%; left: 6px; transform: translateY(-50%); flex-direction: column; align-items: flex-start; gap: 6px; max-width: none; white-space: normal; }
   .gomoku-float-status .gomoku-turn-dot { display: none; }
 }
 /* ===== 五子棋 夜间模式（日夜切换）===== */
