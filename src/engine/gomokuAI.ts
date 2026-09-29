@@ -45,6 +45,9 @@ export interface GomokuLearnData {
   opening: Array<{ r: number; c: number; w: number }>;
   /** 防守激进度 0..3：历史输局越多越激进（越早堵组合威胁） */
   defenseLevel: number;
+  /** v7：人类偏好方向权重（h/v/d1/d2 对应横/竖/主斜/副斜），对手该方向威胁加权，
+   *  由对局记录中人类获胜五连方向统计生成——AI 对高发方向防守更提前 */
+  dirWeights?: { h: number; v: number; d1: number; d2: number };
 }
 
 // ============ Zobrist 哈希 + 置换表（v5） ============
@@ -221,6 +224,52 @@ export function pointScore(b: GomokuBoard, r: number, c: number, color: GomokuCo
 }
 
 /**
+ * v7 核心：成长威胁窗口扫描（修复对局记录实证的"长线累积做棋防守滞后"）。
+ *
+ * 传统评估只识别"当前成型的活三/冲四/活四"，对手每 2-3 手在同一条线上 +1 子，
+ * AI 分散应对各方向，最后一条长线连成五（对局记录 7 盘人类胜局中 6 盘如此）。
+ *
+ * 本函数枚举所有"3 子 + 2 空 + 无对方子"的 5 连窗口：对手落窗口内任一空位
+ * 即成 4 子连威胁（活四/冲四/跳四），再落即成五。返回这些窗口内的 2 个空位
+ * （升级点）＋ 窗口两端外侧的延伸点（落子同样会升级）。
+ * AI 提前占据这些点 = 破坏对方成长线，从源头杜绝"活四成型后无解"。
+ */
+export function openThreeExtendPoints(b: GomokuBoard, color: GomokuColor): Set<string> {
+  const n = GOMOKU_SIZE;
+  const res = new Set<string>();
+  const keyOf = (r: number, c: number) => `${r},${c}`;
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      if (b[r][c] !== '') continue;
+      for (const [dr, dc] of DIRS) {
+        // 过 (r,c) 的方向线上，枚举所有包含 (r,c) 的 5 连窗口
+        for (let off = 0; off < 5; off++) {
+          const sr = r - dr * (4 - off), sc = c - dc * (4 - off);
+          let cnt = 0, empty = 0, bad = false;
+          const empties: Array<[number, number]> = [];
+          for (let k = 0; k < 5; k++) {
+            const nr = sr + dr * k, nc = sc + dc * k;
+            if (!inBoard(nr, nc)) { bad = true; break; }
+            const v = b[nr][nc];
+            if (v === color) cnt++;
+            else if (v === '') { empty++; empties.push([nr, nc]); }
+            else { bad = true; break; }
+          }
+          if (bad || cnt !== 3 || empty !== 2) continue;
+          // 3 子 2 空无对方子的窗口 = 成四升级窗口：窗口内 2 空位 + 两端外侧延伸点
+          for (const [er, ec] of empties) res.add(keyOf(er, ec));
+          const lr = sr - dr, lc = sc - dc;
+          const rr = sr + dr * 5, rc = sc + dc * 5;
+          if (inBoard(lr, lc) && b[lr][lc] === '') res.add(keyOf(lr, lc));
+          if (inBoard(rr, rc) && b[rr][rc] === '') res.add(keyOf(rr, rc));
+        }
+      }
+    }
+  }
+  return res;
+}
+
+/**
  * 线级威胁扫描（v3）：统计 color 在行/列/两向对角上的"整条连段"威胁。
  * 传统"点级求和"会把同一条活三线上的 3 个子拆成 3 份计分，且难以体现
  * 斜向长线做棋的累积价值；线级评估直接按"段长+两端状态"计分，
@@ -290,10 +339,24 @@ export function evaluateGomoku(b: GomokuBoard, color: GomokuColor): number {
  * 启发排序：候选按"落此子进攻分+防守分"降序。
  * v5：自学习防守激进度提升防守系数（历史输局多 → 更早堵对手苗头）
  */
-function orderedCandidates(b: GomokuBoard, color: GomokuColor, learn?: GomokuLearnData | null): Array<[number, number]> {
+/**
+ * 启发排序：候选按"落此子进攻分+防守分"降序。
+ * v5：自学习防守激进度提升防守系数（历史输局多 → 更早堵对手苗头）
+ * v7：useGrowth=true（仅根层决策调用）时，计算成长窗口升级点并加权——
+ * 搜索内部保持 v6 纯排序（openThreeExtendPoints 全盘扫描成本高，不能进搜索热路径）
+ */
+function orderedCandidates(
+  b: GomokuBoard,
+  color: GomokuColor,
+  learn?: GomokuLearnData | null,
+  useGrowth = false,
+): Array<[number, number]> {
   const cands = gomokuCandidates(b);
   const defK = 1.25 + (learn?.defenseLevel || 0) * 0.08;
   const opp = color === 'b' ? 'w' : 'b';
+  // v7：成长窗口升级点（仅根层决策时计算，避免搜索热路径全盘扫描）
+  const oppGrowth = useGrowth ? openThreeExtendPoints(b, opp) : null;
+  const myGrowth = useGrowth ? openThreeExtendPoints(b, color) : null;
   const scored = cands.map(([r, c]) => {
     const atk = pointScore(b, r, c, color);
     const def = pointScore(b, r, c, opp);
@@ -307,11 +370,14 @@ function orderedCandidates(b: GomokuBoard, color: GomokuColor, learn?: GomokuLea
     else if (def >= 450_000) d *= 1.6;
     else if (def >= 200_000) d *= 1.2;
     else if (def >= 50_000) d *= 1.5;
+    // v7：成长升级点（对手 3 子窗口空位）权重提升——堵成长端优先于堵成型
+    if (oppGrowth && oppGrowth.has(`${r},${c}`)) d *= 2.0;
     let a = atk;
     if (a >= 700_000) a *= 3.0;
     else if (a >= 450_000) a *= 1.6;
     else if (a >= 200_000) a *= 1.2;
     else if (a >= 50_000) a *= 1.3;
+    if (myGrowth && myGrowth.has(`${r},${c}`)) a *= 1.7;
     return { r, c, v: a + d * defK + Math.random() * 0.001 };
   });
   scored.sort((a, b2) => b2.v - a.v);
@@ -543,12 +609,37 @@ export function gomokuBestMove(
     if (vcf) return vcf;
   }
 
+  // v7：成长端预堵快速路径（hard/master）——对方"3 子成长窗口"升级点，
+  // 在对方连成 4 子之前封住成长线（对局记录实证：人类 6/7 盘胜局靠长线累积五连，
+  // AI 在 3 子阶段堵升级点可提前瓦解；仅升级点 ≤10 时强制处理，避免中盘过度干预）
+  if (diff.depth >= 3) {
+    const oppGrowth = openThreeExtendPoints(board, opp);
+    if (oppGrowth.size > 0 && oppGrowth.size <= 10) {
+      const myGrowth = openThreeExtendPoints(board, color);
+      const gpts: Array<[number, number]> = [];
+      for (const s of oppGrowth) {
+        const [gr, gc] = s.split(',').map(Number);
+        gpts.push([gr, gc]);
+      }
+      // 攻防综合最优：优先选"同时对我方进攻也有帮助"的升级点
+      const scored = gpts.map(([gr, gc]) => ({
+        r: gr, c: gc,
+        v: pointScore(board, gr, gc, color) + pointScore(board, gr, gc, opp) * 1.2
+          + (myGrowth.has(`${gr},${gc}`) ? 400_000 : 0) + Math.random() * 0.001,
+      }));
+      scored.sort((a, b2) => b2.v - a.v);
+      const bestPt = scored[0];
+      // 仅在对方升级点数量少（早期做棋）时强制，避免牺牲进攻
+      if (bestPt.v > 150_000) return [bestPt.r, bestPt.c];
+    }
+  }
+
   // 深度搜索：master 迭代加深（1→depth，超时保留最近完成的完整层），带置换表提速
   const budgetMs = diff.key === 'master' ? 3200 : diff.key === 'hard' ? 1400 : 900;
   const t0 = performance.now();
   ttClear(); // 每次决策独立 TT（rootColor 视角固定）
   const rootHash = boardHash(board);
-  const picks = orderedCandidates(board, color, learn).slice(0, diff.depth >= 5 ? 20 : diff.depth >= 3 ? 18 : 12);
+  const picks = orderedCandidates(board, color, learn, true).slice(0, diff.depth >= 5 ? 20 : diff.depth >= 3 ? 18 : 12);
   let bestMoves: Array<[number, number]> = [];
   for (let d = 1; d <= diff.depth; d++) {
     const deadline = t0 + budgetMs * (d / diff.depth);
