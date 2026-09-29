@@ -34,6 +34,8 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
   children,
 }) => {
   const [floating, setFloating] = useState(defaultFloating);
+  /** 视口尺寸 state：resize 时实时重算浮动尺寸（修复窗口缩放后棋盘不跟随的 bug） */
+  const [viewport, setViewport] = useState({ w: window.innerWidth, h: window.innerHeight });
   const MARGIN_PCT = 7; // 边沿留白（百分比），参考折叠围棋盘外框比例
   const containerRef = useRef<HTMLDivElement>(null);
   const n = GOMOKU_SIZE;
@@ -49,23 +51,34 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 浮动窗口模式：随窗口自动缩放
+  // 浮动窗口模式：随窗口自动缩放（视口尺寸来自 state，resize 时重算）
   const floatSize = useMemo(() => {
     if (!floating) return 0;
-    const vw = Math.min(window.innerWidth, document.documentElement.clientWidth);
-    const vh = Math.min(window.innerHeight, document.documentElement.clientHeight);
+    const vw = viewport.w;
+    const vh = viewport.h;
     const hasInboard = React.Children.count(children) > 0;
-    // 内嵌功能按钮栏约 64px：浮动尺寸为其预留空间，避免溢出视口
-    const avail = Math.min(vw - 24, vh - (hasInboard ? 160 : 96));
+    // 内嵌功能按钮栏约 60px + 顶部状态胶囊预留 34px：浮动尺寸为其预留空间，避免溢出视口
+    const avail = Math.min(vw - 20, vh - (hasInboard ? 128 : 80));
     // 自动匹配终端全屏：不设固定上限，随视口实时自适应
     return Math.max(280, avail);
-  }, [floating]);
+  }, [floating, viewport.w, viewport.h, children]);
 
   useEffect(() => {
     if (!floating) return;
-    const handler = () => setFloating((f) => f);
+    const handler = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
     window.addEventListener('resize', handler);
-    return () => window.removeEventListener('resize', handler);
+    window.addEventListener('orientationchange', handler);
+    return () => {
+      window.removeEventListener('resize', handler);
+      window.removeEventListener('orientationchange', handler);
+    };
+  }, [floating]);
+
+  // 沉浸联动：浮动模式给 body 打标，隐藏页面头部/侧栏等非棋盘 UI（脱离浏览器窗口布局限制）
+  useEffect(() => {
+    if (!floating) return;
+    document.body.classList.add('gomoku-float-active');
+    return () => document.body.classList.remove('gomoku-float-active');
   }, [floating]);
 
   const boardSize = floating ? floatSize : undefined;

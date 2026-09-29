@@ -276,14 +276,40 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
     </div>
   );
 
-  // 功能按钮：2D 内嵌棋盘容器下方（浮动跟随）；3D 显示侧栏（2D/3D 切换与功能按钮同排一体）
+  // 功能按钮：2D 内嵌棋盘容器下方（浮动跟随）；3D 显示侧栏。
+  // 3D 模式侧栏顶部已渲染 viewSwitchOnline，此处不重复（修复 3D 出现两套切换按钮的 bug）
   const onlineCtrlButtons = (
     <div className="gomoku-controls gomoku-inboard-controls">
-      {viewSwitchOnline}
+      {viewMode === '2d' && viewSwitchOnline}
       <button className="ctrl-btn copy-room-btn" onClick={copyRoomCode} title="复制房间号发送给好友">{copied ? '✅ 已复制' : '📋 房间号'}</button>
       <button className={`ctrl-btn ${chatOpen ? 'active' : ''}`} onClick={() => setChatOpen((v) => !v)}>💬 聊天</button>
       <button className="ctrl-btn danger" onClick={handleResign} disabled={game.over || connectionStatus !== 'connected'}>🏳️ 认输</button>
       <button className="ctrl-btn" onClick={handleReset} disabled={connectionStatus !== 'connected'}>🔄 重新开始</button>
+    </div>
+  );
+
+  // 浮动全屏时的顶部状态胶囊（棋盘容器内嵌，脱离侧栏）
+  const floatStatus = (
+    <div className="gomoku-float-status">
+      <span className={`gomoku-turn-dot ${game.turn === 'b' ? 'black' : 'white'}`} />
+      <span>
+        {connectionStatus === 'connecting' ? '⏳ 等待对手加入…' : game.over ? '对局结束' : myTurn ? '轮到你落子' : `等待 ${opponentName || '对手'} 落子`}
+      </span>
+      <span className="gomoku-float-status-pill">执{myColor === 'b' ? '黑' : '白'}</span>
+      <span className="gomoku-move-count">第 {Math.floor(moveCount / 2) + 1} 手</span>
+    </div>
+  );
+
+  // 浮动全屏时的胜负弹窗（原侧栏弹窗在浮动模式下被遮罩隐藏，此处内嵌到棋盘容器）
+  const floatResultModal = result && (
+    <div className="gomoku-float-modal gomoku-float-result-modal">
+      <div className="result-content">
+        <button className="result-close-btn" onClick={() => setResult(null)}>✕</button>
+        <div className="result-icon">{result.emoji}</div>
+        <h3 className="result-title">{result.title}</h3>
+        <p className="result-detail">{result.detail}</p>
+        <button className="play-again-btn" onClick={handleReset}>再来一局</button>
+      </div>
     </div>
   );
 
@@ -371,8 +397,10 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
                 flipped={myColor === 'w'}
                 defaultFloating
               >
+                {viewMode === '2d' && floatStatus}
                 {onlineCtrlButtons}
                 {chatOpen && viewMode === '2d' && chatPanelEl}
+                {viewMode === '2d' && floatResultModal}
                 {result && (
                   <GomokuResultFX kind={result.emoji === '🎉' ? 'win' : result.title === '和棋' ? 'draw' : 'lose'} label={result.title} />
                 )}

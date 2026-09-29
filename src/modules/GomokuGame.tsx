@@ -250,15 +250,70 @@ export const GomokuGame: React.FC = () => {
     </div>
   );
 
-  // 功能按钮：2D 内嵌到棋盘容器下方；3D 显示在侧栏（2D/3D 切换与功能按钮同排，构成一体式棋盘底座）
+  // 功能按钮：2D 内嵌到棋盘容器下方（3D/2D 切换与功能按钮同排一体）；3D 显示在侧栏。
+  // 3D 模式下侧栏顶部已渲染 viewSwitchCtrl，此处不再重复（修复 3D 出现两套切换按钮的 bug）。
   const ctrlButtons = (
     <div className="gomoku-controls gomoku-inboard-controls">
-      {viewSwitchCtrl}
+      {viewMode === '2d' && viewSwitchCtrl}
       <button className="ctrl-btn" onClick={handleUndo} disabled={aiThinking || moveCount === 0}>↩️ 悔棋</button>
       <button className="ctrl-btn" onClick={handleHint} disabled={aiThinking || game.over}>💡 提示</button>
       <button className="ctrl-btn danger" onClick={handleResign} disabled={game.over}>🏳️ 认输</button>
       <button className="ctrl-btn" onClick={handleReset}>🔄 重新开始</button>
       <button className="ctrl-btn" onClick={() => setHistoryOpen(true)}>📁 记录</button>
+    </div>
+  );
+
+  // 浮动全屏时的顶部状态胶囊（棋盘容器内嵌，脱离侧栏）
+  const floatStatus = (
+    <div className="gomoku-float-status">
+      <span className={`gomoku-turn-dot ${game.turn === 'b' ? 'black' : 'white'}`} />
+      <span>{aiThinking ? 'AI 思考中…' : game.over ? '对局结束' : game.turn === humanColor ? '轮到你落子' : '轮到 AI 落子'}</span>
+      <span className="gomoku-float-status-pill">执{humanColor === 'b' ? '黑' : '白'} · {diffLabel}</span>
+      <span className="gomoku-move-count">第 {Math.floor(moveCount / 2) + 1} 手</span>
+    </div>
+  );
+
+  // 浮动全屏时的胜负弹窗（原侧栏弹窗在浮动模式下被遮罩隐藏，此处内嵌到棋盘容器）
+  const floatResultModal = showResultModal && result && (
+    <div className="gomoku-float-modal gomoku-float-result-modal">
+      <div className="result-content">
+        <button className="result-close-btn" onClick={() => setShowResultModal(false)}>✕</button>
+        <div className="result-icon">{result.detail === '认输' ? '😢' : humanWin ? '🎉' : result.winner === 'draw' ? '🤝' : '😔'}</div>
+        <h3 className="result-title">{result.detail}</h3>
+        <p className="result-detail">共 {moveCount} 手{humanWin ? ` (+${difficulty.key === 'hard' || difficulty.key === 'master' ? 60 : 30} XP)` : ''}</p>
+        <button className="play-again-btn" onClick={handleReset}>再来一局</button>
+      </div>
+    </div>
+  );
+
+  // 浮动全屏时的对局记录弹窗（点击遮罩关闭）
+  const floatHistoryModal = historyOpen && (
+    <div className="gomoku-float-modal gomoku-float-history-modal" onClick={() => setHistoryOpen(false)}>
+      <div className="gomoku-history-modal-inner" onClick={(e) => e.stopPropagation()}>
+        <div className="gomoku-history-modal-header">
+          <h3>📁 对局记录（近 {matchHistory.length}/10 盘）</h3>
+          <button className="result-close-btn" onClick={() => setHistoryOpen(false)}>✕</button>
+        </div>
+        {matchHistory.length === 0 ? (
+          <p className="empty-text">暂无对局记录，下完一盘棋后自动保存</p>
+        ) : (
+          <div className="gomoku-history-list">
+            {matchHistory.map((r) => (
+              <div key={r.id} className="gomoku-history-item">
+                <span className={`gomoku-history-result ${r.result}`}>{r.result === 'win' ? '胜' : r.result === 'loss' ? '负' : '和'}</span>
+                <span className="gomoku-history-diff">{r.difficultyLabel}</span>
+                <span className="gomoku-history-color">{r.humanColor === 'b' ? '执黑' : '执白'}</span>
+                <span className="gomoku-history-plies">{r.totalPlies} 手</span>
+                <span className="gomoku-history-time">{new Date(r.timestamp).toLocaleString([], { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="gomoku-history-actions">
+          <button className="history-btn" onClick={handleDownloadHistory} disabled={matchHistory.length === 0}>⬇ 下载 JSON</button>
+          <button className="history-btn danger" onClick={() => setMatchHistory(clearGomokuMatchHistory())} disabled={matchHistory.length === 0}>🗑 清空记录</button>
+        </div>
+      </div>
     </div>
   );
 
@@ -291,7 +346,10 @@ export const GomokuGame: React.FC = () => {
               flipped={humanColor === 'w'}
               defaultFloating
             >
+              {viewMode === '2d' && floatStatus}
               {ctrlButtons}
+              {viewMode === '2d' && floatResultModal}
+              {viewMode === '2d' && floatHistoryModal}
               {result && showResultModal && (
                 <GomokuResultFX kind={result.humanWin ? 'win' : result.winner === 'draw' ? 'draw' : 'lose'} label={result.detail} />
               )}
