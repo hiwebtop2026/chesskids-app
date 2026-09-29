@@ -6836,10 +6836,12 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
 
 /* ===== 五子棋对局结束特效（粒子 + 胜利横幅）===== */
 .gomoku-result-fx {
-  /* 特效只渲染在当前棋盘容器内（absolute 相对棋盘容器/浮动层），
-     不铺满浏览器视口、不跨视图重复添加；浮动层内部 z 之上可见 */
-  position: absolute;
+  /* 特效通过 createPortal 渲染到 document.body，固定视口全屏播放，
+     粒子/横幅始终相对屏幕居中，不依赖任何棋盘容器/浮动层定位链 */
+  position: fixed;
   left: 0; top: 0; right: 0; bottom: 0;
+  width: 100%;
+  height: 100%;
   z-index: 60;
   pointer-events: none;
   overflow: hidden;

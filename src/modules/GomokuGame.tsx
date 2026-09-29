@@ -3,6 +3,7 @@
  * 难度/执子可选、悔棋、提示、认输、2D/3D 切换、胜负弹窗、落子记录
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { GomokuBoard } from '../components/GomokuBoard';
 import { ThreeJSGomokuBoard } from '../components/ThreeJSGomokuBoard';
 import {
@@ -284,7 +285,7 @@ export const GomokuGame: React.FC = () => {
   );
 
   // 浮动全屏时的胜负弹窗（原侧栏弹窗在浮动模式下被遮罩隐藏，此处内嵌到棋盘容器）
-  const floatResultModal = showResultModal && result && (
+  const floatResultModal = showResultModal && result && createPortal(
     <div className="gomoku-float-modal gomoku-float-result-modal" style={{ position: 'fixed', left: 0, top: 0, right: 0, bottom: 0, width: '100%', height: '100%', margin: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 71 }}>
       <div className="result-content">
         <button className="result-close-btn" onClick={() => setShowResultModal(false)}>✕</button>
@@ -293,11 +294,12 @@ export const GomokuGame: React.FC = () => {
         <p className="result-detail">共 {moveCount} 手{humanWin ? ` (+${difficulty.key === 'hard' || difficulty.key === 'master' ? 60 : 30} XP)` : ''}</p>
         <button className="play-again-btn" onClick={handleReset}>再来一局</button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 
   // 浮动全屏时的对局记录弹窗（点击遮罩关闭）
-  const floatHistoryModal = historyOpen && (
+  const floatHistoryModal = historyOpen && createPortal(
     <div className="gomoku-float-modal gomoku-float-history-modal" onClick={() => setHistoryOpen(false)} style={{ position: 'fixed', left: 0, top: 0, right: 0, bottom: 0, width: '100%', height: '100%', margin: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 71 }}>
       <div className="gomoku-history-modal-inner" onClick={(e) => e.stopPropagation()}>
         <div className="gomoku-history-modal-header">
@@ -324,7 +326,8 @@ export const GomokuGame: React.FC = () => {
           <button className="history-btn danger" onClick={() => setMatchHistory(clearGomokuMatchHistory())} disabled={matchHistory.length === 0}>🗑 清空记录</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 
   return (

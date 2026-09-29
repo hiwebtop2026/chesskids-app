@@ -5,6 +5,7 @@
  * lose → 暗色闷爆；draw → 蓝白柔光
  */
 import React, { useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { playGomokuWin, playGomokuLose, playGomokuDraw } from '../engine/gomokuSound';
 
 export type GomokuFXKind = 'win' | 'lose' | 'draw';
@@ -396,7 +397,7 @@ export const GomokuResultFX: React.FC<{ kind: GomokuFXKind; label?: string }> = 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind]);
 
-  return (
+  return createPortal(
     <div className={`gomoku-result-fx ${kind === 'win' ? 'fx-win' : kind === 'draw' ? 'fx-draw' : 'fx-lose'}`}>
       <canvas ref={canvasRef} className="gomoku-result-fx-canvas" />
       {kind === 'win' && scheme && (
@@ -423,6 +424,7 @@ export const GomokuResultFX: React.FC<{ kind: GomokuFXKind; label?: string }> = 
           </div>
         </>
       )}
-    </div>
+    </div>,
+    document.body
   );
 };

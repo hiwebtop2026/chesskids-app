@@ -3,6 +3,7 @@
  * 黑先白后轮流落子：悔棋、认输、重新开始、2D/3D 切换
  */
 import React, { useCallback, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { GomokuBoard } from '../components/GomokuBoard';
 import { ThreeJSGomokuBoard } from '../components/ThreeJSGomokuBoard';
 import {
@@ -120,7 +121,7 @@ export const GomokuLocalGame: React.FC = () => {
                 <button className="ctrl-btn" onClick={() => { setGame(createGomokuGame()); setResult(null); }}>🔄 重新开始</button>
                 <button className="ctrl-btn" onClick={toggleTheme} title="日夜模式切换">{theme === 'dark' ? '☀️ 日间' : '🌙 夜间'}</button>
               </div>
-              {result && (
+              {result && createPortal(
                 <div className="gomoku-float-modal gomoku-float-result-modal" style={{ position: 'fixed', left: 0, top: 0, right: 0, bottom: 0, width: '100%', height: '100%', margin: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 71 }}>
                   <div className="result-content">
                     <button className="result-close-btn" onClick={() => setResult(null)}>✕</button>
@@ -129,7 +130,8 @@ export const GomokuLocalGame: React.FC = () => {
                     <p className="result-detail">共 {moveCount} 手</p>
                     <button className="play-again-btn" onClick={() => { setGame(createGomokuGame()); setResult(null); }}>再来一局</button>
                   </div>
-                </div>
+                </div>,
+                document.body
               )}
               {result && (
                 <GomokuResultFX kind={result.winner === 'draw' ? 'draw' : 'win'} label={result.winner === 'draw' ? '和棋' : `${result.winner === 'b' ? '黑棋' : '白棋'}获胜！`} />

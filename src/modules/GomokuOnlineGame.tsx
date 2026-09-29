@@ -3,6 +3,7 @@
  * PeerJS P2P：创建/加入房间，同步落子，聊天+语音消息，认输/重开
  */
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { GomokuBoard } from '../components/GomokuBoard';
 import { ThreeJSGomokuBoard } from '../components/ThreeJSGomokuBoard';
 import {
@@ -311,7 +312,7 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
   );
 
   // 浮动全屏时的胜负弹窗（原侧栏弹窗在浮动模式下被遮罩隐藏，此处内嵌到棋盘容器）
-  const floatResultModal = result && (
+  const floatResultModal = result && createPortal(
     <div className="gomoku-float-modal gomoku-float-result-modal" style={{ position: 'fixed', left: 0, top: 0, right: 0, bottom: 0, width: '100%', height: '100%', margin: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 71 }}>
       <div className="result-content">
         <button className="result-close-btn" onClick={() => setResult(null)}>✕</button>
@@ -320,7 +321,8 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
         <p className="result-detail">{result.detail}</p>
         <button className="play-again-btn" onClick={handleReset}>再来一局</button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 
   // 聊天面板：2D 模式作为棋盘容器 children 渲染（浮动层内，不跳出窗口）；3D 模式显示在侧栏
