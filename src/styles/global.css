@@ -391,7 +391,7 @@ ul {
 .board-grid::before {
   content: '';
   position: absolute;
-  inset: 6px;
+  left: 6px; top: 6px; right: 6px; bottom: 6px;
   border-radius: 3px;
   box-shadow: inset 0 0 0 1px rgba(0,0,0,0.3);
   pointer-events: none;
@@ -6368,7 +6368,7 @@ ul {
 /* 彩带粒子层（胜利时全屏飘落） */
 .confetti-layer {
   position: absolute;
-  inset: 0;
+  left: 0; top: 0; right: 0; bottom: 0;
   overflow: hidden;
   pointer-events: none;
   z-index: 1;
@@ -6582,7 +6582,7 @@ ul {
 
 .gomoku-floating { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; width: min(96vw, 92dvh, 1600px) !important; height: auto; display: flex; flex-direction: column; align-items: center; }
 /* 全屏遮罩：独立背景层（100vmax box-shadow 在 iOS Safari 不渲染，改用 ::before 固定层） */
-.gomoku-floating::before { content: ''; position: fixed; inset: 0; background: rgba(22, 34, 20, 0.68); z-index: -1; }
+.gomoku-floating::before { content: ''; position: fixed; left: 0; top: 0; right: 0; bottom: 0; background: rgba(22, 34, 20, 0.68); z-index: -1; }
 /* 浮动层顶部预留状态胶囊专用区（胶囊上移到棋盘上方，不遮挡棋盘与棋子；弹窗仍相对 wrap 棋盘容器） */
 .gomoku-floating { padding-top: 48px; }
 /* 非浮动布局有侧栏状态，隐藏胶囊避免叠在棋盘上 */
@@ -6634,7 +6634,7 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
 /* ===== 五子棋 对局记录（近10盘）弹窗 ===== */
 .gomoku-history-modal {
   position: fixed;
-  inset: 0;
+  left: 0; top: 0; right: 0; bottom: 0;
   z-index: 1300;
   background: rgba(12, 8, 2, 0.55);
   display: flex;
@@ -6839,7 +6839,7 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
   /* 特效只渲染在当前棋盘容器内（absolute 相对棋盘容器/浮动层），
      不铺满浏览器视口、不跨视图重复添加；浮动层内部 z 之上可见 */
   position: absolute;
-  inset: 0;
+  left: 0; top: 0; right: 0; bottom: 0;
   z-index: 60;
   pointer-events: none;
   overflow: hidden;
@@ -6848,7 +6848,7 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
 /* 浮动模式下特效固定视口居中：粒子/横幅覆盖全屏播放，横幅始终屏幕居中 */
 .gomoku-floating .gomoku-result-fx {
   position: fixed !important;
-  inset: 0 !important;
+  left: 0 !important; top: 0 !important; right: 0 !important; bottom: 0 !important;
   width: 100% !important;
   height: 100% !important;
   z-index: 70;
@@ -6856,7 +6856,7 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
 }
 .gomoku-result-fx-canvas {
   position: absolute;
-  inset: 0;
+  left: 0; top: 0; right: 0; bottom: 0;
   width: 100%;
   height: 100%;
 }
@@ -6986,7 +6986,7 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
 .gomoku-floating::after {
   content: '';
   position: fixed;
-  inset: 0;
+  left: 0; top: 0; right: 0; bottom: 0;
   z-index: -1;
   background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.45) 100%);
   pointer-events: none;
@@ -7029,7 +7029,7 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
 /* 浮动弹窗（结果/历史）：绝对覆盖浮动层 + 居中卡片，只在棋盘容器内出现，不跳出浏览器窗口 */
 .gomoku-float-modal {
   position: absolute;
-  inset: 0;
+  left: 0; top: 0; right: 0; bottom: 0;
   z-index: 70;
   display: flex;
   align-items: center;
@@ -7043,7 +7043,7 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
    保证结果弹窗/历史弹窗卡片始终在屏幕正中显示 */
 .gomoku-floating .gomoku-float-modal {
   position: fixed !important;
-  inset: 0 !important;
+  left: 0 !important; top: 0 !important; right: 0 !important; bottom: 0 !important;
   width: 100% !important;
   height: 100% !important;
   margin: 0 !important;
