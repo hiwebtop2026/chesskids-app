@@ -204,9 +204,9 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
         <defs>
           {/* 护眼豆沙绿渐变底（低饱和、低反射，长时间对弈不刺眼） */}
           <linearGradient id="gBoardWood" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={dark ? "#5c7262" : "#f4efdc"} />
-            <stop offset="50%" stopColor={dark ? "#506354" : "#eae3cb"} />
-            <stop offset="100%" stopColor={dark ? "#425549" : "#dcd2b4"} />
+            <stop offset="0%" stopColor={dark ? "#6f8575" : "#f4efdc"} />
+            <stop offset="50%" stopColor={dark ? "#62786a" : "#eae3cb"} />
+            <stop offset="100%" stopColor={dark ? "#546a5d" : "#dcd2b4"} />
           </linearGradient>
           {/* 黑云子：乌黑带温润高光 */}
           <radialGradient id="gStoneBlack" cx="42%" cy="38%" r="80%">
