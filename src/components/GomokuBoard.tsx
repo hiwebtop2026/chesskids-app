@@ -110,8 +110,8 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
           cx="0" cy="0"
           r={stoneR}
           fill={isB ? 'url(#gStoneBlack)' : 'url(#gStoneWhite)'}
-          stroke={isB ? (dark ? 'rgba(226,190,130,0.55)' : '#000') : 'none'}
-          strokeWidth={isB ? (dark ? 0.35 : 0.4) : 0}
+          stroke="none"
+          strokeWidth={0}
           className="gomoku-stone"
         />
         {/* 顶部高光（仅白子保留左上斜光；黑子保持纯黑无灰点） */}
