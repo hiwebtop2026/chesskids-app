@@ -6845,6 +6845,13 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
   overflow: hidden;
   border-radius: 12px;
 }
+/* 浮动模式下特效固定视口居中：粒子/横幅覆盖全屏播放，横幅始终屏幕居中 */
+.gomoku-floating .gomoku-result-fx {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  border-radius: 0;
+}
 .gomoku-result-fx-canvas {
   position: absolute;
   inset: 0;
@@ -7029,6 +7036,14 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   border-radius: 14px;
+}
+/* 浮动模式下弹窗固定视口居中：规避部分机型 wrap 宽度/居中不稳定导致结算框偏左，
+   保证结果弹窗/历史弹窗卡片始终在屏幕正中显示 */
+.gomoku-floating .gomoku-float-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 71;
+  border-radius: 0;
 }
 .gomoku-float-result-modal .result-content {
   background: linear-gradient(180deg, rgba(50, 36, 18, 0.97), rgba(28, 19, 10, 0.97));
