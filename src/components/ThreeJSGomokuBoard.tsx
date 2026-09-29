@@ -163,6 +163,8 @@ export interface ThreeJSGomokuBoardProps {
   onIntersectionClick?: (r: number, c: number) => void;
   disabled?: boolean;
   flipped?: boolean;
+  /** 日夜模式：夜间使用深色场景背景 */
+  theme?: 'light' | 'dark';
   onReady?: (api: { resetView: () => void }) => void;
 }
 
@@ -174,8 +176,10 @@ export const ThreeJSGomokuBoard: React.FC<ThreeJSGomokuBoardProps> = ({
   onIntersectionClick,
   disabled = false,
   flipped = false,
+  theme = 'light',
   onReady,
 }) => {
+  const dark = theme === 'dark';
   const containerRef = useRef<HTMLDivElement>(null);
   const [glFailed, setGlFailed] = useState(false);
   const resetViewRef = useRef<(() => void) | null>(null);
@@ -252,7 +256,7 @@ export const ThreeJSGomokuBoard: React.FC<ThreeJSGomokuBoardProps> = ({
     if (height < 10) height = 480;
 
     const scene = new T.Scene();
-    scene.background = new T.Color(0x6e5842);
+    scene.background = new T.Color(dark ? 0x1c1711 : 0x6e5842);
     scene.fog = new T.Fog(0x6e5842, 26, 54);
 
     const camera = new T.PerspectiveCamera(40, width / height, 0.1, 120);

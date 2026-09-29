@@ -103,6 +103,15 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
   };
   // 默认 2D 棋盘（启动即 2D + 浮动全屏）
   const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
+  /** 日夜模式（localStorage 持久化） */
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => (typeof localStorage !== 'undefined' ? (localStorage.getItem('gomoku-theme') === 'dark' ? 'dark' : 'light') : 'light'));
+  const toggleTheme = () => {
+    setTheme(prev => {
+      const next = prev === 'dark' ? 'light' : 'dark';
+      try { localStorage.setItem('gomoku-theme', next); } catch { /* ignore */ }
+      return next;
+    });
+  };
   const [result, setResult] = useState<{ title: string; detail: string; emoji: string; winningLine: Array<[number, number]> | null } | null>(null);
   const [recording, setRecording] = useState(false);
   const [recordingSec, setRecordingSec] = useState(0);
@@ -285,6 +294,7 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
       <button className={`ctrl-btn ${chatOpen ? 'active' : ''}`} onClick={() => setChatOpen((v) => !v)}>💬 聊天</button>
       <button className="ctrl-btn danger" onClick={handleResign} disabled={game.over || connectionStatus !== 'connected'}>🏳️ 认输</button>
       <button className="ctrl-btn" onClick={handleReset} disabled={connectionStatus !== 'connected'}>🔄 重新开始</button>
+      <button className="ctrl-btn" onClick={toggleTheme} title="日夜模式切换">{theme === 'dark' ? '☀️ 日间' : '🌙 夜间'}</button>
     </div>
   );
 
@@ -357,7 +367,7 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
   );
 
   return (
-    <div className="module gomoku-game">
+    <div className={`module gomoku-game${theme === 'dark' ? ' gomoku-theme-dark' : ''}`}>
       <div className="module-header">
         <h2>🌐 五子棋 · 联机对战</h2>
         <p>
@@ -386,6 +396,7 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
                 onIntersectionClick={handleClick}
                 disabled={!inGame || !myTurn}
                 flipped={myColor === 'w'}
+                theme={theme}
               />
             ) : (
               <GomokuBoard
@@ -396,6 +407,7 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
                 disabled={!inGame || !myTurn}
                 flipped={myColor === 'w'}
                 defaultFloating
+                theme={theme}
               >
                 {viewMode === '2d' && floatStatus}
                 {onlineCtrlButtons}

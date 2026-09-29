@@ -64,12 +64,20 @@ export const GomokuLocalGame: React.FC = () => {
   }
 
   const moveCount = game.moves.length;
-  const lastMove = moveCount ? [game.moves[moveCount - 1].r, game.moves[moveCount - 1].c] as [number, number] : null;
+  const lastMove = moveCount ? [game.moves[moveCount - 1].r, game.moves[moveCount - 1].c] as [number, number] : null;  /** 日夜模式（localStorage 持久化） */
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => (typeof localStorage !== 'undefined' ? (localStorage.getItem('gomoku-theme') === 'dark' ? 'dark' : 'light') : 'light'));
+  const toggleTheme = () => {
+    setTheme(prev => {
+      const next = prev === 'dark' ? 'light' : 'dark';
+      try { localStorage.setItem('gomoku-theme', next); } catch { /* ignore */ }
+      return next;
+    });
+  };
   // 提前提取 3D 判断，避免在 JSX 三元分支内被 TS 控制流收窄后再次比较 '3d' 报错
   const is3dView = viewMode === '3d';
 
   return (
-    <div className="module gomoku-game">
+    <div className={`module gomoku-game${theme === 'dark' ? ' gomoku-theme-dark' : ''}`}>
       <div className="module-header">
         <h2>👥 五子棋 · 双人对局</h2>
         <p>19×19 围棋棋盘 · 轮流落子</p>
@@ -86,6 +94,7 @@ export const GomokuLocalGame: React.FC = () => {
               lastMove={lastMove}
               winningLine={result?.winningLine || null}
               onIntersectionClick={handleClick}
+              theme={theme}
             />
           ) : (
             <GomokuBoard
@@ -94,6 +103,7 @@ export const GomokuLocalGame: React.FC = () => {
               winningLine={result?.winningLine || null}
               onIntersectionClick={handleClick}
               defaultFloating
+              theme={theme}
             >
               {/* 浮动全屏：状态胶囊 + 2D/3D 切换 + 悔棋/重开（侧栏在浮动时隐藏，功能内嵌棋盘容器） */}
               <div className="gomoku-float-status">
@@ -108,6 +118,7 @@ export const GomokuLocalGame: React.FC = () => {
                 </div>
                 <button className="ctrl-btn" onClick={handleUndo} disabled={moveCount === 0}>↩️ 悔棋</button>
                 <button className="ctrl-btn" onClick={() => { setGame(createGomokuGame()); setResult(null); }}>🔄 重新开始</button>
+                <button className="ctrl-btn" onClick={toggleTheme} title="日夜模式切换">{theme === 'dark' ? '☀️ 日间' : '🌙 夜间'}</button>
               </div>
               {result && (
                 <div className="gomoku-float-modal gomoku-float-result-modal">

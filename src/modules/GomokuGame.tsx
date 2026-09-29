@@ -35,6 +35,15 @@ export const GomokuGame: React.FC = () => {
   const [selectedColor, setSelectedColor] = useState<GomokuColor>('b');
   // 默认 2D 棋盘（启动即 2D + 浮动全屏，脱离浏览器布局限制）
   const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
+  /** 日夜模式（localStorage 持久化，三个模式共用） */
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => (typeof localStorage !== 'undefined' ? (localStorage.getItem('gomoku-theme') === 'dark' ? 'dark' : 'light') : 'light'));
+  const toggleTheme = useCallback(() => {
+    setTheme(prev => {
+      const next = prev === 'dark' ? 'light' : 'dark';
+      try { localStorage.setItem('gomoku-theme', next); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
 
   const [game, setGame] = useState<GomokuGameState>(() => createGomokuGame());
   const [aiThinking, setAiThinking] = useState(false);
@@ -260,6 +269,7 @@ export const GomokuGame: React.FC = () => {
       <button className="ctrl-btn danger" onClick={handleResign} disabled={game.over}>🏳️ 认输</button>
       <button className="ctrl-btn" onClick={handleReset}>🔄 重新开始</button>
       <button className="ctrl-btn" onClick={() => setHistoryOpen(true)}>📁 记录</button>
+      <button className="ctrl-btn" onClick={toggleTheme} title="日夜模式切换">{theme === 'dark' ? '☀️ 日间' : '🌙 夜间'}</button>
     </div>
   );
 
@@ -318,7 +328,7 @@ export const GomokuGame: React.FC = () => {
   );
 
   return (
-    <div className="module gomoku-game">
+    <div className={`module gomoku-game${theme === 'dark' ? ' gomoku-theme-dark' : ''}`}>
       <div className="module-header">
         <h2>⚫ 五子棋 · 人机对局</h2>
         <p>你执 {humanColor === 'b' ? '黑棋（先手）' : '白棋（后手）'} · 难度「{diffLabel}」</p>
@@ -334,6 +344,7 @@ export const GomokuGame: React.FC = () => {
               onIntersectionClick={handleIntersection}
               disabled={aiThinking}
               flipped={humanColor === 'w'}
+              theme={theme}
             />
           ) : (
             <GomokuBoard
@@ -345,6 +356,7 @@ export const GomokuGame: React.FC = () => {
               disabled={aiThinking}
               flipped={humanColor === 'w'}
               defaultFloating
+              theme={theme}
             >
               {viewMode === '2d' && floatStatus}
               {ctrlButtons}

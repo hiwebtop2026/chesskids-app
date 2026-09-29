@@ -7068,3 +7068,54 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
   .gomoku-float-status { top: 50%; left: 10px; transform: translateY(-50%); flex-direction: column; align-items: flex-start; gap: 6px; max-width: none; white-space: normal; }
   .gomoku-float-status .gomoku-turn-dot { display: none; }
 }
+/* ===== 五子棋 夜间模式（日夜切换）===== */
+.gomoku-theme-dark {
+  background: #15110c;
+  color: #e8ddc8;
+}
+.gomoku-theme-dark .module-header h2 { color: #ecd9a8; }
+.gomoku-theme-dark .module-header p { color: #b7a98f; }
+.gomoku-theme-dark .gomoku-side-panel { background: #211b13; border-color: #3a2f1e; }
+.gomoku-theme-dark .gomoku-side-panel h3 { color: #ecd9a8; }
+.gomoku-theme-dark .gomoku-side-panel p, .gomoku-theme-dark .gomoku-side-panel span { color: #b7a98f; }
+.gomoku-theme-dark .gomoku-board-bg { fill: #352b1e; }
+.gomoku-theme-dark .gomoku-line { stroke: rgba(206, 168, 110, 0.5); }
+.gomoku-theme-dark .gomoku-star { fill: #c9a264; }
+/* 按钮：深色底 + 暖色字，毛玻璃风格 */
+.gomoku-theme-dark .ctrl-btn,
+.gomoku-theme-dark .view-tab-btn {
+  background: rgba(58, 47, 30, 0.85);
+  color: #e8ddc8;
+  border-color: rgba(201, 162, 100, 0.35);
+}
+.gomoku-theme-dark .ctrl-btn:hover,
+.gomoku-theme-dark .view-tab-btn:hover { background: rgba(78, 62, 38, 0.9); }
+.gomoku-theme-dark .ctrl-btn.danger { background: rgba(120, 40, 30, 0.8); color: #ffd9d0; }
+.gomoku-theme-dark .view-tab-btn.active { background: rgba(201, 162, 100, 0.28); color: #ffdf9e; }
+/* 浮动状态胶囊：深色毛玻璃 */
+.gomoku-theme-dark .gomoku-float-status {
+  background: rgba(21, 17, 12, 0.78);
+  border-color: rgba(201, 162, 100, 0.35);
+  color: #e8ddc8;
+}
+.gomoku-theme-dark .gomoku-float-status .gomoku-float-status-pill { color: #c9a264; }
+/* 浮动遮罩：夜间更深 + 暖晕 */
+.gomoku-theme-dark .gomoku-floating::before { background: rgba(10, 8, 5, 0.92); }
+/* 浮动弹窗：深色毛玻璃 */
+.gomoku-theme-dark .gomoku-float-modal {
+  background: rgba(24, 19, 12, 0.94);
+  border-color: rgba(201, 162, 100, 0.4);
+}
+.gomoku-theme-dark .gomoku-float-modal h3 { color: #ffdf9e; }
+.gomoku-theme-dark .gomoku-float-modal p, .gomoku-theme-dark .gomoku-float-modal .result-detail { color: #d8c9a8; }
+.gomoku-theme-dark .gomoku-history-item { border-color: rgba(201, 162, 100, 0.2); color: #d8c9a8; }
+.gomoku-theme-dark .gomoku-room-code { background: rgba(58, 47, 30, 0.8); color: #ffdf9e; }
+/* 聊天面板夜间 */
+.gomoku-theme-dark .gomoku-chat-panel { background: rgba(24, 19, 12, 0.92); border-color: rgba(201, 162, 100, 0.3); }
+.gomoku-theme-dark .gomoku-chat-panel .chat-msg { color: #d8c9a8; }
+.gomoku-theme-dark .gomoku-chat-panel input { background: rgba(58, 47, 30, 0.8); color: #f2ead6; border-color: rgba(201, 162, 100, 0.3); }
+/* 3D 容器背景 */
+.gomoku-theme-dark .gomoku-board-3d { background: #1c1711; }
+/* 规则学习/设置面板夜间 */
+.gomoku-theme-dark .gomoku-setup-panel { background: rgba(58, 47, 30, 0.5); }
+.gomoku-theme-dark .gomoku-toast { background: rgba(24, 19, 12, 0.95); color: #ffdf9e; }
