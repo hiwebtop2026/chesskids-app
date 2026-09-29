@@ -6823,7 +6823,7 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
 @media (orientation: landscape) and (max-height: 820px) and (max-width: 1200px) {
   .gomoku-floating { flex-direction: row; align-items: center; gap: 12px; width: min(96vw, calc(94dvh + 240px)) !important; }
   .gomoku-floating { padding-top: 0; }
-  .gomoku-floating .gomoku-board-svg { width: min(calc(92dvh - 64px), calc(96vw - 300px)) !important; height: auto; flex: none; margin-left: 52px; }
+  .gomoku-floating .gomoku-board-svg { width: min(92dvh, calc(96vw - 250px)) !important; height: auto; flex: none; }
   div.gomoku-inboard-controls { flex-direction: column; justify-content: center; align-items: stretch; gap: 8px; margin: 0 0 0 6px; padding: 10px 12px; width: auto; max-width: none; border-radius: 18px; background: linear-gradient(90deg, #ead9b2, #d9c293); border-top-width: 1px; }
   div.gomoku-inboard-controls .view-switch-inboard { flex-direction: column; gap: 6px; }
   div.gomoku-inboard-controls .ctrl-btn, div.gomoku-inboard-controls .view-tab-btn { flex: 0 0 auto; min-width: 104px; min-height: 38px; font-size: 13px; padding: 7px 12px; }
@@ -7070,7 +7070,7 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
 }
 /* 横屏：状态胶囊移到棋盘左侧竖排，避免与右侧按钮栏重叠 */
 @media (orientation: landscape) and (max-height: 820px) and (max-width: 1200px) {
-  .gomoku-float-status { top: 50%; left: 6px; transform: translateY(-50%); flex-direction: column; align-items: flex-start; gap: 6px; max-width: none; white-space: normal; }
+  .gomoku-float-status { position: fixed; top: 14px; left: 14px; transform: none; flex-direction: column; align-items: flex-start; gap: 6px; max-width: none; white-space: normal; }
   .gomoku-float-status .gomoku-turn-dot { display: none; }
 }
 /* ===== 五子棋 夜间模式（日夜切换）===== */
@@ -7083,8 +7083,8 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
 .gomoku-theme-dark .gomoku-side-panel { background: #211b13; border-color: #3a2f1e; }
 .gomoku-theme-dark .gomoku-side-panel h3 { color: #ecd9a8; }
 .gomoku-theme-dark .gomoku-side-panel p, .gomoku-theme-dark .gomoku-side-panel span { color: #b7a98f; }
-.gomoku-theme-dark .gomoku-board-bg { fill: #2e3b31; }
-.gomoku-theme-dark .gomoku-line { stroke: rgba(222, 186, 130, 0.56); }
+.gomoku-theme-dark .gomoku-board-bg { fill: #43564a; }
+.gomoku-theme-dark .gomoku-line { stroke: rgba(228, 192, 134, 0.6); }
 .gomoku-theme-dark .gomoku-star { fill: #c9a264; }
 /* 按钮：深色底 + 暖色字，毛玻璃风格 */
 .gomoku-theme-dark .ctrl-btn,

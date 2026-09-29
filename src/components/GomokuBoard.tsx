@@ -204,9 +204,9 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
         <defs>
           {/* 护眼豆沙绿渐变底（低饱和、低反射，长时间对弈不刺眼） */}
           <linearGradient id="gBoardWood" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={dark ? "#37453a" : "#f4efdc"} />
-            <stop offset="50%" stopColor={dark ? "#2e3b31" : "#eae3cb"} />
-            <stop offset="100%" stopColor={dark ? "#253027" : "#dcd2b4"} />
+            <stop offset="0%" stopColor={dark ? "#4e6253" : "#f4efdc"} />
+            <stop offset="50%" stopColor={dark ? "#43564a" : "#eae3cb"} />
+            <stop offset="100%" stopColor={dark ? "#374a3f" : "#dcd2b4"} />
           </linearGradient>
           {/* 黑云子：乌黑带温润高光 */}
           <radialGradient id="gStoneBlack" cx="42%" cy="38%" r="80%">
@@ -225,13 +225,13 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
         <rect x="0" y="0" width="100" height="100" fill="url(#gBoardWood)" className="gomoku-board-bg" />
         <g className="gomoku-wood-grain">
           {Array.from({ length: 24 }).map((_, i) => (
-            <line key={`wg${i}`} x1="0" y1={1.6 + i * 4.1} x2="100" y2={1.6 + i * 4.1} stroke={dark ? "rgba(214,184,134,0.18)" : "rgba(150,112,66,0.12)"} strokeWidth={0.5 + (i % 3) * 0.45} />
+            <line key={`wg${i}`} x1="0" y1={1.6 + i * 4.1} x2="100" y2={1.6 + i * 4.1} stroke={dark ? "rgba(190,160,110,0.16)" : "rgba(150,112,66,0.12)"} strokeWidth={0.5 + (i % 3) * 0.45} />
           ))}
           {Array.from({ length: 9 }).map((_, i) => (
-            <line key={`wl${i}`} x1="0" y1={3.2 + i * 11.2} x2="100" y2={3.2 + i * 11.2} stroke={dark ? "rgba(214,184,134,0.11)" : "rgba(132,96,54,0.08)"} strokeWidth={0.3 + (i % 2) * 0.35} />
+            <line key={`wl${i}`} x1="0" y1={3.2 + i * 11.2} x2="100" y2={3.2 + i * 11.2} stroke={dark ? "rgba(190,160,110,0.10)" : "rgba(132,96,54,0.08)"} strokeWidth={0.3 + (i % 2) * 0.35} />
           ))}
           {Array.from({ length: 3 }).map((_, i) => (
-            <ellipse key={`wr${i}`} cx={18 + i * 30} cy={82 - i * 14} rx={26 + i * 8} ry={5 + i * 1.6} fill="none" stroke={dark ? "rgba(214,184,134,0.14)" : "rgba(150,112,66,0.10)"} strokeWidth="1.1" />
+            <ellipse key={`wr${i}`} cx={18 + i * 30} cy={82 - i * 14} rx={26 + i * 8} ry={5 + i * 1.6} fill="none" stroke={dark ? "rgba(190,160,110,0.12)" : "rgba(150,112,66,0.10)"} strokeWidth="1.1" />
           ))}
         </g>
         <rect x="0" y="0" width="100" height="100" fill="none" stroke={dark ? "#d9b57a" : "#8a5a2b"} strokeWidth="0.9" opacity="0.8" />
