@@ -104,14 +104,14 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
     return (
       <g>
         {/* 落子阴影（贴地感） */}
-        <circle cx="0.6" cy="0.9" r={stoneR} fill={dark ? "rgba(0,0,0,0.5)" : "rgba(0,0,0,0.22)"} className="gomoku-stone-shadow" />
+        <circle cx="0.6" cy="0.9" r={stoneR} fill={dark ? "rgba(0,0,0,0.55)" : "rgba(0,0,0,0.22)"} className="gomoku-stone-shadow" />
         {/* 云子主体：径向渐变模拟温润光泽 */}
         <circle
           cx="0" cy="0"
           r={stoneR}
           fill={isB ? 'url(#gStoneBlack)' : 'url(#gStoneWhite)'}
-          stroke={isB ? '#000' : 'none'}
-          strokeWidth={isB ? 0.4 : 0}
+          stroke={isB ? (dark ? 'rgba(226,190,130,0.55)' : '#000') : 'none'}
+          strokeWidth={isB ? (dark ? 0.35 : 0.4) : 0}
           className="gomoku-stone"
         />
         {/* 顶部高光（仅白子保留左上斜光；黑子保持纯黑无灰点） */}
@@ -145,7 +145,7 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
         cx={`${MARGIN_PCT + (c * (100 - MARGIN_PCT * 2)) / (n - 1)}%`}
         cy={`${MARGIN_PCT + (r * (100 - MARGIN_PCT * 2)) / (n - 1)}%`}
         r={Math.max(1.2, 100 / (n - 1) * 0.13)}
-        fill={dark ? "#c9a264" : "#8a5a2b"}
+        fill={dark ? "#e0b877" : "#8a5a2b"}
         className="gomoku-star"
       />
     ));
@@ -204,14 +204,14 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
         <defs>
           {/* 护眼豆沙绿渐变底（低饱和、低反射，长时间对弈不刺眼） */}
           <linearGradient id="gBoardWood" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={dark ? "#3d3326" : "#f4efdc"} />
-            <stop offset="50%" stopColor={dark ? "#352b1e" : "#eae3cb"} />
-            <stop offset="100%" stopColor={dark ? "#292014" : "#dcd2b4"} />
+            <stop offset="0%" stopColor={dark ? "#6a4f33" : "#f4efdc"} />
+            <stop offset="50%" stopColor={dark ? "#5a4128" : "#eae3cb"} />
+            <stop offset="100%" stopColor={dark ? "#4a341f" : "#dcd2b4"} />
           </linearGradient>
           {/* 黑云子：乌黑带温润高光 */}
           <radialGradient id="gStoneBlack" cx="42%" cy="38%" r="80%">
-            <stop offset="0%" stopColor={dark ? "#241f19" : "#26211c"} />
-            <stop offset="55%" stopColor={dark ? "#0b0906" : "#0e0c0a"} />
+            <stop offset="0%" stopColor={dark ? "#40362c" : "#26211c"} />
+            <stop offset="55%" stopColor={dark ? "#16110c" : "#0e0c0a"} />
             <stop offset="100%" stopColor="#000000" />
           </radialGradient>
           {/* 白云子：瓷白温润 */}
@@ -225,16 +225,16 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
         <rect x="0" y="0" width="100" height="100" fill="url(#gBoardWood)" className="gomoku-board-bg" />
         <g className="gomoku-wood-grain">
           {Array.from({ length: 24 }).map((_, i) => (
-            <line key={`wg${i}`} x1="0" y1={1.6 + i * 4.1} x2="100" y2={1.6 + i * 4.1} stroke={dark ? "rgba(206,168,110,0.16)" : "rgba(150,112,66,0.12)"} strokeWidth={0.5 + (i % 3) * 0.45} />
+            <line key={`wg${i}`} x1="0" y1={1.6 + i * 4.1} x2="100" y2={1.6 + i * 4.1} stroke={dark ? "rgba(230,190,130,0.22)" : "rgba(150,112,66,0.12)"} strokeWidth={0.5 + (i % 3) * 0.45} />
           ))}
           {Array.from({ length: 9 }).map((_, i) => (
-            <line key={`wl${i}`} x1="0" y1={3.2 + i * 11.2} x2="100" y2={3.2 + i * 11.2} stroke={dark ? "rgba(206,168,110,0.10)" : "rgba(132,96,54,0.08)"} strokeWidth={0.3 + (i % 2) * 0.35} />
+            <line key={`wl${i}`} x1="0" y1={3.2 + i * 11.2} x2="100" y2={3.2 + i * 11.2} stroke={dark ? "rgba(230,190,130,0.14)" : "rgba(132,96,54,0.08)"} strokeWidth={0.3 + (i % 2) * 0.35} />
           ))}
           {Array.from({ length: 3 }).map((_, i) => (
-            <ellipse key={`wr${i}`} cx={18 + i * 30} cy={82 - i * 14} rx={26 + i * 8} ry={5 + i * 1.6} fill="none" stroke={dark ? "rgba(206,168,110,0.12)" : "rgba(150,112,66,0.10)"} strokeWidth="1.1" />
+            <ellipse key={`wr${i}`} cx={18 + i * 30} cy={82 - i * 14} rx={26 + i * 8} ry={5 + i * 1.6} fill="none" stroke={dark ? "rgba(230,190,130,0.18)" : "rgba(150,112,66,0.10)"} strokeWidth="1.1" />
           ))}
         </g>
-        <rect x="0" y="0" width="100" height="100" fill="none" stroke={dark ? "#c9a264" : "#8a5a2b"} strokeWidth="0.9" opacity="0.8" />
+        <rect x="0" y="0" width="100" height="100" fill="none" stroke={dark ? "#e0b877" : "#8a5a2b"} strokeWidth="0.9" opacity="0.8" />
         <g className="gomoku-grid">{renderGrid()}</g>
         <g className="gomoku-stars">{renderStars()}</g>
         <g className="gomoku-stones">{renderStones()}</g>
