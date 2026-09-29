@@ -312,7 +312,7 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
 
   // 浮动全屏时的胜负弹窗（原侧栏弹窗在浮动模式下被遮罩隐藏，此处内嵌到棋盘容器）
   const floatResultModal = result && (
-    <div className="gomoku-float-modal gomoku-float-result-modal">
+    <div className="gomoku-float-modal gomoku-float-result-modal" style={{ position: 'fixed', left: 0, top: 0, right: 0, bottom: 0, width: '100%', height: '100%', margin: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 71 }}>
       <div className="result-content">
         <button className="result-close-btn" onClick={() => setResult(null)}>✕</button>
         <div className="result-icon">{result.emoji}</div>

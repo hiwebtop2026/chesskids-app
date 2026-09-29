@@ -285,7 +285,7 @@ export const GomokuGame: React.FC = () => {
 
   // 浮动全屏时的胜负弹窗（原侧栏弹窗在浮动模式下被遮罩隐藏，此处内嵌到棋盘容器）
   const floatResultModal = showResultModal && result && (
-    <div className="gomoku-float-modal gomoku-float-result-modal">
+    <div className="gomoku-float-modal gomoku-float-result-modal" style={{ position: 'fixed', left: 0, top: 0, right: 0, bottom: 0, width: '100%', height: '100%', margin: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 71 }}>
       <div className="result-content">
         <button className="result-close-btn" onClick={() => setShowResultModal(false)}>✕</button>
         <div className="result-icon">{result.detail === '认输' ? '😢' : humanWin ? '🎉' : result.winner === 'draw' ? '🤝' : '😔'}</div>
@@ -298,7 +298,7 @@ export const GomokuGame: React.FC = () => {
 
   // 浮动全屏时的对局记录弹窗（点击遮罩关闭）
   const floatHistoryModal = historyOpen && (
-    <div className="gomoku-float-modal gomoku-float-history-modal" onClick={() => setHistoryOpen(false)}>
+    <div className="gomoku-float-modal gomoku-float-history-modal" onClick={() => setHistoryOpen(false)} style={{ position: 'fixed', left: 0, top: 0, right: 0, bottom: 0, width: '100%', height: '100%', margin: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 71 }}>
       <div className="gomoku-history-modal-inner" onClick={(e) => e.stopPropagation()}>
         <div className="gomoku-history-modal-header">
           <h3>📁 对局记录（近 {matchHistory.length}/10 盘）</h3>

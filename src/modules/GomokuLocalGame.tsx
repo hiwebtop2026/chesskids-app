@@ -121,7 +121,7 @@ export const GomokuLocalGame: React.FC = () => {
                 <button className="ctrl-btn" onClick={toggleTheme} title="日夜模式切换">{theme === 'dark' ? '☀️ 日间' : '🌙 夜间'}</button>
               </div>
               {result && (
-                <div className="gomoku-float-modal gomoku-float-result-modal">
+                <div className="gomoku-float-modal gomoku-float-result-modal" style={{ position: 'fixed', left: 0, top: 0, right: 0, bottom: 0, width: '100%', height: '100%', margin: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 71 }}>
                   <div className="result-content">
                     <button className="result-close-btn" onClick={() => setResult(null)}>✕</button>
                     <div className="result-icon">{result.winner === 'draw' ? '🤝' : result.winner === 'b' ? '⚫' : '⚪'}</div>
