@@ -290,10 +290,7 @@ export const GomokuGame: React.FC = () => {
 
   // 游戏时只显示棋盘：顶部仅一个窄把手（☰），点击下拉展开功能面板；状态胶囊与全部功能按钮收进面板
   const topHandle = (
-    <button className={`gomoku-top-handle ${menuOpen ? 'active' : ''}`} onClick={() => setMenuOpen((v) => !v)} title="游戏功能">
-      <span className="gomoku-handle-bar" />
-      <span className="gomoku-handle-bar" />
-    </button>
+    <button className={`gomoku-top-handle ${menuOpen ? 'active' : ''}`} onClick={() => setMenuOpen((v) => !v)} title="游戏功能" aria-label="游戏功能">☰</button>
   );
   // 下拉功能面板：顶部状态胶囊 + 悔棋/提示/认输/重开/记录/日夜/3D/2D/退出浮动
   const menuPanel = (

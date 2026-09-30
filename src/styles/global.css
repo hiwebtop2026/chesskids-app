@@ -7281,9 +7281,9 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
 }
 
 /* ===== 游戏时只显示棋盘：顶部窄把手 + 下拉功能面板（全部功能收进，下拉才显示）===== */
-/* 顶部把手：窄条贴棋盘顶边居中，游戏时几乎不可见
-   非浮动：棋盘上方右侧（与居中 ⛶ 浮动窗口入口错开，不产生灰色留白）
-   浮动：棋盘顶边居中 */
+/* 顶部功能把手：☰ 按钮
+   非浮动：棋盘上方右侧（与居中 ⛶ 浮动窗口入口错开）
+   浮动：右上角与 ✕ 退出按钮并列（显眼、手指易点中） */
 .gomoku-board-topbar {
   position: absolute;
   top: -46px;
@@ -7301,32 +7301,46 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
 }
 .gomoku-top-handle {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  width: 54px;
-  height: 18px;
-  padding: 0;
-  border: none;
-  border-radius: 0 0 10px 10px;
-  background: rgba(18, 14, 8, 0.45);
+  min-width: 46px;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 215, 0, 0.45);
+  background: rgba(18, 14, 8, 0.68);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #ffe8c8;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
   cursor: pointer;
   touch-action: manipulation;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  transition: background .18s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  transition: background .18s, transform .12s;
 }
-.gomoku-top-handle .gomoku-handle-bar {
-  display: block;
-  width: 20px;
-  height: 2px;
-  border-radius: 2px;
-  background: rgba(255, 240, 210, 0.82);
+.gomoku-top-handle:hover, .gomoku-top-handle.active { background: rgba(18, 14, 8, 0.85); transform: scale(1.05); }
+/* 浮动模式：☰ 功能按钮移到右上角，与 ✕ 退出浮动并列（不遮棋盘顶部） */
+.gomoku-floating .gomoku-top-handle {
+  position: absolute;
+  top: 12px;
+  right: 58px;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 18px;
 }
-.gomoku-top-handle:hover, .gomoku-top-handle.active { background: rgba(18, 14, 8, 0.68); }
-.gomoku-theme-dark .gomoku-top-handle { background: rgba(200, 216, 200, 0.18); }
-.gomoku-theme-dark .gomoku-top-handle:hover, .gomoku-theme-dark .gomoku-top-handle.active { background: rgba(200, 216, 200, 0.3); }
+.gomoku-theme-dark .gomoku-top-handle {
+  background: rgba(210, 224, 210, 0.16);
+  border-color: rgba(220, 230, 215, 0.35);
+  color: #eef2ea;
+}
+.gomoku-theme-dark .gomoku-top-handle:hover, .gomoku-theme-dark .gomoku-top-handle.active {
+  background: rgba(210, 224, 210, 0.28);
+}
 /* 面板：从顶部居中下拉展开（把手下方），含状态胶囊+功能网格+退出浮动 */
 .gomoku-menu-panel {
   position: absolute;
@@ -7416,7 +7430,7 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
   .gomoku-menu-grid { gap: 6px; padding: 8px 12px 4px; }
   .gomoku-menu-btn { padding: 9px 10px; font-size: 12.5px; min-height: 36px; }
   .gomoku-menu-status { padding: 10px 12px 0; }
-  /* 移动端把手加大点击区域，避免手指难以点中 */
-  .gomoku-top-handle { width: 64px; height: 24px; gap: 4px; }
-  .gomoku-top-handle .gomoku-handle-bar { width: 24px; height: 2.5px; }
+  /* 移动端：非浮动把手保持胶囊大小，浮动把手维持右上角圆形 40x40 */
+  .gomoku-top-handle { min-width: 44px; height: 36px; font-size: 18px; padding: 0 10px; }
+  .gomoku-floating .gomoku-top-handle { width: 40px; height: 40px; min-width: 40px; padding: 0; }
 }
