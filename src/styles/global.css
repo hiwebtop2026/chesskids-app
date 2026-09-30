@@ -7233,3 +7233,57 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
   color: #e8ddc8;
 }
 .gomoku-theme-dark .gomoku-controls .ctrl-btn.danger { border-color: rgba(220, 120, 100, 0.5); color: #ffb4a8; }
+
+/* ===== 浮动窗口模式：功能按钮集成棋盘上下（顶部 悔棋|状态|提示 / 底部 3D|其他|2D）===== */
+.gomoku-floating .gomoku-board-topbar {
+  top: 0;
+  padding: 0 14px;
+  gap: 8px;
+}
+.gomoku-floating .gomoku-board-bottombar {
+  bottom: 0;
+  padding: 0 14px;
+  gap: 8px;
+}
+.gomoku-floating { padding-bottom: 58px; }
+.gomoku-float-topbar .gomoku-float-status {
+  position: static;
+  transform: none;
+  margin: 0 10px;
+  box-shadow: none;
+  background: rgba(18, 14, 8, 0.55);
+}
+.gomoku-bottom-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  pointer-events: auto;
+  flex-wrap: wrap;
+}
+.gomoku-floating .gomoku-bottom-center .gomoku-corner-btn {
+  padding: 8px 12px;
+  font-size: 13px;
+  min-height: 38px;
+}
+/* 小屏/横屏：浮动上下按钮条允许换行，避免溢出 */
+@media (max-width: 720px), (max-height: 560px) {
+  .gomoku-floating .gomoku-board-topbar,
+  .gomoku-floating .gomoku-board-bottombar {
+    gap: 6px;
+    padding: 0 8px;
+  }
+  .gomoku-float-topbar .gomoku-float-status {
+    margin: 0 4px;
+    padding: 5px 10px;
+    font-size: 12px;
+    gap: 6px;
+    max-width: 46%;
+  }
+  .gomoku-bottom-center { gap: 5px; }
+  .gomoku-floating .gomoku-bottom-center .gomoku-corner-btn {
+    padding: 6px 9px;
+    font-size: 12px;
+    min-height: 34px;
+  }
+}

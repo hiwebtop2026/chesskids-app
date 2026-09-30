@@ -3,7 +3,6 @@
  * 难度/执子可选、悔棋、提示、认输、2D/3D 切换、胜负弹窗、落子记录
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { GomokuBoard } from '../components/GomokuBoard';
 import { ThreeJSGomokuBoard } from '../components/ThreeJSGomokuBoard';
 import {
@@ -286,6 +285,28 @@ export const GomokuGame: React.FC = () => {
     </div>
   );
 
+  // 浮动窗口模式棋盘上方：左悔棋、中状态胶囊、右提示（游戏时只显示棋盘，功能集成棋盘上下）
+  const floatTopBar = (
+    <div className="gomoku-board-topbar gomoku-float-topbar">
+      <button className="gomoku-corner-btn" onClick={handleUndo} disabled={aiThinking || moveCount === 0} title="悔棋">↩️ 悔棋</button>
+      {floatStatus}
+      <button className="gomoku-corner-btn" onClick={handleHint} disabled={aiThinking || game.over} title="提示">💡 提示</button>
+    </div>
+  );
+  // 浮动窗口模式棋盘下方：左 3D、中认输/重开/记录/夜间、右 2D
+  const floatBottomBar = (
+    <div className="gomoku-board-bottombar gomoku-float-bottombar">
+      <button className={`gomoku-corner-btn ${viewMode === '3d' ? 'active' : ''}`} onClick={() => setViewMode('3d')} title="切换 3D 棋盘">🀄 3D</button>
+      <div className="gomoku-bottom-center">
+        <button className="gomoku-corner-btn danger" onClick={handleResign} disabled={game.over}>🏳️ 认输</button>
+        <button className="gomoku-corner-btn" onClick={handleReset}>🔄 重新开始</button>
+        <button className="gomoku-corner-btn" onClick={() => setHistoryOpen(true)}>📁 记录</button>
+        <button className="gomoku-corner-btn" onClick={toggleTheme} title="日夜模式切换">{theme === 'dark' ? '☀️ 日间' : '🌙 夜间'}</button>
+      </div>
+      <button className={`gomoku-corner-btn ${viewMode === '2d' ? 'active' : ''}`} onClick={() => setViewMode('2d')} title="切换 2D 棋盘">📐 2D</button>
+    </div>
+  );
+
   // 内嵌模式（非浮动）棋盘上方按钮：左悔棋、右提示（游戏时只显示棋盘，功能按钮集成棋盘上下）
   const inBoardTopBar = (
     <div className="gomoku-board-topbar">
@@ -301,7 +322,7 @@ export const GomokuGame: React.FC = () => {
     </div>
   );
 
-  // 内嵌模式（非浮动）结算弹窗：只在棋盘容器内显示（不叠加到浏览器窗口/侧栏，避免重复）
+  // 结算弹窗：无论浮动/内嵌都在棋盘容器内显示（不叠加到浏览器窗口，避免重复）
   const inBoardResultModal = showResultModal && result && (
     <div className="gomoku-inboard-modal gomoku-inboard-result-modal">
       <div className="result-content">
@@ -314,7 +335,7 @@ export const GomokuGame: React.FC = () => {
     </div>
   );
 
-  // 内嵌模式（非浮动）对局记录弹窗：棋盘容器内显示
+  // 对局记录弹窗：棋盘容器内显示
   const inBoardHistoryModal = historyOpen && (
     <div className="gomoku-inboard-modal gomoku-inboard-history-modal" onClick={() => setHistoryOpen(false)}>
       <div className="gomoku-history-modal-inner" onClick={(e) => e.stopPropagation()}>
@@ -343,52 +364,6 @@ export const GomokuGame: React.FC = () => {
         </div>
       </div>
     </div>
-  );
-
-  // 浮动全屏时的胜负弹窗（原侧栏弹窗在浮动模式下被遮罩隐藏，此处内嵌到棋盘容器）
-  const floatResultModal = showResultModal && result && createPortal(
-    <div className="gomoku-float-modal gomoku-float-result-modal" style={{ position: 'fixed', left: 0, top: 0, right: 0, bottom: 0, width: '100%', height: '100%', margin: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 71 }}>
-      <div className="result-content">
-        <button className="result-close-btn" onClick={() => setShowResultModal(false)}>✕</button>
-        <div className="result-icon">{result.detail === '认输' ? '😢' : humanWin ? '🎉' : result.winner === 'draw' ? '🤝' : '😔'}</div>
-        <h3 className="result-title">{result.detail}</h3>
-        <p className="result-detail">共 {moveCount} 手{humanWin ? ` (+${difficulty.key === 'hard' || difficulty.key === 'master' ? 60 : 30} XP)` : ''}</p>
-        <button className="play-again-btn" onClick={handleReset}>再来一局</button>
-      </div>
-    </div>,
-    document.body
-  );
-
-  // 浮动全屏时的对局记录弹窗（点击遮罩关闭）
-  const floatHistoryModal = historyOpen && createPortal(
-    <div className="gomoku-float-modal gomoku-float-history-modal" onClick={() => setHistoryOpen(false)} style={{ position: 'fixed', left: 0, top: 0, right: 0, bottom: 0, width: '100%', height: '100%', margin: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 71 }}>
-      <div className="gomoku-history-modal-inner" onClick={(e) => e.stopPropagation()}>
-        <div className="gomoku-history-modal-header">
-          <h3>📁 对局记录（近 {matchHistory.length}/10 盘）</h3>
-          <button className="result-close-btn" onClick={() => setHistoryOpen(false)}>✕</button>
-        </div>
-        {matchHistory.length === 0 ? (
-          <p className="empty-text">暂无对局记录，下完一盘棋后自动保存</p>
-        ) : (
-          <div className="gomoku-history-list">
-            {matchHistory.map((r) => (
-              <div key={r.id} className="gomoku-history-item">
-                <span className={`gomoku-history-result ${r.result}`}>{r.result === 'win' ? '胜' : r.result === 'loss' ? '负' : '和'}</span>
-                <span className="gomoku-history-diff">{r.difficultyLabel}</span>
-                <span className="gomoku-history-color">{r.humanColor === 'b' ? '执黑' : '执白'}</span>
-                <span className="gomoku-history-plies">{r.totalPlies} 手</span>
-                <span className="gomoku-history-time">{new Date(r.timestamp).toLocaleString([], { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
-              </div>
-            ))}
-          </div>
-        )}
-        <div className="gomoku-history-actions">
-          <button className="history-btn" onClick={handleDownloadHistory} disabled={matchHistory.length === 0}>⬇ 下载 JSON</button>
-          <button className="history-btn danger" onClick={() => setMatchHistory(clearGomokuMatchHistory())} disabled={matchHistory.length === 0}>🗑 清空记录</button>
-        </div>
-      </div>
-    </div>,
-    document.body
   );
 
   return (
@@ -423,14 +398,12 @@ export const GomokuGame: React.FC = () => {
               theme={theme}
               onFloatChange={setFloating}
             >
-              {viewMode === '2d' && floatStatus}
+              {viewMode === '2d' && floating && floatTopBar}
               {viewMode === '2d' && !floating && inBoardTopBar}
+              {viewMode === '2d' && floating && floatBottomBar}
               {viewMode === '2d' && !floating && inBoardBottomBar}
-              {viewMode === '2d' && floating && ctrlButtons}
-              {viewMode === '2d' && floating && floatResultModal}
-              {viewMode === '2d' && !floating && inBoardResultModal}
-              {viewMode === '2d' && floating && floatHistoryModal}
-              {viewMode === '2d' && !floating && inBoardHistoryModal}
+              {viewMode === '2d' && inBoardResultModal}
+              {viewMode === '2d' && inBoardHistoryModal}
               {result && showResultModal && (
                 <GomokuResultFX kind={result.humanWin ? 'win' : result.winner === 'draw' ? 'draw' : 'lose'} label={result.detail} />
               )}

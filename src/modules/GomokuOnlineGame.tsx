@@ -3,7 +3,6 @@
  * PeerJS P2P：创建/加入房间，同步落子，聊天+语音消息，认输/重开
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { GomokuBoard } from '../components/GomokuBoard';
 import { ThreeJSGomokuBoard } from '../components/ThreeJSGomokuBoard';
 import {
@@ -288,19 +287,6 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
     </div>
   );
 
-  // 功能按钮：2D 内嵌棋盘容器下方（浮动跟随）；3D 显示侧栏。
-  // 3D 模式侧栏顶部已渲染 viewSwitchOnline，此处不重复（修复 3D 出现两套切换按钮的 bug）
-  const onlineCtrlButtons = (
-    <div className="gomoku-controls gomoku-inboard-controls">
-      {viewMode === '2d' && viewSwitchOnline}
-      <button className="ctrl-btn copy-room-btn" onClick={copyRoomCode} title="复制房间号发送给好友">{copied ? '✅ 已复制' : '📋 房间号'}</button>
-      <button className={`ctrl-btn ${chatOpen ? 'active' : ''}`} onClick={() => setChatOpen((v) => !v)}>💬 聊天</button>
-      <button className="ctrl-btn danger" onClick={handleResign} disabled={game.over || connectionStatus !== 'connected'}>🏳️ 认输</button>
-      <button className="ctrl-btn" onClick={handleReset} disabled={connectionStatus !== 'connected'}>🔄 重新开始</button>
-      <button className="ctrl-btn" onClick={toggleTheme} title="日夜模式切换">{theme === 'dark' ? '☀️ 日间' : '🌙 夜间'}</button>
-    </div>
-  );
-
   // 浮动全屏时的顶部状态胶囊（棋盘容器内嵌，脱离侧栏）
   const floatStatus = (
     <div className="gomoku-float-status">
@@ -313,18 +299,24 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
     </div>
   );
 
-  // 浮动全屏时的胜负弹窗（原侧栏弹窗在浮动模式下被遮罩隐藏，此处内嵌到棋盘容器）
-  const floatResultModal = result && createPortal(
-    <div className="gomoku-float-modal gomoku-float-result-modal" style={{ position: 'fixed', left: 0, top: 0, right: 0, bottom: 0, width: '100%', height: '100%', margin: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 71 }}>
-      <div className="result-content">
-        <button className="result-close-btn" onClick={() => setResult(null)}>✕</button>
-        <div className="result-icon">{result.emoji}</div>
-        <h3 className="result-title">{result.title}</h3>
-        <p className="result-detail">{result.detail}</p>
-        <button className="play-again-btn" onClick={handleReset}>再来一局</button>
+  // 浮动窗口模式棋盘上方：左房间号、中状态胶囊、右聊天；下方：左 3D、中认输/重开/夜间、右 2D
+  const floatTopBar = (
+    <div className="gomoku-board-topbar gomoku-float-topbar">
+      <button className="gomoku-corner-btn" onClick={copyRoomCode} title="复制房间号发送给好友">{copied ? '✅ 已复制' : '📋 房间号'}</button>
+      {floatStatus}
+      <button className={`gomoku-corner-btn ${chatOpen ? 'active' : ''}`} onClick={() => setChatOpen((v) => !v)} title="聊天">💬 聊天</button>
+    </div>
+  );
+  const floatBottomBar = (
+    <div className="gomoku-board-bottombar gomoku-float-bottombar">
+      <button className={`gomoku-corner-btn ${viewMode === '3d' ? 'active' : ''}`} onClick={() => setViewMode('3d')} title="切换 3D 棋盘">🀄 3D</button>
+      <div className="gomoku-bottom-center">
+        <button className="gomoku-corner-btn danger" onClick={handleResign} disabled={game.over || connectionStatus !== 'connected'}>🏳️ 认输</button>
+        <button className="gomoku-corner-btn" onClick={handleReset} disabled={connectionStatus !== 'connected'}>🔄 重新开始</button>
+        <button className="gomoku-corner-btn" onClick={toggleTheme} title="日夜模式切换">{theme === 'dark' ? '☀️ 日间' : '🌙 夜间'}</button>
       </div>
-    </div>,
-    document.body
+      <button className={`gomoku-corner-btn ${viewMode === '2d' ? 'active' : ''}`} onClick={() => setViewMode('2d')} title="切换 2D 棋盘">📐 2D</button>
+    </div>
   );
 
   // 内嵌模式（非浮动）棋盘上方按钮：左房间号复制、右聊天（联机无悔棋/提示，用联机高频功能替代）
@@ -442,13 +434,12 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
                 theme={theme}
                 onFloatChange={setFloating}
               >
-                {viewMode === '2d' && floatStatus}
+                {viewMode === '2d' && floating && floatTopBar}
                 {viewMode === '2d' && !floating && inBoardTopBar}
+                {viewMode === '2d' && floating && floatBottomBar}
                 {viewMode === '2d' && !floating && inBoardBottomBar}
-                {viewMode === '2d' && floating && onlineCtrlButtons}
                 {chatOpen && viewMode === '2d' && chatPanelEl}
-                {viewMode === '2d' && floating && floatResultModal}
-                {viewMode === '2d' && !floating && inBoardResultModal}
+                {viewMode === '2d' && inBoardResultModal}
                 {result && (
                   <GomokuResultFX kind={result.emoji === '🎉' ? 'win' : result.title === '和棋' ? 'draw' : 'lose'} label={result.title} />
                 )}
