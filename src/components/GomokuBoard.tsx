@@ -22,6 +22,8 @@ interface GomokuBoardProps {
   defaultFloating?: boolean;
   /** 日夜模式：light 护眼米杏 / dark 深色木纹夜间配色 */
   theme?: 'light' | 'dark';
+  /** 浮动状态变化回调（模块层据此区分浮动/内嵌渲染结算弹窗与按钮） */
+  onFloatChange?: (floating: boolean) => void;
 }
 
 export const GomokuBoard: React.FC<GomokuBoardProps> = ({
@@ -35,9 +37,12 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
   defaultFloating = false,
   theme = 'light',
   children,
+  onFloatChange,
 }) => {
   const dark = theme === 'dark';
   const [floating, setFloating] = useState(defaultFloating);
+  // 浮动状态同步到模块层（区分内嵌/浮动渲染结算弹窗与按钮，避免浏览器窗口重复显示）
+  useEffect(() => { onFloatChange?.(floating); }, [floating, onFloatChange]);
   /** 视口尺寸 state：resize 时实时重算浮动尺寸（修复窗口缩放后棋盘不跟随的 bug） */
   const [viewport, setViewport] = useState({ w: window.innerWidth, h: window.innerHeight });
   const MARGIN_PCT = 7; // 边沿留白（百分比），参考折叠围棋盘外框比例

@@ -3,7 +3,6 @@
  * 黑先白后轮流落子：悔棋、认输、重新开始、2D/3D 切换
  */
 import React, { useCallback, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { GomokuBoard } from '../components/GomokuBoard';
 import { ThreeJSGomokuBoard } from '../components/ThreeJSGomokuBoard';
 import {
@@ -65,7 +64,10 @@ export const GomokuLocalGame: React.FC = () => {
   }
 
   const moveCount = game.moves.length;
-  const lastMove = moveCount ? [game.moves[moveCount - 1].r, game.moves[moveCount - 1].c] as [number, number] : null;  /** 日夜模式（localStorage 持久化） */
+  const lastMove = moveCount ? [game.moves[moveCount - 1].r, game.moves[moveCount - 1].c] as [number, number] : null;
+  /** 浮动状态（棋盘组件上报）：区分内嵌/浮动渲染结算弹窗与按钮 */
+  const [floating, setFloating] = useState(false);
+  /** 日夜模式（localStorage 持久化） */
   const [theme, setTheme] = useState<'light' | 'dark'>(() => (typeof localStorage !== 'undefined' ? (localStorage.getItem('gomoku-theme') === 'dark' ? 'dark' : 'light') : 'light'));
   const toggleTheme = () => {
     setTheme(prev => {
@@ -83,12 +85,8 @@ export const GomokuLocalGame: React.FC = () => {
         <h2>👥 五子棋 · 双人对局</h2>
         <p>19×19 围棋棋盘 · 轮流落子</p>
       </div>
-      <div className="game-layout">
-        <div className="game-board-section gomoku-board-section">
-          <div className="view-switch-row">
-            <button className={`view-tab-btn ${is3dView ? 'active' : ''}`} onClick={() => setViewMode('3d')}>3D 棋盘</button>
-            <button className={`view-tab-btn ${viewMode === '2d' ? 'active' : ''}`} onClick={() => setViewMode('2d')}>2D 棋盘</button>
-          </div>
+      <div className="game-layout" style={viewMode === '2d' && !floating ? { display: 'flex', justifyContent: 'center' } : undefined}>
+        <div className="game-board-section gomoku-board-section" style={viewMode === '2d' && !floating ? { paddingTop: 104, paddingBottom: 76 } : undefined}>
           {viewMode === '3d' ? (
             <ThreeJSGomokuBoard
               board={game.board}
@@ -105,24 +103,40 @@ export const GomokuLocalGame: React.FC = () => {
               onIntersectionClick={handleClick}
               defaultFloating
               theme={theme}
+              onFloatChange={setFloating}
             >
+              {/* 内嵌模式棋盘上方：左悔棋、右重新开始；下方：左 3D、右 2D */}
+              {!floating && (
+                <div className="gomoku-board-topbar">
+                  <button className="gomoku-corner-btn" onClick={handleUndo} disabled={moveCount === 0} title="悔棋">↩️ 悔棋</button>
+                  <button className="gomoku-corner-btn" onClick={() => { setGame(createGomokuGame()); setResult(null); }} title="重新开始">🔄 重新开始</button>
+                </div>
+              )}
+              {!floating && (
+                <div className="gomoku-board-bottombar">
+                  <button className={`gomoku-corner-btn ${is3dView ? 'active' : ''}`} onClick={() => setViewMode('3d')} title="切换 3D 棋盘">🀄 3D</button>
+                  <button className={`gomoku-corner-btn ${viewMode === '2d' ? 'active' : ''}`} onClick={() => setViewMode('2d')} title="切换 2D 棋盘">📐 2D</button>
+                </div>
+              )}
               {/* 浮动全屏：状态胶囊 + 2D/3D 切换 + 悔棋/重开（侧栏在浮动时隐藏，功能内嵌棋盘容器） */}
               <div className="gomoku-float-status">
                 <span className={`gomoku-turn-dot ${game.turn === 'b' ? 'black' : 'white'}`} />
                 <span>{game.over ? '对局结束' : game.turn === 'b' ? '黑棋落子' : '白棋落子'}</span>
                 <span className="gomoku-move-count">第 {Math.floor(moveCount / 2) + 1} 手</span>
               </div>
-              <div className="gomoku-controls gomoku-inboard-controls">
-                <div className="view-switch-inboard">
-                  <button className={`view-tab-btn ${is3dView ? 'active' : ''}`} onClick={() => setViewMode('3d')} title="切换 3D 棋盘">🀄 3D</button>
-                  <button className={`view-tab-btn ${viewMode === '2d' ? 'active' : ''}`} onClick={() => setViewMode('2d')} title="切换 2D 棋盘">📐 2D</button>
+              {floating && (
+                <div className="gomoku-controls gomoku-inboard-controls">
+                  <div className="view-switch-inboard">
+                    <button className={`view-tab-btn ${is3dView ? 'active' : ''}`} onClick={() => setViewMode('3d')} title="切换 3D 棋盘">🀄 3D</button>
+                    <button className={`view-tab-btn ${viewMode === '2d' ? 'active' : ''}`} onClick={() => setViewMode('2d')} title="切换 2D 棋盘">📐 2D</button>
+                  </div>
+                  <button className="ctrl-btn" onClick={handleUndo} disabled={moveCount === 0}>↩️ 悔棋</button>
+                  <button className="ctrl-btn" onClick={() => { setGame(createGomokuGame()); setResult(null); }}>🔄 重新开始</button>
+                  <button className="ctrl-btn" onClick={toggleTheme} title="日夜模式切换">{theme === 'dark' ? '☀️ 日间' : '🌙 夜间'}</button>
                 </div>
-                <button className="ctrl-btn" onClick={handleUndo} disabled={moveCount === 0}>↩️ 悔棋</button>
-                <button className="ctrl-btn" onClick={() => { setGame(createGomokuGame()); setResult(null); }}>🔄 重新开始</button>
-                <button className="ctrl-btn" onClick={toggleTheme} title="日夜模式切换">{theme === 'dark' ? '☀️ 日间' : '🌙 夜间'}</button>
-              </div>
-              {result && createPortal(
-                <div className="gomoku-float-modal gomoku-float-result-modal" style={{ position: 'fixed', left: 0, top: 0, right: 0, bottom: 0, width: '100%', height: '100%', margin: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 71 }}>
+              )}
+              {result && (
+                <div className="gomoku-inboard-modal gomoku-inboard-result-modal">
                   <div className="result-content">
                     <button className="result-close-btn" onClick={() => setResult(null)}>✕</button>
                     <div className="result-icon">{result.winner === 'draw' ? '🤝' : result.winner === 'b' ? '⚫' : '⚪'}</div>
@@ -130,8 +144,7 @@ export const GomokuLocalGame: React.FC = () => {
                     <p className="result-detail">共 {moveCount} 手</p>
                     <button className="play-again-btn" onClick={() => { setGame(createGomokuGame()); setResult(null); }}>再来一局</button>
                   </div>
-                </div>,
-                document.body
+                </div>
               )}
               {result && (
                 <GomokuResultFX kind={result.winner === 'draw' ? 'draw' : 'win'} label={result.winner === 'draw' ? '和棋' : `${result.winner === 'b' ? '黑棋' : '白棋'}获胜！`} />
@@ -140,6 +153,7 @@ export const GomokuLocalGame: React.FC = () => {
           )}
           {toast && <div className="gomoku-toast">{toast}</div>}
         </div>
+        {is3dView && (
         <div className="game-side-panel gomoku-side-panel">
           <div className="gomoku-status-bar">
             <span className={`gomoku-turn-dot ${game.turn === 'b' ? 'black' : 'white'}`} />
@@ -169,7 +183,7 @@ export const GomokuLocalGame: React.FC = () => {
               </div>
             )}
           </div>
-          {result && (
+          {is3dView && result && (
             <div className="game-result-modal gomoku-result-modal">
               <div className="result-content">
                 <button className="result-close-btn" onClick={() => setResult(null)}>✕</button>
@@ -180,7 +194,8 @@ export const GomokuLocalGame: React.FC = () => {
               </div>
             </div>
           )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

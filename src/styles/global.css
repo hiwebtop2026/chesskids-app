@@ -6834,6 +6834,53 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
 .gomoku-stone-glint { pointer-events: none; }
 .gomoku-wood-grain { pointer-events: none; }
 
+/* ===== 内嵌模式（非浮动 2D）棋盘上下功能按钮 ===== */
+.gomoku-board-topbar,
+.gomoku-board-bottombar {
+  position: absolute;
+  left: 0; right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 9;
+  padding: 0 8px;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+.gomoku-board-topbar { top: -96px; }
+.gomoku-board-bottombar { bottom: -62px; }
+.gomoku-board-topbar .gomoku-corner-btn,
+.gomoku-board-bottombar .gomoku-corner-btn { pointer-events: auto; }
+.gomoku-corner-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 9px 18px; border-radius: 999px;
+  border: 1px solid rgba(110, 78, 40, 0.38);
+  background: linear-gradient(180deg, #fffaf0, #f0e2c2);
+  color: #5a4a2f; font-size: 14px; font-weight: 600; cursor: pointer;
+  min-height: 42px; touch-action: manipulation; white-space: nowrap;
+  box-shadow: 0 2px 5px rgba(90, 60, 30, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  transition: background .18s, transform .15s, box-shadow .18s, border-color .18s;
+}
+.gomoku-corner-btn:hover:not(:disabled) { background: linear-gradient(180deg, #fff6e0, #eeddb6); transform: translateY(-1px); }
+.gomoku-corner-btn:active:not(:disabled) { transform: scale(0.95); }
+.gomoku-corner-btn:disabled { opacity: 0.42; cursor: not-allowed; box-shadow: none; }
+.gomoku-corner-btn.active { background: linear-gradient(180deg, #8a5a28, #6f4218); border-color: rgba(80, 52, 20, 0.6); color: #ffe6b8; box-shadow: 0 2px 6px rgba(80, 50, 20, 0.35); }
+.gomoku-theme-dark .gomoku-corner-btn { background: linear-gradient(180deg, #5a6e62, #44584c); border-color: rgba(150, 170, 150, 0.4); color: #dce6d8; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.12); }
+.gomoku-theme-dark .gomoku-corner-btn:hover:not(:disabled) { background: linear-gradient(180deg, #6a7e72, #506458); }
+.gomoku-theme-dark .gomoku-corner-btn.active { background: linear-gradient(180deg, #d9b57a, #b98d4e); border-color: rgba(220, 180, 120, 0.5); color: #3a2e1c; }
+
+/* ===== 内嵌（非浮动）结算/历史弹窗：只在棋盘容器内显示，不叠加到浏览器窗口 ===== */
+.gomoku-inboard-modal {
+  position: absolute;
+  left: 0; top: 0; right: 0; bottom: 0;
+  z-index: 70;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(10, 8, 6, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border-radius: 12px;
+}
+
 /* ===== 五子棋对局结束特效（粒子 + 胜利横幅）===== */
 .gomoku-result-fx {
   /* 特效通过 createPortal 渲染到 document.body，固定视口全屏播放，

@@ -104,6 +104,8 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
   };
   // 默认 2D 棋盘（启动即 2D + 浮动全屏）
   const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
+  /** 浮动状态（棋盘组件上报）：区分内嵌/浮动渲染结算弹窗与按钮 */
+  const [floating, setFloating] = useState(false);
   /** 日夜模式（localStorage 持久化） */
   const [theme, setTheme] = useState<'light' | 'dark'>(() => (typeof localStorage !== 'undefined' ? (localStorage.getItem('gomoku-theme') === 'dark' ? 'dark' : 'light') : 'light'));
   const toggleTheme = () => {
@@ -325,6 +327,34 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
     document.body
   );
 
+  // 内嵌模式（非浮动）棋盘上方按钮：左房间号复制、右聊天（联机无悔棋/提示，用联机高频功能替代）
+  const inBoardTopBar = (
+    <div className="gomoku-board-topbar">
+      <button className="gomoku-corner-btn" onClick={copyRoomCode} title="复制房间号发送给好友">{copied ? '✅ 已复制' : '📋 房间号'}</button>
+      <button className={`gomoku-corner-btn ${chatOpen ? 'active' : ''}`} onClick={() => setChatOpen((v) => !v)} title="聊天">💬 聊天</button>
+    </div>
+  );
+  // 内嵌模式棋盘下方按钮：左 3D、右 2D 切换
+  const inBoardBottomBar = (
+    <div className="gomoku-board-bottombar">
+      <button className={`gomoku-corner-btn ${viewMode === '3d' ? 'active' : ''}`} onClick={() => setViewMode('3d')} title="切换 3D 棋盘">🀄 3D</button>
+      <button className={`gomoku-corner-btn ${viewMode === '2d' ? 'active' : ''}`} onClick={() => setViewMode('2d')} title="切换 2D 棋盘">📐 2D</button>
+    </div>
+  );
+
+  // 内嵌模式（非浮动）结算弹窗：只在棋盘容器内显示（不叠加到浏览器窗口/侧栏，避免重复）
+  const inBoardResultModal = result && (
+    <div className="gomoku-inboard-modal gomoku-inboard-result-modal">
+      <div className="result-content">
+        <button className="result-close-btn" onClick={() => setResult(null)}>✕</button>
+        <div className="result-icon">{result.emoji}</div>
+        <h3 className="result-title">{result.title}</h3>
+        <p className="result-detail">{result.detail}</p>
+        <button className="play-again-btn" onClick={handleReset}>再来一局</button>
+      </div>
+    </div>
+  );
+
   // 聊天面板：2D 模式作为棋盘容器 children 渲染（浮动层内，不跳出窗口）；3D 模式显示在侧栏
   const chatPanelEl = (
     <div className={`gomoku-chat-panel ${chatOpen ? 'open' : ''} ${viewMode === '2d' ? 'float-inboard' : ''}`}>
@@ -388,8 +418,8 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
       </div>
 
       {!inGame ? lobby : (
-        <div className="game-layout">
-          <div className="game-board-section gomoku-board-section">
+        <div className="game-layout" style={viewMode === '2d' && !floating ? { display: 'flex', justifyContent: 'center' } : undefined}>
+          <div className="game-board-section gomoku-board-section" style={viewMode === '2d' && !floating ? { paddingTop: 104, paddingBottom: 76 } : undefined}>
             {viewMode === '3d' ? (
               <ThreeJSGomokuBoard
                 board={game.board}
@@ -410,11 +440,15 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
                 flipped={myColor === 'w'}
                 defaultFloating
                 theme={theme}
+                onFloatChange={setFloating}
               >
                 {viewMode === '2d' && floatStatus}
-                {onlineCtrlButtons}
+                {viewMode === '2d' && !floating && inBoardTopBar}
+                {viewMode === '2d' && !floating && inBoardBottomBar}
+                {viewMode === '2d' && floating && onlineCtrlButtons}
                 {chatOpen && viewMode === '2d' && chatPanelEl}
-                {viewMode === '2d' && floatResultModal}
+                {viewMode === '2d' && floating && floatResultModal}
+                {viewMode === '2d' && !floating && inBoardResultModal}
                 {result && (
                   <GomokuResultFX kind={result.emoji === '🎉' ? 'win' : result.title === '和棋' ? 'draw' : 'lose'} label={result.title} />
                 )}
@@ -425,6 +459,7 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
             )}
           </div>
 
+          {viewMode === '3d' && (
           <div className="game-side-panel gomoku-side-panel">
             <div className="gomoku-status-bar">
               <span className={`gomoku-turn-dot ${game.turn === 'b' ? 'black' : 'white'}`} />
@@ -477,6 +512,7 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
               </div>
             )}
           </div>
+          )}
         </div>
       )}
 
