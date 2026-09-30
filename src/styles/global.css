@@ -7289,7 +7289,7 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
   top: -46px;
   left: 0;
   right: 0;
-  z-index: 30;
+  z-index: 60;
   display: flex;
   justify-content: flex-end;
   padding-right: 10px;
