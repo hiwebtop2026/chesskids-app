@@ -7416,4 +7416,7 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
   .gomoku-menu-grid { gap: 6px; padding: 8px 12px 4px; }
   .gomoku-menu-btn { padding: 9px 10px; font-size: 12.5px; min-height: 36px; }
   .gomoku-menu-status { padding: 10px 12px 0; }
+  /* 移动端把手加大点击区域，避免手指难以点中 */
+  .gomoku-top-handle { width: 64px; height: 24px; gap: 4px; }
+  .gomoku-top-handle .gomoku-handle-bar { width: 24px; height: 2.5px; }
 }
