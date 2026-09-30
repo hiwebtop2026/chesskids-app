@@ -6584,7 +6584,7 @@ ul {
 /* 全屏遮罩：独立背景层（100vmax box-shadow 在 iOS Safari 不渲染，改用 ::before 固定层） */
 .gomoku-floating::before { content: ''; position: fixed; left: 0; top: 0; right: 0; bottom: 0; background: rgba(22, 34, 20, 0.68); z-index: -1; }
 /* 浮动层顶部预留状态胶囊专用区（胶囊上移到棋盘上方，不遮挡棋盘与棋子；弹窗仍相对 wrap 棋盘容器） */
-.gomoku-floating { padding-top: 48px; }
+.gomoku-floating { padding-top: 22px; }
 /* 非浮动布局有侧栏状态，隐藏胶囊避免叠在棋盘上 */
 .gomoku-board-wrap:not(.gomoku-floating) .gomoku-float-status { display: none; }
 .gomoku-floating .gomoku-board-svg { width: 100%; aspect-ratio: 1 / 1; display: block; }
@@ -7287,29 +7287,51 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
   }
 }
 
-/* ===== 游戏时只显示棋盘：下拉功能面板（功能按钮收进，下拉才显示）===== */
-.gomoku-menu-toggle {
-  padding: 8px 14px;
-  font-size: 13.5px;
+/* ===== 游戏时只显示棋盘：顶部窄把手 + 下拉功能面板（全部功能收进，下拉才显示）===== */
+/* 顶部把手：窄条贴棋盘顶边居中，游戏时几乎不可见（非浮动在棋盘上方、浮动在顶边） */
+.gomoku-board-topbar { top: -46px; justify-content: center; }
+.gomoku-top-handle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: 54px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 0 0 10px 10px;
+  background: rgba(18, 14, 8, 0.45);
+  cursor: pointer;
+  touch-action: manipulation;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  transition: background .18s;
 }
-.gomoku-float-topbar { justify-content: center; }
-.gomoku-float-topbar .gomoku-menu-toggle {
-  margin-left: 12px;
+.gomoku-top-handle .gomoku-handle-bar {
+  display: block;
+  width: 20px;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(255, 240, 210, 0.82);
 }
-/* 面板：从顶部下拉展开（topbar 下方右侧） */
+.gomoku-top-handle:hover, .gomoku-top-handle.active { background: rgba(18, 14, 8, 0.68); }
+.gomoku-theme-dark .gomoku-top-handle { background: rgba(200, 216, 200, 0.18); }
+.gomoku-theme-dark .gomoku-top-handle:hover, .gomoku-theme-dark .gomoku-top-handle.active { background: rgba(200, 216, 200, 0.3); }
+/* 面板：从顶部居中下拉展开（把手下方），含状态胶囊+功能网格+退出浮动 */
 .gomoku-menu-panel {
   position: absolute;
-  top: 52px;
-  right: 12px;
+  top: 22px;
+  left: 50%;
   z-index: 65;
-  width: min(320px, 86vw);
+  width: min(340px, 88vw);
   max-height: 0;
   opacity: 0;
   overflow: hidden;
   visibility: hidden;
-  transform-origin: top right;
-  transform: translateY(-8px) scale(0.98);
-  transition: max-height .28s cubic-bezier(.4,0,.2,1), opacity .22s, transform .28s cubic-bezier(.4,0,.2,1), visibility .28s;
+  transform-origin: top center;
+  transform: translateX(-50%) translateY(-10px) scale(0.98);
+  transition: max-height .3s cubic-bezier(.4,0,.2,1), opacity .22s, transform .3s cubic-bezier(.4,0,.2,1), visibility .3s;
   border-radius: 16px;
   background: linear-gradient(180deg, rgba(255, 250, 240, 0.97), rgba(240, 226, 194, 0.97));
   border: 1px solid rgba(120, 86, 46, 0.35);
@@ -7318,16 +7340,28 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
   -webkit-backdrop-filter: blur(12px);
 }
 .gomoku-menu-panel.open {
-  max-height: 420px;
+  max-height: 520px;
   opacity: 1;
   visibility: visible;
-  transform: translateY(0) scale(1);
+  transform: translateX(-50%) translateY(0) scale(1);
+}
+.gomoku-menu-status {
+  padding: 12px 14px 2px;
+  display: flex;
+  justify-content: center;
+}
+.gomoku-menu-status .gomoku-float-status {
+  position: static;
+  transform: none;
+  margin: 0;
+  box-shadow: none;
+  background: rgba(18, 14, 8, 0.6);
 }
 .gomoku-menu-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 8px;
-  padding: 14px;
+  padding: 10px 14px 6px;
 }
 .gomoku-menu-btn {
   display: flex; align-items: center; justify-content: center; gap: 6px;
@@ -7346,8 +7380,10 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
 .gomoku-menu-btn:disabled { opacity: 0.42; cursor: not-allowed; }
 .gomoku-menu-btn.danger { background: linear-gradient(180deg, #fdeae4, #f3d3c8); border-color: rgba(190, 90, 70, 0.4); color: #a33a26; }
 .gomoku-menu-btn.active { background: linear-gradient(180deg, #8a5a28, #6f4218); border-color: rgba(80, 52, 20, 0.6); color: #ffe6b8; }
+.gomoku-menu-exit-row { padding: 4px 14px 0; }
+.gomoku-menu-exit { width: 100%; }
 .gomoku-menu-hint {
-  padding: 0 14px 12px;
+  padding: 6px 14px 12px;
   text-align: center;
   font-size: 11.5px;
   color: rgba(90, 74, 47, 0.6);
@@ -7367,7 +7403,8 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
 .gomoku-theme-dark .gomoku-menu-btn.active { background: linear-gradient(180deg, #d9b57a, #b98d4e); border-color: rgba(220, 180, 120, 0.5); color: #3a2e1c; }
 .gomoku-theme-dark .gomoku-menu-hint { color: rgba(220, 230, 216, 0.55); }
 @media (max-width: 720px), (max-height: 560px) {
-  .gomoku-menu-panel { top: 46px; right: 8px; width: min(300px, 92vw); }
-  .gomoku-menu-grid { gap: 6px; padding: 12px; }
+  .gomoku-menu-panel { top: 20px; width: min(320px, 94vw); }
+  .gomoku-menu-grid { gap: 6px; padding: 8px 12px 4px; }
   .gomoku-menu-btn { padding: 9px 10px; font-size: 12.5px; min-height: 36px; }
+  .gomoku-menu-status { padding: 10px 12px 0; }
 }

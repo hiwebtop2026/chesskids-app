@@ -82,20 +82,24 @@ export const GomokuLocalGame: React.FC = () => {
   // 提前提取 3D 判断，避免在 JSX 三元分支内被 TS 控制流收窄后再次比较 '3d' 报错
   const is3dView = viewMode === '3d';
 
-  // 游戏时只显示棋盘：顶部仅状态胶囊 + 功能菜单按钮，所有功能收进下拉面板
-  const floatTopBar = (
-    <div className="gomoku-board-topbar gomoku-float-topbar">
-      <div className="gomoku-float-status">
-        <span className={`gomoku-turn-dot ${game.turn === 'b' ? 'black' : 'white'}`} />
-        <span>{game.over ? '对局结束' : game.turn === 'b' ? '黑棋落子' : '白棋落子'}</span>
-        <span className="gomoku-move-count">第 {Math.floor(moveCount / 2) + 1} 手</span>
-      </div>
-      <button className={`gomoku-corner-btn gomoku-menu-toggle ${menuOpen ? 'active' : ''}`} onClick={() => setMenuOpen((v) => !v)} title="游戏功能">⚙ 功能</button>
+  // 游戏时只显示棋盘：顶部仅窄把手，状态胶囊与全部功能按钮收进下拉面板
+  const localStatus = (
+    <div className="gomoku-float-status">
+      <span className={`gomoku-turn-dot ${game.turn === 'b' ? 'black' : 'white'}`} />
+      <span>{game.over ? '对局结束' : game.turn === 'b' ? '黑棋落子' : '白棋落子'}</span>
+      <span className="gomoku-move-count">第 {Math.floor(moveCount / 2) + 1} 手</span>
     </div>
   );
-  // 下拉功能面板：悔棋/重开/日夜/3D/2D
+  const topHandle = (
+    <button className={`gomoku-top-handle ${menuOpen ? 'active' : ''}`} onClick={() => setMenuOpen((v) => !v)} title="游戏功能">
+      <span className="gomoku-handle-bar" />
+      <span className="gomoku-handle-bar" />
+    </button>
+  );
+  // 下拉功能面板：状态胶囊 + 悔棋/重开/日夜/3D/2D/退出浮动
   const menuPanel = (
     <div className={`gomoku-menu-panel ${menuOpen ? 'open' : ''}`}>
+      <div className="gomoku-menu-status">{localStatus}</div>
       <div className="gomoku-menu-grid">
         <button className="gomoku-menu-btn" onClick={handleUndo} disabled={moveCount === 0}>↩️ 悔棋</button>
         <button className="gomoku-menu-btn" onClick={() => { setGame(createGomokuGame()); setResult(null); }}>🔄 重新开始</button>
@@ -103,6 +107,11 @@ export const GomokuLocalGame: React.FC = () => {
         <button className={`gomoku-menu-btn ${is3dView ? 'active' : ''}`} onClick={() => setViewMode('3d')}>🀄 3D</button>
         <button className={`gomoku-menu-btn ${viewMode === '2d' ? 'active' : ''}`} onClick={() => setViewMode('2d')}>📐 2D</button>
       </div>
+      {floating && (
+        <div className="gomoku-menu-exit-row">
+          <button className="gomoku-menu-btn gomoku-menu-exit" onClick={() => setFloating(false)}>⛶ 退出全屏</button>
+        </div>
+      )}
       <div className="gomoku-menu-hint">点击棋盘任意位置关闭面板</div>
     </div>
   );
@@ -133,10 +142,10 @@ export const GomokuLocalGame: React.FC = () => {
               theme={theme}
               onFloatChange={setFloating}
             >
-              {floating && floatTopBar}
+              {topHandle}
               {!floating && (
-                <div className="gomoku-board-topbar">
-                  <button className={`gomoku-corner-btn gomoku-menu-toggle ${menuOpen ? 'active' : ''}`} onClick={() => setMenuOpen((v) => !v)} title="游戏功能">⚙ 功能</button>
+                <div className="gomoku-board-topbar gomoku-float-topbar">
+                  {topHandle}
                 </div>
               )}
               {menuPanel}

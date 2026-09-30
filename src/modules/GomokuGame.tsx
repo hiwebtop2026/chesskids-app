@@ -288,16 +288,17 @@ export const GomokuGame: React.FC = () => {
     </div>
   );
 
-  // 游戏时只显示棋盘：顶部仅状态胶囊 + 功能菜单按钮（⋯），所有功能按钮收进下拉面板
-  const floatTopBar = (
-    <div className="gomoku-board-topbar gomoku-float-topbar">
-      {floatStatus}
-      <button className={`gomoku-corner-btn gomoku-menu-toggle ${menuOpen ? 'active' : ''}`} onClick={() => setMenuOpen((v) => !v)} title="游戏功能">⚙ 功能</button>
-    </div>
+  // 游戏时只显示棋盘：顶部仅一个窄把手（☰），点击下拉展开功能面板；状态胶囊与全部功能按钮收进面板
+  const topHandle = (
+    <button className={`gomoku-top-handle ${menuOpen ? 'active' : ''}`} onClick={() => setMenuOpen((v) => !v)} title="游戏功能">
+      <span className="gomoku-handle-bar" />
+      <span className="gomoku-handle-bar" />
+    </button>
   );
-  // 下拉功能面板：悔棋/提示/认输/重开/记录/日夜/3D/2D 全部收进，点击棋盘外或再点 ⋯ 收起
+  // 下拉功能面板：顶部状态胶囊 + 悔棋/提示/认输/重开/记录/日夜/3D/2D/退出浮动
   const menuPanel = (
     <div className={`gomoku-menu-panel ${menuOpen ? 'open' : ''}`}>
+      <div className="gomoku-menu-status">{floatStatus}</div>
       <div className="gomoku-menu-grid">
         <button className="gomoku-menu-btn" onClick={handleUndo} disabled={aiThinking || moveCount === 0}>↩️ 悔棋</button>
         <button className="gomoku-menu-btn" onClick={handleHint} disabled={aiThinking || game.over}>💡 提示</button>
@@ -308,14 +309,19 @@ export const GomokuGame: React.FC = () => {
         <button className={`gomoku-menu-btn ${viewMode === '3d' ? 'active' : ''}`} onClick={() => setViewMode('3d')}>🀄 3D</button>
         <button className={`gomoku-menu-btn ${viewMode === '2d' ? 'active' : ''}`} onClick={() => setViewMode('2d')}>📐 2D</button>
       </div>
+      {floating && (
+        <div className="gomoku-menu-exit-row">
+          <button className="gomoku-menu-btn gomoku-menu-exit" onClick={() => setFloating(false)}>⛶ 退出全屏</button>
+        </div>
+      )}
       <div className="gomoku-menu-hint">点击棋盘任意位置关闭面板</div>
     </div>
   );
 
-  // 内嵌模式（非浮动）棋盘上方：右功能菜单按钮（toolbar 的浮动窗口入口居中保留）
+  // 内嵌模式（非浮动）同样只显示棋盘：顶部窄把手（toolbar 的浮动窗口入口保留在棋盘外侧栏）
   const inBoardTopBar = (
-    <div className="gomoku-board-topbar">
-      <button className={`gomoku-corner-btn gomoku-menu-toggle ${menuOpen ? 'active' : ''}`} onClick={() => setMenuOpen((v) => !v)} title="游戏功能">⚙ 功能</button>
+    <div className="gomoku-board-topbar gomoku-float-topbar">
+      {topHandle}
     </div>
   );
 
@@ -395,7 +401,7 @@ export const GomokuGame: React.FC = () => {
               theme={theme}
               onFloatChange={setFloating}
             >
-              {viewMode === '2d' && floating && floatTopBar}
+              {viewMode === '2d' && floating && topHandle}
               {viewMode === '2d' && !floating && inBoardTopBar}
               {viewMode === '2d' && menuPanel}
               {viewMode === '2d' && inBoardResultModal}

@@ -302,16 +302,17 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
     </div>
   );
 
-  // 游戏时只显示棋盘：顶部仅状态胶囊 + 功能菜单按钮，所有功能收进下拉面板
-  const floatTopBar = (
-    <div className="gomoku-board-topbar gomoku-float-topbar">
-      {floatStatus}
-      <button className={`gomoku-corner-btn gomoku-menu-toggle ${menuOpen ? 'active' : ''}`} onClick={() => setMenuOpen((v) => !v)} title="游戏功能">⚙ 功能</button>
-    </div>
+  // 游戏时只显示棋盘：顶部仅窄把手，状态胶囊与全部功能按钮收进下拉面板
+  const topHandle = (
+    <button className={`gomoku-top-handle ${menuOpen ? 'active' : ''}`} onClick={() => setMenuOpen((v) => !v)} title="游戏功能">
+      <span className="gomoku-handle-bar" />
+      <span className="gomoku-handle-bar" />
+    </button>
   );
-  // 下拉功能面板：房间号/聊天/认输/重开/日夜/3D/2D
+  // 下拉功能面板：状态胶囊 + 房间号/聊天/认输/重开/日夜/3D/2D/退出浮动
   const menuPanel = (
     <div className={`gomoku-menu-panel ${menuOpen ? 'open' : ''}`}>
+      <div className="gomoku-menu-status">{floatStatus}</div>
       <div className="gomoku-menu-grid">
         <button className="gomoku-menu-btn" onClick={copyRoomCode} title="复制房间号发送给好友">{copied ? '✅ 已复制' : '📋 房间号'}</button>
         <button className={`gomoku-menu-btn ${chatOpen ? 'active' : ''}`} onClick={() => { setChatOpen((v) => !v); setMenuOpen(false); }}>💬 聊天</button>
@@ -321,14 +322,19 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
         <button className={`gomoku-menu-btn ${viewMode === '3d' ? 'active' : ''}`} onClick={() => setViewMode('3d')}>🀄 3D</button>
         <button className={`gomoku-menu-btn ${viewMode === '2d' ? 'active' : ''}`} onClick={() => setViewMode('2d')}>📐 2D</button>
       </div>
+      {floating && (
+        <div className="gomoku-menu-exit-row">
+          <button className="gomoku-menu-btn gomoku-menu-exit" onClick={() => setFloating(false)}>⛶ 退出全屏</button>
+        </div>
+      )}
       <div className="gomoku-menu-hint">点击棋盘任意位置关闭面板</div>
     </div>
   );
 
-  // 内嵌模式（非浮动）棋盘上方：右功能菜单按钮
+  // 内嵌模式（非浮动）棋盘上方：同样只显示窄把手
   const inBoardTopBar = (
-    <div className="gomoku-board-topbar">
-      <button className={`gomoku-corner-btn gomoku-menu-toggle ${menuOpen ? 'active' : ''}`} onClick={() => setMenuOpen((v) => !v)} title="游戏功能">⚙ 功能</button>
+    <div className="gomoku-board-topbar gomoku-float-topbar">
+      {topHandle}
     </div>
   );
 
@@ -432,7 +438,7 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
                 theme={theme}
                 onFloatChange={setFloating}
               >
-                {viewMode === '2d' && floating && floatTopBar}
+                {viewMode === '2d' && floating && topHandle}
                 {viewMode === '2d' && !floating && inBoardTopBar}
                 {viewMode === '2d' && menuPanel}
                 {chatOpen && viewMode === '2d' && chatPanelEl}
