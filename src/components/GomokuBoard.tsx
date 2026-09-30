@@ -66,8 +66,8 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
     const vw = viewport.w;
     const vh = viewport.h;
     const hasInboard = React.Children.count(children) > 0;
-    // 内嵌功能按钮栏约 60px + 顶部状态胶囊预留 34px：浮动尺寸为其预留空间，避免溢出视口
-    const avail = Math.min(vw - 20, vh - (hasInboard ? 128 : 80));
+    // 顶部窄把手+留白约 44px：浮动棋盘预留空间大幅缩小，避免棋盘上下出现大片留白
+    const avail = Math.min(vw - 20, vh - (hasInboard ? 44 : 80));
     // 自动匹配终端全屏：不设固定上限，随视口实时自适应
     return Math.max(280, avail);
   }, [floating, viewport.w, viewport.h, children]);
