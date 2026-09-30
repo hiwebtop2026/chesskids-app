@@ -7278,34 +7278,44 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
 }
 .gomoku-top-handle {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-width: 46px;
-  height: 38px;
-  padding: 0 12px;
+  gap: 4px;
+  min-width: 44px;
+  height: 36px;
+  padding: 0 10px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 215, 0, 0.45);
-  background: rgba(18, 14, 8, 0.68);
+  border: 1px solid rgba(255, 215, 0, 0.4);
+  background: rgba(18, 14, 8, 0.55);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   color: #ffe8c8;
-  font-size: 20px;
-  font-weight: 700;
-  line-height: 1;
   cursor: pointer;
   touch-action: manipulation;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
-  transition: background .18s, transform .12s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: background .18s, transform .12s, border-color .18s;
 }
-.gomoku-top-handle:hover, .gomoku-top-handle.active { background: rgba(18, 14, 8, 0.85); transform: scale(1.05); }
+.gomoku-top-handle .gomoku-handle-bar {
+  display: block;
+  width: 20px;
+  height: 2px;
+  border-radius: 2px;
+  background: currentColor;
+  transition: background .18s;
+}
+.gomoku-top-handle:hover, .gomoku-top-handle.active {
+  background: rgba(18, 14, 8, 0.8);
+  border-color: rgba(255, 215, 0, 0.65);
+  transform: scale(1.06);
+}
 /* 浮动模式：☰ 功能按钮在棋盘下方居中（wrap padding-bottom 预留） */
 .gomoku-floating .gomoku-top-handle {
-  width: 42px;
-  height: 38px;
-  min-width: 42px;
-  padding: 0;
+  width: 44px;
+  height: 36px;
+  min-width: 44px;
+  padding: 0 8px;
   border-radius: 999px;
-  font-size: 18px;
 }
 .gomoku-theme-dark .gomoku-top-handle {
   background: rgba(210, 224, 210, 0.16);
@@ -7404,7 +7414,9 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
   .gomoku-menu-grid { gap: 6px; padding: 8px 12px 4px; }
   .gomoku-menu-btn { padding: 9px 10px; font-size: 12.5px; min-height: 36px; }
   .gomoku-menu-status { padding: 10px 12px 0; }
-  /* 移动端：非浮动把手保持胶囊大小，浮动把手维持圆形 42x38 */
-  .gomoku-top-handle { min-width: 44px; height: 36px; font-size: 18px; padding: 0 10px; }
-  .gomoku-floating .gomoku-top-handle { width: 42px; height: 38px; min-width: 42px; padding: 0; }
+  /* 移动端：非浮动把手保持胶囊大小，浮动把手维持圆形 44x36 */
+  .gomoku-top-handle { min-width: 42px; height: 34px; padding: 0 8px; gap: 3px; }
+  .gomoku-top-handle .gomoku-handle-bar { width: 18px; height: 2px; }
+  .gomoku-floating .gomoku-top-handle { width: 44px; height: 36px; min-width: 44px; padding: 0 8px; gap: 4px; }
+  .gomoku-floating .gomoku-top-handle .gomoku-handle-bar { width: 20px; }
 }
