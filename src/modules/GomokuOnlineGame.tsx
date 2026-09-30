@@ -105,6 +105,8 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
   const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
   /** 浮动状态（棋盘组件上报）：区分内嵌/浮动渲染结算弹窗与按钮 */
   const [floating, setFloating] = useState(false);
+  /** 下拉功能面板开关 */
+  const [menuOpen, setMenuOpen] = useState(false);
   /** 日夜模式（localStorage 持久化） */
   const [theme, setTheme] = useState<'light' | 'dark'>(() => (typeof localStorage !== 'undefined' ? (localStorage.getItem('gomoku-theme') === 'dark' ? 'dark' : 'light') : 'light'));
   const toggleTheme = () => {
@@ -172,6 +174,7 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
 
   const handleClick = (r: number, c: number) => {
     if (connectionStatus !== 'connected' || !myTurn || game.over) return;
+    if (menuOpen) setMenuOpen(false);
     const next = gomokuPlayMove(game, r, c);
     if (!next) return;
     setGame(next);
@@ -299,38 +302,33 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
     </div>
   );
 
-  // 浮动窗口模式棋盘上方：左房间号、中状态胶囊、右聊天；下方：左 3D、中认输/重开/夜间、右 2D
+  // 游戏时只显示棋盘：顶部仅状态胶囊 + 功能菜单按钮，所有功能收进下拉面板
   const floatTopBar = (
     <div className="gomoku-board-topbar gomoku-float-topbar">
-      <button className="gomoku-corner-btn" onClick={copyRoomCode} title="复制房间号发送给好友">{copied ? '✅ 已复制' : '📋 房间号'}</button>
       {floatStatus}
-      <button className={`gomoku-corner-btn ${chatOpen ? 'active' : ''}`} onClick={() => setChatOpen((v) => !v)} title="聊天">💬 聊天</button>
+      <button className={`gomoku-corner-btn gomoku-menu-toggle ${menuOpen ? 'active' : ''}`} onClick={() => setMenuOpen((v) => !v)} title="游戏功能">⚙ 功能</button>
     </div>
   );
-  const floatBottomBar = (
-    <div className="gomoku-board-bottombar gomoku-float-bottombar">
-      <button className={`gomoku-corner-btn ${viewMode === '3d' ? 'active' : ''}`} onClick={() => setViewMode('3d')} title="切换 3D 棋盘">🀄 3D</button>
-      <div className="gomoku-bottom-center">
-        <button className="gomoku-corner-btn danger" onClick={handleResign} disabled={game.over || connectionStatus !== 'connected'}>🏳️ 认输</button>
-        <button className="gomoku-corner-btn" onClick={handleReset} disabled={connectionStatus !== 'connected'}>🔄 重新开始</button>
-        <button className="gomoku-corner-btn" onClick={toggleTheme} title="日夜模式切换">{theme === 'dark' ? '☀️ 日间' : '🌙 夜间'}</button>
+  // 下拉功能面板：房间号/聊天/认输/重开/日夜/3D/2D
+  const menuPanel = (
+    <div className={`gomoku-menu-panel ${menuOpen ? 'open' : ''}`}>
+      <div className="gomoku-menu-grid">
+        <button className="gomoku-menu-btn" onClick={copyRoomCode} title="复制房间号发送给好友">{copied ? '✅ 已复制' : '📋 房间号'}</button>
+        <button className={`gomoku-menu-btn ${chatOpen ? 'active' : ''}`} onClick={() => { setChatOpen((v) => !v); setMenuOpen(false); }}>💬 聊天</button>
+        <button className="gomoku-menu-btn danger" onClick={handleResign} disabled={game.over || connectionStatus !== 'connected'}>🏳️ 认输</button>
+        <button className="gomoku-menu-btn" onClick={handleReset} disabled={connectionStatus !== 'connected'}>🔄 重新开始</button>
+        <button className="gomoku-menu-btn" onClick={toggleTheme} title="日夜模式切换">{theme === 'dark' ? '☀️ 日间' : '🌙 夜间'}</button>
+        <button className={`gomoku-menu-btn ${viewMode === '3d' ? 'active' : ''}`} onClick={() => setViewMode('3d')}>🀄 3D</button>
+        <button className={`gomoku-menu-btn ${viewMode === '2d' ? 'active' : ''}`} onClick={() => setViewMode('2d')}>📐 2D</button>
       </div>
-      <button className={`gomoku-corner-btn ${viewMode === '2d' ? 'active' : ''}`} onClick={() => setViewMode('2d')} title="切换 2D 棋盘">📐 2D</button>
+      <div className="gomoku-menu-hint">点击棋盘任意位置关闭面板</div>
     </div>
   );
 
-  // 内嵌模式（非浮动）棋盘上方按钮：左房间号复制、右聊天（联机无悔棋/提示，用联机高频功能替代）
+  // 内嵌模式（非浮动）棋盘上方：右功能菜单按钮
   const inBoardTopBar = (
     <div className="gomoku-board-topbar">
-      <button className="gomoku-corner-btn" onClick={copyRoomCode} title="复制房间号发送给好友">{copied ? '✅ 已复制' : '📋 房间号'}</button>
-      <button className={`gomoku-corner-btn ${chatOpen ? 'active' : ''}`} onClick={() => setChatOpen((v) => !v)} title="聊天">💬 聊天</button>
-    </div>
-  );
-  // 内嵌模式棋盘下方按钮：左 3D、右 2D 切换
-  const inBoardBottomBar = (
-    <div className="gomoku-board-bottombar">
-      <button className={`gomoku-corner-btn ${viewMode === '3d' ? 'active' : ''}`} onClick={() => setViewMode('3d')} title="切换 3D 棋盘">🀄 3D</button>
-      <button className={`gomoku-corner-btn ${viewMode === '2d' ? 'active' : ''}`} onClick={() => setViewMode('2d')} title="切换 2D 棋盘">📐 2D</button>
+      <button className={`gomoku-corner-btn gomoku-menu-toggle ${menuOpen ? 'active' : ''}`} onClick={() => setMenuOpen((v) => !v)} title="游戏功能">⚙ 功能</button>
     </div>
   );
 
@@ -436,8 +434,7 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
               >
                 {viewMode === '2d' && floating && floatTopBar}
                 {viewMode === '2d' && !floating && inBoardTopBar}
-                {viewMode === '2d' && floating && floatBottomBar}
-                {viewMode === '2d' && !floating && inBoardBottomBar}
+                {viewMode === '2d' && menuPanel}
                 {chatOpen && viewMode === '2d' && chatPanelEl}
                 {viewMode === '2d' && inBoardResultModal}
                 {result && (

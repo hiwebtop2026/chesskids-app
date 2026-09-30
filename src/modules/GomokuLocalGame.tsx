@@ -21,6 +21,8 @@ export const GomokuLocalGame: React.FC = () => {
   const [toast, setToast] = useState<string | null>(null);
   /** 浮动状态（棋盘组件上报）：区分内嵌/浮动渲染结算弹窗与按钮 */
   const [floating, setFloating] = useState(false);
+  /** 下拉功能面板开关 */
+  const [menuOpen, setMenuOpen] = useState(false);
   /** 日夜模式（localStorage 持久化） */
   const [theme, setTheme] = useState<'light' | 'dark'>(() => (typeof localStorage !== 'undefined' ? (localStorage.getItem('gomoku-theme') === 'dark' ? 'dark' : 'light') : 'light'));
   const toggleTheme = () => {
@@ -38,6 +40,7 @@ export const GomokuLocalGame: React.FC = () => {
 
   const handleClick = (r: number, c: number) => {
     if (!started || game.over) return;
+    if (menuOpen) setMenuOpen(false);
     const next = gomokuPlayMove(game, r, c);
     if (!next) { showToast('该位置已有棋子'); return; }
     setGame(next);
@@ -79,25 +82,28 @@ export const GomokuLocalGame: React.FC = () => {
   // 提前提取 3D 判断，避免在 JSX 三元分支内被 TS 控制流收窄后再次比较 '3d' 报错
   const is3dView = viewMode === '3d';
 
-  // 浮动窗口模式棋盘上方：左悔棋、中状态胶囊、右重新开始；下方：左 3D、中夜间、右 2D
+  // 游戏时只显示棋盘：顶部仅状态胶囊 + 功能菜单按钮，所有功能收进下拉面板
   const floatTopBar = (
     <div className="gomoku-board-topbar gomoku-float-topbar">
-      <button className="gomoku-corner-btn" onClick={handleUndo} disabled={moveCount === 0} title="悔棋">↩️ 悔棋</button>
       <div className="gomoku-float-status">
         <span className={`gomoku-turn-dot ${game.turn === 'b' ? 'black' : 'white'}`} />
         <span>{game.over ? '对局结束' : game.turn === 'b' ? '黑棋落子' : '白棋落子'}</span>
         <span className="gomoku-move-count">第 {Math.floor(moveCount / 2) + 1} 手</span>
       </div>
-      <button className="gomoku-corner-btn" onClick={() => { setGame(createGomokuGame()); setResult(null); }} title="重新开始">🔄 重新开始</button>
+      <button className={`gomoku-corner-btn gomoku-menu-toggle ${menuOpen ? 'active' : ''}`} onClick={() => setMenuOpen((v) => !v)} title="游戏功能">⚙ 功能</button>
     </div>
   );
-  const floatBottomBar = (
-    <div className="gomoku-board-bottombar gomoku-float-bottombar">
-      <button className={`gomoku-corner-btn ${is3dView ? 'active' : ''}`} onClick={() => setViewMode('3d')} title="切换 3D 棋盘">🀄 3D</button>
-      <div className="gomoku-bottom-center">
-        <button className="gomoku-corner-btn" onClick={toggleTheme} title="日夜模式切换">{theme === 'dark' ? '☀️ 日间' : '🌙 夜间'}</button>
+  // 下拉功能面板：悔棋/重开/日夜/3D/2D
+  const menuPanel = (
+    <div className={`gomoku-menu-panel ${menuOpen ? 'open' : ''}`}>
+      <div className="gomoku-menu-grid">
+        <button className="gomoku-menu-btn" onClick={handleUndo} disabled={moveCount === 0}>↩️ 悔棋</button>
+        <button className="gomoku-menu-btn" onClick={() => { setGame(createGomokuGame()); setResult(null); }}>🔄 重新开始</button>
+        <button className="gomoku-menu-btn" onClick={toggleTheme} title="日夜模式切换">{theme === 'dark' ? '☀️ 日间' : '🌙 夜间'}</button>
+        <button className={`gomoku-menu-btn ${is3dView ? 'active' : ''}`} onClick={() => setViewMode('3d')}>🀄 3D</button>
+        <button className={`gomoku-menu-btn ${viewMode === '2d' ? 'active' : ''}`} onClick={() => setViewMode('2d')}>📐 2D</button>
       </div>
-      <button className={`gomoku-corner-btn ${viewMode === '2d' ? 'active' : ''}`} onClick={() => setViewMode('2d')} title="切换 2D 棋盘">📐 2D</button>
+      <div className="gomoku-menu-hint">点击棋盘任意位置关闭面板</div>
     </div>
   );
 
@@ -130,17 +136,10 @@ export const GomokuLocalGame: React.FC = () => {
               {floating && floatTopBar}
               {!floating && (
                 <div className="gomoku-board-topbar">
-                  <button className="gomoku-corner-btn" onClick={handleUndo} disabled={moveCount === 0} title="悔棋">↩️ 悔棋</button>
-                  <button className="gomoku-corner-btn" onClick={() => { setGame(createGomokuGame()); setResult(null); }} title="重新开始">🔄 重新开始</button>
+                  <button className={`gomoku-corner-btn gomoku-menu-toggle ${menuOpen ? 'active' : ''}`} onClick={() => setMenuOpen((v) => !v)} title="游戏功能">⚙ 功能</button>
                 </div>
               )}
-              {floating && floatBottomBar}
-              {!floating && (
-                <div className="gomoku-board-bottombar">
-                  <button className={`gomoku-corner-btn ${is3dView ? 'active' : ''}`} onClick={() => setViewMode('3d')} title="切换 3D 棋盘">🀄 3D</button>
-                  <button className={`gomoku-corner-btn ${viewMode === '2d' ? 'active' : ''}`} onClick={() => setViewMode('2d')} title="切换 2D 棋盘">📐 2D</button>
-                </div>
-              )}
+              {menuPanel}
               {result && (
                 <div className="gomoku-inboard-modal gomoku-inboard-result-modal">
                   <div className="result-content">

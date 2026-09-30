@@ -7245,7 +7245,6 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
   padding: 0 14px;
   gap: 8px;
 }
-.gomoku-floating { padding-bottom: 58px; }
 .gomoku-float-topbar .gomoku-float-status {
   position: static;
   transform: none;
@@ -7286,4 +7285,89 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
     font-size: 12px;
     min-height: 34px;
   }
+}
+
+/* ===== 游戏时只显示棋盘：下拉功能面板（功能按钮收进，下拉才显示）===== */
+.gomoku-menu-toggle {
+  padding: 8px 14px;
+  font-size: 13.5px;
+}
+.gomoku-float-topbar { justify-content: center; }
+.gomoku-float-topbar .gomoku-menu-toggle {
+  margin-left: 12px;
+}
+/* 面板：从顶部下拉展开（topbar 下方右侧） */
+.gomoku-menu-panel {
+  position: absolute;
+  top: 52px;
+  right: 12px;
+  z-index: 65;
+  width: min(320px, 86vw);
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  visibility: hidden;
+  transform-origin: top right;
+  transform: translateY(-8px) scale(0.98);
+  transition: max-height .28s cubic-bezier(.4,0,.2,1), opacity .22s, transform .28s cubic-bezier(.4,0,.2,1), visibility .28s;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255, 250, 240, 0.97), rgba(240, 226, 194, 0.97));
+  border: 1px solid rgba(120, 86, 46, 0.35);
+  box-shadow: 0 12px 32px rgba(40, 26, 8, 0.35);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.gomoku-menu-panel.open {
+  max-height: 420px;
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+}
+.gomoku-menu-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  padding: 14px;
+}
+.gomoku-menu-btn {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(110, 78, 40, 0.32);
+  background: linear-gradient(180deg, #fffdf6, #f2e6c8);
+  color: #5a4a2f;
+  font-size: 13.5px; font-weight: 600; cursor: pointer;
+  min-height: 40px; touch-action: manipulation; white-space: nowrap;
+  box-shadow: 0 2px 4px rgba(90, 60, 30, 0.14);
+  transition: background .15s, transform .12s, border-color .15s;
+}
+.gomoku-menu-btn:hover:not(:disabled) { background: linear-gradient(180deg, #fff8e4, #efe0b8); transform: translateY(-1px); }
+.gomoku-menu-btn:active:not(:disabled) { transform: scale(0.96); }
+.gomoku-menu-btn:disabled { opacity: 0.42; cursor: not-allowed; }
+.gomoku-menu-btn.danger { background: linear-gradient(180deg, #fdeae4, #f3d3c8); border-color: rgba(190, 90, 70, 0.4); color: #a33a26; }
+.gomoku-menu-btn.active { background: linear-gradient(180deg, #8a5a28, #6f4218); border-color: rgba(80, 52, 20, 0.6); color: #ffe6b8; }
+.gomoku-menu-hint {
+  padding: 0 14px 12px;
+  text-align: center;
+  font-size: 11.5px;
+  color: rgba(90, 74, 47, 0.6);
+}
+.gomoku-theme-dark .gomoku-menu-panel {
+  background: linear-gradient(180deg, rgba(74, 94, 82, 0.97), rgba(56, 72, 62, 0.97));
+  border-color: rgba(150, 170, 150, 0.35);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+.gomoku-theme-dark .gomoku-menu-btn {
+  background: linear-gradient(180deg, #5a6e62, #44584c);
+  border-color: rgba(150, 170, 150, 0.38);
+  color: #dce6d8;
+}
+.gomoku-theme-dark .gomoku-menu-btn:hover:not(:disabled) { background: linear-gradient(180deg, #6a7e72, #506458); }
+.gomoku-theme-dark .gomoku-menu-btn.danger { background: linear-gradient(180deg, #6e3a2e, #573028); border-color: rgba(220, 120, 100, 0.45); color: #ffc4b8; }
+.gomoku-theme-dark .gomoku-menu-btn.active { background: linear-gradient(180deg, #d9b57a, #b98d4e); border-color: rgba(220, 180, 120, 0.5); color: #3a2e1c; }
+.gomoku-theme-dark .gomoku-menu-hint { color: rgba(220, 230, 216, 0.55); }
+@media (max-width: 720px), (max-height: 560px) {
+  .gomoku-menu-panel { top: 46px; right: 8px; width: min(300px, 92vw); }
+  .gomoku-menu-grid { gap: 6px; padding: 12px; }
+  .gomoku-menu-btn { padding: 9px 10px; font-size: 12.5px; min-height: 36px; }
 }

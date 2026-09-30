@@ -37,6 +37,8 @@ export const GomokuGame: React.FC = () => {
   const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
   // 浮动状态（棋盘组件上报）：浮动时用内嵌完整按钮栏+portal全屏弹窗；内嵌时用棋盘上下按钮+容器内弹窗
   const [floating, setFloating] = useState(false);
+  // 下拉功能面板开关（游戏时棋盘纯净，功能按钮收进面板，下拉才显示）
+  const [menuOpen, setMenuOpen] = useState(false);
   /** 日夜模式（localStorage 持久化，三个模式共用） */
   const [theme, setTheme] = useState<'light' | 'dark'>(() => (typeof localStorage !== 'undefined' ? (localStorage.getItem('gomoku-theme') === 'dark' ? 'dark' : 'light') : 'light'));
   const toggleTheme = useCallback(() => {
@@ -155,6 +157,7 @@ export const GomokuGame: React.FC = () => {
   const handleIntersection = (r: number, c: number) => {
     if (!started || aiThinking || game.over) return;
     if (game.turn !== humanColor) return;
+    if (menuOpen) setMenuOpen(false); // 落子时自动收起功能面板
     setHint(null);
     const next = gomokuPlayMove(game, r, c);
     if (!next) { showToast('该位置已有棋子'); return; }
@@ -285,40 +288,34 @@ export const GomokuGame: React.FC = () => {
     </div>
   );
 
-  // 浮动窗口模式棋盘上方：左悔棋、中状态胶囊、右提示（游戏时只显示棋盘，功能集成棋盘上下）
+  // 游戏时只显示棋盘：顶部仅状态胶囊 + 功能菜单按钮（⋯），所有功能按钮收进下拉面板
   const floatTopBar = (
     <div className="gomoku-board-topbar gomoku-float-topbar">
-      <button className="gomoku-corner-btn" onClick={handleUndo} disabled={aiThinking || moveCount === 0} title="悔棋">↩️ 悔棋</button>
       {floatStatus}
-      <button className="gomoku-corner-btn" onClick={handleHint} disabled={aiThinking || game.over} title="提示">💡 提示</button>
+      <button className={`gomoku-corner-btn gomoku-menu-toggle ${menuOpen ? 'active' : ''}`} onClick={() => setMenuOpen((v) => !v)} title="游戏功能">⚙ 功能</button>
     </div>
   );
-  // 浮动窗口模式棋盘下方：左 3D、中认输/重开/记录/夜间、右 2D
-  const floatBottomBar = (
-    <div className="gomoku-board-bottombar gomoku-float-bottombar">
-      <button className={`gomoku-corner-btn ${viewMode === '3d' ? 'active' : ''}`} onClick={() => setViewMode('3d')} title="切换 3D 棋盘">🀄 3D</button>
-      <div className="gomoku-bottom-center">
-        <button className="gomoku-corner-btn danger" onClick={handleResign} disabled={game.over}>🏳️ 认输</button>
-        <button className="gomoku-corner-btn" onClick={handleReset}>🔄 重新开始</button>
-        <button className="gomoku-corner-btn" onClick={() => setHistoryOpen(true)}>📁 记录</button>
-        <button className="gomoku-corner-btn" onClick={toggleTheme} title="日夜模式切换">{theme === 'dark' ? '☀️ 日间' : '🌙 夜间'}</button>
+  // 下拉功能面板：悔棋/提示/认输/重开/记录/日夜/3D/2D 全部收进，点击棋盘外或再点 ⋯ 收起
+  const menuPanel = (
+    <div className={`gomoku-menu-panel ${menuOpen ? 'open' : ''}`}>
+      <div className="gomoku-menu-grid">
+        <button className="gomoku-menu-btn" onClick={handleUndo} disabled={aiThinking || moveCount === 0}>↩️ 悔棋</button>
+        <button className="gomoku-menu-btn" onClick={handleHint} disabled={aiThinking || game.over}>💡 提示</button>
+        <button className="gomoku-menu-btn danger" onClick={handleResign} disabled={game.over}>🏳️ 认输</button>
+        <button className="gomoku-menu-btn" onClick={handleReset}>🔄 重新开始</button>
+        <button className="gomoku-menu-btn" onClick={() => { setHistoryOpen(true); setMenuOpen(false); }}>📁 记录</button>
+        <button className="gomoku-menu-btn" onClick={toggleTheme} title="日夜模式切换">{theme === 'dark' ? '☀️ 日间' : '🌙 夜间'}</button>
+        <button className={`gomoku-menu-btn ${viewMode === '3d' ? 'active' : ''}`} onClick={() => setViewMode('3d')}>🀄 3D</button>
+        <button className={`gomoku-menu-btn ${viewMode === '2d' ? 'active' : ''}`} onClick={() => setViewMode('2d')}>📐 2D</button>
       </div>
-      <button className={`gomoku-corner-btn ${viewMode === '2d' ? 'active' : ''}`} onClick={() => setViewMode('2d')} title="切换 2D 棋盘">📐 2D</button>
+      <div className="gomoku-menu-hint">点击棋盘任意位置关闭面板</div>
     </div>
   );
 
-  // 内嵌模式（非浮动）棋盘上方按钮：左悔棋、右提示（游戏时只显示棋盘，功能按钮集成棋盘上下）
+  // 内嵌模式（非浮动）棋盘上方：右功能菜单按钮（toolbar 的浮动窗口入口居中保留）
   const inBoardTopBar = (
     <div className="gomoku-board-topbar">
-      <button className="gomoku-corner-btn" onClick={handleUndo} disabled={aiThinking || moveCount === 0} title="悔棋">↩️ 悔棋</button>
-      <button className="gomoku-corner-btn" onClick={handleHint} disabled={aiThinking || game.over} title="提示">💡 提示</button>
-    </div>
-  );
-  // 内嵌模式棋盘下方按钮：左 3D、右 2D 切换
-  const inBoardBottomBar = (
-    <div className="gomoku-board-bottombar">
-      <button className={`gomoku-corner-btn ${viewMode === '3d' ? 'active' : ''}`} onClick={() => setViewMode('3d')} title="切换 3D 棋盘">🀄 3D</button>
-      <button className={`gomoku-corner-btn ${viewMode === '2d' ? 'active' : ''}`} onClick={() => setViewMode('2d')} title="切换 2D 棋盘">📐 2D</button>
+      <button className={`gomoku-corner-btn gomoku-menu-toggle ${menuOpen ? 'active' : ''}`} onClick={() => setMenuOpen((v) => !v)} title="游戏功能">⚙ 功能</button>
     </div>
   );
 
@@ -400,8 +397,7 @@ export const GomokuGame: React.FC = () => {
             >
               {viewMode === '2d' && floating && floatTopBar}
               {viewMode === '2d' && !floating && inBoardTopBar}
-              {viewMode === '2d' && floating && floatBottomBar}
-              {viewMode === '2d' && !floating && inBoardBottomBar}
+              {viewMode === '2d' && menuPanel}
               {viewMode === '2d' && inBoardResultModal}
               {viewMode === '2d' && inBoardHistoryModal}
               {result && showResultModal && (
