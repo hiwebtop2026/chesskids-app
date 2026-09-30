@@ -6835,23 +6835,7 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
 .gomoku-stone-glint { pointer-events: none; }
 .gomoku-wood-grain { pointer-events: none; }
 
-/* ===== 内嵌模式（非浮动 2D）棋盘上下功能按钮 ===== */
-.gomoku-board-topbar,
-.gomoku-board-bottombar {
-  position: absolute;
-  left: 0; right: 0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  z-index: 9;
-  padding: 0 8px;
-  pointer-events: none;
-  box-sizing: border-box;
-}
-.gomoku-board-topbar { top: -96px; }
-.gomoku-board-bottombar { bottom: -62px; }
-.gomoku-board-topbar .gomoku-corner-btn,
-.gomoku-board-bottombar .gomoku-corner-btn { pointer-events: auto; }
+/* ===== 功能菜单按钮（☰ 棋盘下方）定义见文件前部 .gomoku-board-topbar ===== */
 .gomoku-corner-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   padding: 9px 18px; border-radius: 999px;
@@ -7228,17 +7212,7 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
 }
 .gomoku-theme-dark .gomoku-controls .ctrl-btn.danger { border-color: rgba(220, 120, 100, 0.5); color: #ffb4a8; }
 
-/* ===== 浮动窗口模式：功能按钮集成棋盘上下（顶部 悔棋|状态|提示 / 底部 3D|其他|2D）===== */
-.gomoku-floating .gomoku-board-topbar {
-  top: 0;
-  padding: 0 14px;
-  gap: 8px;
-}
-.gomoku-floating .gomoku-board-bottombar {
-  bottom: 0;
-  padding: 0 14px;
-  gap: 8px;
-}
+/* ===== 浮动窗口模式：功能按钮由 .gomoku-board-topbar（☰ 棋盘下方）统一管理 ===== */
 .gomoku-float-topbar .gomoku-float-status {
   position: static;
   transform: none;
