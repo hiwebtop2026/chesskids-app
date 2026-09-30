@@ -376,7 +376,7 @@ export const GomokuGame: React.FC = () => {
         <p>你执 {humanColor === 'b' ? '黑棋（先手）' : '白棋（后手）'} · 难度「{diffLabel}」</p>
       </div>
       <div className="game-layout" style={viewMode === '2d' && !floating ? { display: 'flex', justifyContent: 'center' } : undefined}>
-        <div className="game-board-section gomoku-board-section" style={viewMode === '2d' && !floating ? { paddingTop: 104, paddingBottom: 76 } : undefined}>
+        <div className="game-board-section gomoku-board-section" style={viewMode === '2d' && !floating ? { paddingTop: 8, paddingBottom: 8 } : undefined}>
           {viewMode === '3d' ? (
             <ThreeJSGomokuBoard
               board={game.board}
@@ -401,7 +401,9 @@ export const GomokuGame: React.FC = () => {
               theme={theme}
               onFloatChange={setFloating}
             >
-              {viewMode === '2d' && floating && topHandle}
+              {viewMode === '2d' && floating && (
+                <div className="gomoku-board-topbar gomoku-float-topbar">{topHandle}</div>
+              )}
               {viewMode === '2d' && !floating && inBoardTopBar}
               {viewMode === '2d' && menuPanel}
               {viewMode === '2d' && inBoardResultModal}

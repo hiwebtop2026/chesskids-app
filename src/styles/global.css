@@ -7281,8 +7281,24 @@ div.gomoku-inboard-controls .ctrl-btn.danger:hover:not(:disabled) { background: 
 }
 
 /* ===== 游戏时只显示棋盘：顶部窄把手 + 下拉功能面板（全部功能收进，下拉才显示）===== */
-/* 顶部把手：窄条贴棋盘顶边居中，游戏时几乎不可见（非浮动在棋盘上方、浮动在顶边） */
-.gomoku-board-topbar { top: -46px; justify-content: center; }
+/* 顶部把手：窄条贴棋盘顶边居中，游戏时几乎不可见
+   非浮动：棋盘上方右侧（与居中 ⛶ 浮动窗口入口错开，不产生灰色留白）
+   浮动：棋盘顶边居中 */
+.gomoku-board-topbar {
+  position: absolute;
+  top: -46px;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  display: flex;
+  justify-content: flex-end;
+  padding-right: 10px;
+}
+.gomoku-floating .gomoku-board-topbar {
+  top: 0;
+  justify-content: center;
+  padding-right: 0;
+}
 .gomoku-top-handle {
   display: flex;
   flex-direction: column;

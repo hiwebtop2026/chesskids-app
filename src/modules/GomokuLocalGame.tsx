@@ -123,7 +123,7 @@ export const GomokuLocalGame: React.FC = () => {
         <p>19×19 围棋棋盘 · 轮流落子</p>
       </div>
       <div className="game-layout" style={viewMode === '2d' && !floating ? { display: 'flex', justifyContent: 'center' } : undefined}>
-        <div className="game-board-section gomoku-board-section" style={viewMode === '2d' && !floating ? { paddingTop: 104, paddingBottom: 76 } : undefined}>
+        <div className="game-board-section gomoku-board-section" style={viewMode === '2d' && !floating ? { paddingTop: 8, paddingBottom: 8 } : undefined}>
           {viewMode === '3d' ? (
             <ThreeJSGomokuBoard
               board={game.board}
@@ -142,11 +142,11 @@ export const GomokuLocalGame: React.FC = () => {
               theme={theme}
               onFloatChange={setFloating}
             >
-              {topHandle}
+              {floating && (
+                <div className="gomoku-board-topbar gomoku-float-topbar">{topHandle}</div>
+              )}
               {!floating && (
-                <div className="gomoku-board-topbar gomoku-float-topbar">
-                  {topHandle}
-                </div>
+                <div className="gomoku-board-topbar">{topHandle}</div>
               )}
               {menuPanel}
               {result && (

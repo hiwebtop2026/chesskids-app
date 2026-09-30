@@ -415,7 +415,7 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
 
       {!inGame ? lobby : (
         <div className="game-layout" style={viewMode === '2d' && !floating ? { display: 'flex', justifyContent: 'center' } : undefined}>
-          <div className="game-board-section gomoku-board-section" style={viewMode === '2d' && !floating ? { paddingTop: 104, paddingBottom: 76 } : undefined}>
+          <div className="game-board-section gomoku-board-section" style={viewMode === '2d' && !floating ? { paddingTop: 8, paddingBottom: 8 } : undefined}>
             {viewMode === '3d' ? (
               <ThreeJSGomokuBoard
                 board={game.board}
@@ -438,7 +438,9 @@ export const GomokuOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ a
                 theme={theme}
                 onFloatChange={setFloating}
               >
-                {viewMode === '2d' && floating && topHandle}
+                {viewMode === '2d' && floating && (
+                  <div className="gomoku-board-topbar gomoku-float-topbar">{topHandle}</div>
+                )}
                 {viewMode === '2d' && !floating && inBoardTopBar}
                 {viewMode === '2d' && menuPanel}
                 {chatOpen && viewMode === '2d' && chatPanelEl}
