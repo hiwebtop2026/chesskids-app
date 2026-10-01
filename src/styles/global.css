@@ -7329,37 +7329,57 @@ ul {
 .gd-overlay-lose { color: #5a7a9e; font-size: 14px; }
 .gd-overlay-btns { margin-top: 14px; }
 
-/* 一键理牌：按牌型分组竖排 */
+/* 一键理牌：按牌型识别分组，各组横向排列，组内竖向叠牌（露出完整牌面），标签在组下方 */
 .gd-hand-grouped {
-  flex-direction: column;
-  align-items: stretch;
-  overflow-y: auto;
-  min-height: 150px;
-  max-height: 44vh;
-  gap: 6px;
+  flex-direction: row;
+  align-items: flex-end;
+  justify-content: center;
+  overflow-x: auto;
+  overflow-y: visible;
+  gap: 4px;
+  padding: 4px 2px 30px;
 }
 .gd-hand-group {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 6px;
-  background: rgba(0, 0, 0, 0.22);
-  border-radius: 10px;
-  padding: 4px 8px;
+  gap: 3px;
+  min-width: 0;
+  flex-shrink: 0;
 }
 .gd-hand-group-label {
-  flex-shrink: 0;
   font-size: 11px;
   font-weight: 700;
   color: #ffd54f;
   background: rgba(0, 0, 0, 0.35);
   border-radius: 6px;
   padding: 3px 6px;
-  min-width: 74px;
+  white-space: nowrap;
   text-align: center;
+  max-width: 92px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.gd-hand-group-cards { display: flex; gap: 5px; flex-wrap: wrap; }
-.gd-hand-group .gd-card { width: 40px; height: 58px; font-size: 11px; }
-.gd-hand-group .gd-card-rank { font-size: 12px; }
+/* 组内竖向叠牌：第 1 张在最下，后续每张上移露出牌面（像实战理牌堆叠） */
+.gd-hand-group-cards {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 0;
+  min-height: 96px;
+  justify-content: flex-start;
+}
+.gd-hand-group .gd-card {
+  width: 46px;
+  height: 66px;
+  font-size: 12px;
+  border-radius: 7px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+.gd-hand-group .gd-card + .gd-card { margin-top: -40px; }
+.gd-hand-group .gd-card-rank { font-size: 13px; }
+.gd-hand-group-cards:hover .gd-card, .gd-hand-group-cards .gd-card:hover {
+  z-index: 5;
+}
 
 /* 联机大厅 */
 .gd-online {

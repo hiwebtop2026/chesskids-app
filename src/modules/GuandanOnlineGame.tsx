@@ -733,7 +733,6 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
         <div className="gd-hand gd-hand-grouped">
           {groupHand(myHand, game.level).map((g, gi) => (
             <div className="gd-hand-group" key={gi}>
-              <span className="gd-hand-group-label">{g.label}</span>
               <div className="gd-hand-group-cards">
                 {g.cards.map((c) => (
                   <button
@@ -747,6 +746,7 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
                   </button>
                 ))}
               </div>
+              <span className="gd-hand-group-label">{g.label}</span>
             </div>
           ))}
           {myHand.length === 0 && <div className="gd-hand-empty">牌已出完</div>}

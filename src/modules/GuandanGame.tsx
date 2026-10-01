@@ -82,7 +82,8 @@ export function groupByR(cards: GCard[]): Map<number, GCard[]> {
 }
 
 // ================================================================
-// 一键理牌：按牌型分组（王/炸弹/三张/对子/单张），组内按点数降序
+// 一键理牌：按可出牌型识别分组（同花顺/炸弹/三连对/三带二/三张/对子/单张），
+// 每组竖排叠放并标注牌型（参考实战理牌：KQJ109 同花顺、5555 四炸、334455 三连对等）
 // ================================================================
 export interface HandGroup {
   label: string;
@@ -90,23 +91,91 @@ export interface HandGroup {
 }
 
 export function groupHand(hand: GCard[], level: number): HandGroup[] {
-  const groups = groupByR(hand);
-  const sorted = [...groups.entries()].sort((a, b) => {
-    const ka = a[0] === 19 || a[0] === 20 ? 100 : a[0];
-    const kb = b[0] === 19 || b[0] === 20 ? 100 : b[0];
+  const used = new Set<number>();
+  const out: HandGroup[] = [];
+  const take = (cards: GCard[], label: string) => {
+    if (!cards || cards.length === 0) return;
+    cards.forEach((c) => used.add(c.id));
+    out.push({ label, cards: [...cards].sort((a, b) => (a.s < b.s ? -1 : 1)) });
+  };
+  const avail = () => hand.filter((c) => !used.has(c.id));
+
+  // 1) 同花顺：同花色最长连续顺（≥5），从最高点数开始找
+  let sf = true;
+  while (sf) {
+    sf = false;
+    for (const s of ['S', 'H', 'C', 'D']) {
+      const sc = avail().filter((c) => c.s === s && c.k === undefined);
+      const ranks = [...new Set(sc.map((c) => c.r))].sort((a, b) => b - a);
+      for (let i = 0; i + 4 < ranks.length; i++) {
+        let len = 1;
+        while (i + len < ranks.length && ranks[i + len] === ranks[i] - len) len++;
+        if (len >= 5) {
+          const want = ranks.slice(i, i + 5);
+          const pick = want.map((r) => sc.find((c) => c.r === r)!).filter(Boolean);
+          take(pick, '同花顺');
+          sf = true;
+          break;
+        }
+      }
+      if (sf) break;
+    }
+  }
+
+  // 2) 炸弹：4 张及以上同点数（不含王）
+  let bomb = true;
+  while (bomb) {
+    bomb = false;
+    for (const [k, arr] of groupByR(avail())) {
+      if (k < 19 && arr.length >= 4) { take(arr.slice(0, 4), `${arr.length}炸`); bomb = true; break; }
+    }
+  }
+
+  // 3) 三连对：3 组连续点数各取一对
+  let trio = true;
+  while (trio) {
+    trio = false;
+    const byR = groupByR(avail());
+    const pairs = [...byR.entries()].filter(([k, arr]) => k < 19 && arr.length >= 2).map(([k]) => k).sort((a, b) => b - a);
+    for (let i = 0; i + 2 < pairs.length; i++) {
+      if (pairs[i + 1] === pairs[i] - 1 && pairs[i + 2] === pairs[i] - 2) {
+        const pick = [pairs[i], pairs[i + 1], pairs[i + 2]].flatMap((k) => byR.get(k)!.slice(0, 2));
+        take(pick, `三连对 ${rankName(pairs[i])}`);
+        trio = true;
+        break;
+      }
+    }
+  }
+
+  // 4) 三带二：三张 + 一对（从高到低）
+  let full = true;
+  while (full) {
+    full = false;
+    const byR = groupByR(avail());
+    const trips = [...byR.entries()].filter(([k, arr]) => k < 19 && arr.length >= 3).map(([k]) => k).sort((a, b) => b - a);
+    for (const t of trips) {
+      const pair = [...byR.entries()].find(([k, arr]) => k < 19 && k !== t && arr.length >= 2);
+      if (pair) {
+        take([...byR.get(t)!.slice(0, 3), ...pair[1].slice(0, 2)], `三带二 ${rankName(t)}`);
+        full = true;
+        break;
+      }
+    }
+  }
+
+  // 5) 剩余：三张 / 对子 / 单张（王最高，按点数降序）
+  const rest = [...groupByR(avail()).entries()].sort((a, b) => {
+    const ka = a[0] >= 19 ? 100 : a[0];
+    const kb = b[0] >= 19 ? 100 : b[0];
     return kb - ka;
   });
-
-  const out: HandGroup[] = [];
-  for (const [, cards] of sorted) {
-    const c0 = cards[0];
-    const ordered = [...cards].sort((a, b) => (a.s < b.s ? -1 : 1));
-    if (c0.k === 1) out.push({ label: '大王', cards: ordered });
-    else if (c0.k === 0) out.push({ label: '小王', cards: ordered });
-    else if (cards.length >= 4) out.push({ label: `炸弹 ${cards.length}炸`, cards: ordered });
-    else if (cards.length === 3) out.push({ label: `三张 ${rankName(c0.r)}${c0.r === level ? '·级' : ''}`, cards: ordered });
-    else if (cards.length === 2) out.push({ label: `对子 ${rankName(c0.r)}${c0.r === level ? '·级' : ''}`, cards: ordered });
-    else out.push({ label: `单张 ${rankName(c0.r)}${c0.r === level ? '·级' : ''}`, cards: ordered });
+  for (const [, arr] of rest) {
+    const c0 = arr[0];
+    if (c0.k === 1) take(arr, '大王');
+    else if (c0.k === 0) take(arr, '小王');
+    else if (arr.length === 3) take(arr, `三张 ${rankName(c0.r)}${c0.r === level ? '·级' : ''}`);
+    else if (arr.length === 2) take(arr, `对子 ${rankName(c0.r)}${c0.r === level ? '·级' : ''}`);
+    else take(arr, `单张 ${rankName(c0.r)}${c0.r === level ? '·级' : ''}`);
   }
   return out;
 }
@@ -737,7 +806,6 @@ export function GuandanGame() {
         <div className="gd-hand gd-hand-grouped">
           {groupHand(me, game.level).map((g, gi) => (
             <div className="gd-hand-group" key={gi}>
-              <span className="gd-hand-group-label">{g.label}</span>
               <div className="gd-hand-group-cards">
                 {g.cards.map((c) => (
                   <button
@@ -751,6 +819,7 @@ export function GuandanGame() {
                   </button>
                 ))}
               </div>
+              <span className="gd-hand-group-label">{g.label}</span>
             </div>
           ))}
           {me.length === 0 && <div className="gd-hand-empty">牌已出完</div>}
