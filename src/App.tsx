@@ -13,26 +13,43 @@ import { isWeChatBrowser } from './utils/wechat';
 import { isImmersive, enterImmersive } from './utils/fullscreen';
 
 // 首页轻量化：棋类模块按需懒加载（大幅缩短首屏加载时间，避免"卡在首页加载"）
-const PieceLearning = lazy(() => import('./modules/PieceLearning').then((m) => ({ default: m.PieceLearning })));
-const RulesLearning = lazy(() => import('./modules/RulesLearning').then((m) => ({ default: m.RulesLearning })));
-const TacticsTraining = lazy(() => import('./modules/TacticsTraining').then((m) => ({ default: m.TacticsTraining })));
-const GamePlay = lazy(() => import('./modules/GamePlay').then((m) => ({ default: m.GamePlay })));
-const LocalGame = lazy(() => import('./modules/LocalGame').then((m) => ({ default: m.LocalGame })));
-const ProgressSystem = lazy(() => import('./modules/ProgressSystem').then((m) => ({ default: m.ProgressSystem })));
-const OnlineGame = lazy(() => import('./modules/OnlineGame').then((m) => ({ default: m.OnlineGame })));
-const XiangqiRulesLearning = lazy(() => import('./modules/XiangqiRulesLearning').then((m) => ({ default: m.XiangqiRulesLearning })));
-const XiangqiLocalGame = lazy(() => import('./modules/XiangqiLocalGame').then((m) => ({ default: m.XiangqiLocalGame })));
-const XiangqiAIGame = lazy(() => import('./modules/XiangqiAIGame').then((m) => ({ default: m.XiangqiAIGame })));
-const XiangqiOnlineGame = lazy(() => import('./modules/XiangqiOnlineGame').then((m) => ({ default: m.XiangqiOnlineGame })));
-const XiangqiTacticsTraining = lazy(() => import('./modules/XiangqiTacticsTraining').then((m) => ({ default: m.XiangqiTacticsTraining })));
-const GoRulesLearning = lazy(() => import('./modules/GoRulesLearning').then((m) => ({ default: m.GoRulesLearning })));
-const GoGame = lazy(() => import('./modules/GoGame').then((m) => ({ default: m.GoGame })));
-const GoLocalGame = lazy(() => import('./modules/GoLocalGame').then((m) => ({ default: m.GoLocalGame })));
-const GoOnlineGame = lazy(() => import('./modules/GoOnlineGame').then((m) => ({ default: m.GoOnlineGame })));
-const GomokuRulesLearning = lazy(() => import('./modules/GomokuRulesLearning').then((m) => ({ default: m.GomokuRulesLearning })));
-const GomokuGame = lazy(() => import('./modules/GomokuGame').then((m) => ({ default: m.GomokuGame })));
-const GomokuLocalGame = lazy(() => import('./modules/GomokuLocalGame').then((m) => ({ default: m.GomokuLocalGame })));
-const GomokuOnlineGame = lazy(() => import('./modules/GomokuOnlineGame').then((m) => ({ default: m.GomokuOnlineGame })));
+// lazyWithRetry：部署切换/缓存导致 chunk 404 时自动整页刷新一次拉取最新资源，防止"一直转圈"
+function lazyWithRetry(factory: () => Promise<any>) {
+  return lazy(async () => {
+    try {
+      return await factory();
+    } catch (err) {
+      const key = 'lazy-retry-flag';
+      if (!sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, '1');
+        window.location.reload();
+        return new Promise(() => {});
+      }
+      sessionStorage.removeItem(key);
+      throw err;
+    }
+  });
+}
+const PieceLearning = lazyWithRetry(() => import('./modules/PieceLearning').then((m) => ({ default: m.PieceLearning })));
+const RulesLearning = lazyWithRetry(() => import('./modules/RulesLearning').then((m) => ({ default: m.RulesLearning })));
+const TacticsTraining = lazyWithRetry(() => import('./modules/TacticsTraining').then((m) => ({ default: m.TacticsTraining })));
+const GamePlay = lazyWithRetry(() => import('./modules/GamePlay').then((m) => ({ default: m.GamePlay })));
+const LocalGame = lazyWithRetry(() => import('./modules/LocalGame').then((m) => ({ default: m.LocalGame })));
+const ProgressSystem = lazyWithRetry(() => import('./modules/ProgressSystem').then((m) => ({ default: m.ProgressSystem })));
+const OnlineGame = lazyWithRetry(() => import('./modules/OnlineGame').then((m) => ({ default: m.OnlineGame })));
+const XiangqiRulesLearning = lazyWithRetry(() => import('./modules/XiangqiRulesLearning').then((m) => ({ default: m.XiangqiRulesLearning })));
+const XiangqiLocalGame = lazyWithRetry(() => import('./modules/XiangqiLocalGame').then((m) => ({ default: m.XiangqiLocalGame })));
+const XiangqiAIGame = lazyWithRetry(() => import('./modules/XiangqiAIGame').then((m) => ({ default: m.XiangqiAIGame })));
+const XiangqiOnlineGame = lazyWithRetry(() => import('./modules/XiangqiOnlineGame').then((m) => ({ default: m.XiangqiOnlineGame })));
+const XiangqiTacticsTraining = lazyWithRetry(() => import('./modules/XiangqiTacticsTraining').then((m) => ({ default: m.XiangqiTacticsTraining })));
+const GoRulesLearning = lazyWithRetry(() => import('./modules/GoRulesLearning').then((m) => ({ default: m.GoRulesLearning })));
+const GoGame = lazyWithRetry(() => import('./modules/GoGame').then((m) => ({ default: m.GoGame })));
+const GoLocalGame = lazyWithRetry(() => import('./modules/GoLocalGame').then((m) => ({ default: m.GoLocalGame })));
+const GoOnlineGame = lazyWithRetry(() => import('./modules/GoOnlineGame').then((m) => ({ default: m.GoOnlineGame })));
+const GomokuRulesLearning = lazyWithRetry(() => import('./modules/GomokuRulesLearning').then((m) => ({ default: m.GomokuRulesLearning })));
+const GomokuGame = lazyWithRetry(() => import('./modules/GomokuGame').then((m) => ({ default: m.GomokuGame })));
+const GomokuLocalGame = lazyWithRetry(() => import('./modules/GomokuLocalGame').then((m) => ({ default: m.GomokuLocalGame })));
+const GomokuOnlineGame = lazyWithRetry(() => import('./modules/GomokuOnlineGame').then((m) => ({ default: m.GomokuOnlineGame })));
 
 type GameType = 'chess' | 'xiangqi' | 'go' | 'gomoku';
 type SkinKey = 'default' | 'dark' | 'national' | 'porcelain' | 'wood';
