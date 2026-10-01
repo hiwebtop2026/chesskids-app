@@ -224,7 +224,7 @@ const App: React.FC = () => {
     } catch { return 'default'; }
   });
   const [skinOpen, setSkinOpen] = useState(false);
-  const [selectType, setSelectType] = useState<'chess' | 'card'>('chess');
+  const [selectType, setSelectType] = useState<'chess' | 'card' | null>(null);
   const selectSkin = useCallback((k: SkinKey) => {
     setSkin(k);
     try { localStorage.setItem('app-skin', k); } catch { /* 忽略 */ }
@@ -429,7 +429,7 @@ const App: React.FC = () => {
           <div className="game-select-screen">
             <div className="game-select-header">
               <h2>🎯 选择游戏类型</h2>
-              <p>先选择游戏类型，再点击卡片进入对应游戏</p>
+              <p>先选择棋类或牌类，再进入对应游戏</p>
             </div>
             <div className="game-type-switch">
               <button

@@ -7022,17 +7022,17 @@ ul {
 .gd-zone {
   position: absolute;
   box-sizing: border-box;
-  border: 2px solid rgba(255, 255, 255, 0.32);
-  border-radius: 12px;
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 15px;
-  letter-spacing: 3px;
-  color: rgba(255, 255, 255, 0.55);
-  font-family: 'STKaiti', 'KaiTi', serif;
-  background: rgba(255, 255, 255, 0.035);
-  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.18);
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: rgba(255, 255, 255, 0.5);
+  font-family: 'STKaiti', 'KaiTi', 'SimSun', serif;
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.15);
   white-space: nowrap;
 }
 /* 分区文字按方位旋转：北区倒立、西区朝左、东区朝右、南区与中央正立 */
@@ -7043,7 +7043,7 @@ ul {
 .gd-zone-dir-c { transform: rotate(0deg); }
 @media (max-width: 640px) {
   .gd-dir { font-size: 20px; width: 42px; height: 42px; }
-  .gd-zone { font-size: 12px; letter-spacing: 2px; border-radius: 8px; }
+  .gd-zone { font-size: 11px; letter-spacing: 1px; border-radius: 8px; }
 }
 /* 浮动窗口全屏：占满视口、脱离浏览器布局，各终端自动适配 */
 /* 隐藏 App 上下红色导航栏（header/nav），全屏只显示棋盘容器 */
