@@ -235,7 +235,7 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
   const [errorDetail, setErrorDetail] = useState('');
   const [copied, setCopied] = useState(false);
   // 浮动窗口全屏（对局时默认开启）+ 左上角 ☰ 折叠菜单
-  const [floating, setFloating] = useState(false);
+  const [floating, setFloating] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const enteredFsRef = useRef(false);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -653,6 +653,11 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
     setStatus('playing');
     setNotice('');
     setErrorDetail('');
+    setFloating(true);
+    if (!enteredFsRef.current) {
+      enteredFsRef.current = true;
+      try { enterFullscreen(); } catch { /* 忽略 */ }
+    }
   }, [aiCount, aiDifficulty, broadcastState]);
 
   // ============ 房主：重新发牌（下一局） ============
