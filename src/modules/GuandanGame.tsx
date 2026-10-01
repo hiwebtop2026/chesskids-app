@@ -118,209 +118,248 @@ export const GD_ZONES: { top: number; left: number; w: number; h: number; label:
   { top: 76, left: 44.5, w: 12, h: 12, label: '收牌区', dir: 's' },
 ];
 
-export function groupHand(hand: GCard[], level: number): HandGroup[] {
+export function groupHand(hand: GCard[], level: number, scheme: number = 0): HandGroup[] {
+  // 理牌方案：不同优先级组合，用户可循环切换
+  // 0=标准（同花顺优先→炸弹→三连对→顺子→三带二→散牌）
+  // 1=炸弹优先（炸弹→三带二→三连对→同花顺→顺子→散牌）
+  // 2=顺子优先（顺子→同花顺→三连对→三带二→炸弹→散牌）
+  // 3=对子优先（三连对→三带二→对子→顺子→同花顺→炸弹→散牌）
+  const SCHEMES: Record<number, string[]> = {
+    0: ['sf', 'bomb', 'trio', 'str8', 'full', 'rest'],
+    1: ['bomb', 'full', 'trio', 'sf', 'str8', 'rest'],
+    2: ['str8', 'sf', 'trio', 'full', 'bomb', 'rest'],
+    3: ['trio', 'full', 'pair', 'str8', 'sf', 'bomb', 'rest'],
+  };
+  const order = SCHEMES[scheme] || SCHEMES[0];
   const used = new Set<number>();
   const out: HandGroup[] = [];
   const lr = levelRank(level);
   const take = (cards: GCard[], label: string) => {
     if (!cards || cards.length === 0) return;
     cards.forEach((c) => used.add(c.id));
-    out.push({ label, cards: [...cards] }); // 保持传入顺序：三带二三张在前聚在一起、顺子按点数顺序
+    out.push({ label, cards: [...cards] });
   };
   const avail = () => hand.filter((c) => !used.has(c.id));
-
-  // 变牌（红桃级牌）优先参与组合：补同花顺/炸弹/三连对/三带二/三张/对子
   const wildsOf = (cs: GCard[]) => cs.filter((c) => isWild(c, level));
 
-  // 1) 同花顺：先用真实同花顺，再用变牌补缺（优先高位 5 连）
-  let sf = true;
-  while (sf) {
-    sf = false;
-    for (const s of ['S', 'H', 'C', 'D']) {
-      const sc = avail().filter((c) => c.s === s && c.k === undefined && !isWild(c, level));
-      const ranks = [...new Set(sc.map((c) => c.r))].sort((a, b) => b - a);
-      for (let i = 0; i + 4 < ranks.length; i++) {
-        let len = 1;
-        while (i + len < ranks.length && ranks[i + len] === ranks[i] - len) len++;
-        if (len >= 5) {
-          const want = ranks.slice(i, i + 5);
-          const pick = want.map((r) => sc.find((c) => c.r === r)!).filter(Boolean);
-          take(pick, '同花顺');
-          sf = true;
-          break;
-        }
-      }
-      if (sf) break;
-    }
-    if (!sf) {
-      // 变牌补缺：对每花色找 5 连区间（含缺口），缺口用变牌补
+  // ---- 子函数：各牌型分组 ----
+  const findStraightFlush = () => {
+    let sf = true;
+    while (sf) {
+      sf = false;
       for (const s of ['S', 'H', 'C', 'D']) {
         const sc = avail().filter((c) => c.s === s && c.k === undefined && !isWild(c, level));
-        const base = new Set(sc.map((c) => c.r));
-        const ws = wildsOf(avail());
-        for (let hi = 14; hi >= 6; hi--) {
-          const lo = hi - 4;
-          let missing = 0;
-          const want: number[] = [];
-          for (let r = lo; r <= hi; r++) {
-            if (base.has(r)) want.push(r);
-            else missing++;
-          }
-          if (missing > 0 && missing <= ws.length) {
+        const ranks = [...new Set(sc.map((c) => c.r))].sort((a, b) => b - a);
+        for (let i = 0; i + 4 < ranks.length; i++) {
+          let len = 1;
+          while (i + len < ranks.length && ranks[i + len] === ranks[i] - len) len++;
+          if (len >= 5) {
+            const want = ranks.slice(i, i + 5);
             const pick = want.map((r) => sc.find((c) => c.r === r)!).filter(Boolean);
-            const extra = ws.slice(0, missing);
-            take([...pick, ...extra], '同花顺');
+            take(pick, '同花顺');
             sf = true;
             break;
           }
         }
         if (sf) break;
       }
-    }
-  }
-
-  // 2) 炸弹：同点数 4 张（变牌补足，优先 3+1 / 2+2）
-  let bomb = true;
-  while (bomb) {
-    bomb = false;
-    const ng = groupByR(avail().filter((c) => !isWild(c, level)));
-    for (const [k, arr] of ng) {
-      if (k < 19) {
-        const ws = wildsOf(avail());
-        if (arr.length >= 4) { take(arr.slice(0, 4), `${arr.length}炸`); bomb = true; break; }
-        if (arr.length === 3 && ws.length >= 1) { take([...arr.slice(0, 3), ws[0]], '4炸'); bomb = true; break; }
-        if (arr.length === 2 && ws.length >= 2) { take([...arr.slice(0, 2), ws[0], ws[1]], '4炸'); bomb = true; break; }
-      }
-    }
-  }
-
-  // 3) 三连对：3 组连续点数各一对（变牌可补对）
-  let trio = true;
-  while (trio) {
-    trio = false;
-    const ng = groupByR(avail().filter((c) => !isWild(c, level)));
-    const ws = wildsOf(avail());
-    const pairRanks = [...ng.entries()].filter(([, arr]) => arr.length >= 2).map(([k]) => k).sort((a, b) => b - a);
-    // 可补：一组对缺 1 张可用 1 变牌，缺 2 张用 2 变牌
-    for (let i = 0; i + 2 < pairRanks.length; i++) {
-      if (pairRanks[i + 1] === pairRanks[i] - 1 && pairRanks[i + 2] === pairRanks[i] - 2) {
-        const pick = [pairRanks[i], pairRanks[i + 1], pairRanks[i + 2]].flatMap((k) => ng.get(k)!.slice(0, 2));
-        take(pick, `三连对 ${rankName(pairRanks[i])}`);
-        trio = true;
-        break;
-      }
-    }
-    if (!trio) {
-      // 缺口补：任选 3 个连续点，组内不足 2 的用变牌补
-      const cand = [...ng.entries()].filter(([, arr]) => arr.length >= 1).map(([k, arr]) => ({ k, have: Math.min(2, arr.length) }));
-      const rankSet = new Set(cand.map((c) => c.k));
-      for (let hi = 14; hi >= 5; hi--) {
-        const seq = [hi, hi - 1, hi - 2];
-        if (!seq.every((r) => rankSet.has(r))) continue;
-        let need = 0;
-        const pick: GCard[] = [];
-        for (const r of seq) {
-          const item = cand.find((c) => c.k === r)!;
-          pick.push(...ng.get(r)!.slice(0, item.have));
-          need += 2 - item.have;
+      if (!sf) {
+        for (const s of ['S', 'H', 'C', 'D']) {
+          const sc = avail().filter((c) => c.s === s && c.k === undefined && !isWild(c, level));
+          const base = new Set(sc.map((c) => c.r));
+          const ws = wildsOf(avail());
+          for (let hi = 14; hi >= 6; hi--) {
+            const lo = hi - 4;
+            let missing = 0;
+            const want: number[] = [];
+            for (let r = lo; r <= hi; r++) {
+              if (base.has(r)) want.push(r);
+              else missing++;
+            }
+            if (missing > 0 && missing <= ws.length) {
+              const pick = want.map((r) => sc.find((c) => c.r === r)!).filter(Boolean);
+              const extra = ws.slice(0, missing);
+              take([...pick, ...extra], '同花顺');
+              sf = true;
+              break;
+            }
+          }
+          if (sf) break;
         }
-        if (need > 0 && need <= ws.length) {
-          take([...pick, ...ws.slice(0, need)], `三连对 ${rankName(hi)}`);
+      }
+    }
+  };
+
+  const findBombs = () => {
+    let bomb = true;
+    while (bomb) {
+      bomb = false;
+      const ng = groupByR(avail().filter((c) => !isWild(c, level)));
+      for (const [k, arr] of ng) {
+        if (k < 19) {
+          const ws = wildsOf(avail());
+          if (arr.length >= 4) { take(arr.slice(0, 4), `${arr.length}炸`); bomb = true; break; }
+          if (arr.length === 3 && ws.length >= 1) { take([...arr.slice(0, 3), ws[0]], '4炸'); bomb = true; break; }
+          if (arr.length === 2 && ws.length >= 2) { take([...arr.slice(0, 2), ws[0], ws[1]], '4炸'); bomb = true; break; }
+        }
+      }
+    }
+  };
+
+  const findTrioPairs = () => {
+    let trio = true;
+    while (trio) {
+      trio = false;
+      const ng = groupByR(avail().filter((c) => !isWild(c, level)));
+      const ws = wildsOf(avail());
+      const pairRanks = [...ng.entries()].filter(([, arr]) => arr.length >= 2).map(([k]) => k).sort((a, b) => b - a);
+      for (let i = 0; i + 2 < pairRanks.length; i++) {
+        if (pairRanks[i + 1] === pairRanks[i] - 1 && pairRanks[i + 2] === pairRanks[i] - 2) {
+          const pick = [pairRanks[i], pairRanks[i + 1], pairRanks[i + 2]].flatMap((k) => ng.get(k)!.slice(0, 2));
+          take(pick, `三连对 ${rankName(pairRanks[i])}`);
           trio = true;
           break;
         }
       }
-    }
-  }
-
-  // 4) 顺子：5 张连续（非同花色；级牌 2/大小王不参与；变牌可补缺口）
-  let str8 = true;
-  while (str8) {
-    str8 = false;
-    const ng = groupByR(avail().filter((c) => c.k === undefined && !isWild(c, level)));
-    const ranks = [...ng.keys()].filter((k) => k >= 3 && k <= 14).sort((a, b) => b - a);
-    const ws = wildsOf(avail());
-    for (let i = 0; i + 4 < ranks.length; i++) {
-      let len = 1;
-      while (i + len < ranks.length && ranks[i + len] === ranks[i] - len) len++;
-      if (len >= 5) {
-        const want = ranks.slice(i, i + 5);
-        const pick = want.map((r) => ng.get(r)![0]).filter(Boolean);
-        take(pick, `顺子 ${rankName(want[0])}`);
-        str8 = true;
-        break;
+      if (!trio) {
+        const cand = [...ng.entries()].filter(([, arr]) => arr.length >= 1).map(([k, arr]) => ({ k, have: Math.min(2, arr.length) }));
+        const rankSet = new Set(cand.map((c) => c.k));
+        for (let hi = 14; hi >= 5; hi--) {
+          const seq = [hi, hi - 1, hi - 2];
+          if (!seq.every((r) => rankSet.has(r))) continue;
+          let need = 0;
+          const pick: GCard[] = [];
+          for (const r of seq) {
+            const item = cand.find((c) => c.k === r)!;
+            pick.push(...ng.get(r)!.slice(0, item.have));
+            need += 2 - item.have;
+          }
+          if (need > 0 && need <= ws.length) {
+            take([...pick, ...ws.slice(0, need)], `三连对 ${rankName(hi)}`);
+            trio = true;
+            break;
+          }
+        }
       }
     }
-    if (!str8) {
-      // 变牌补缺
-      for (let hi = 14; hi >= 6; hi--) {
-        const lo = hi - 4;
-        let missing = 0;
-        const want: number[] = [];
-        for (let r = lo; r <= hi; r++) {
-          if (ng.has(r)) want.push(r);
-          else missing++;
-        }
-        if (missing > 0 && missing <= ws.length) {
+  };
+
+  const findStraights = () => {
+    let str8 = true;
+    while (str8) {
+      str8 = false;
+      const ng = groupByR(avail().filter((c) => c.k === undefined && !isWild(c, level)));
+      const ranks = [...ng.keys()].filter((k) => k >= 3 && k <= 14).sort((a, b) => b - a);
+      const ws = wildsOf(avail());
+      for (let i = 0; i + 4 < ranks.length; i++) {
+        let len = 1;
+        while (i + len < ranks.length && ranks[i + len] === ranks[i] - len) len++;
+        if (len >= 5) {
+          const want = ranks.slice(i, i + 5);
           const pick = want.map((r) => ng.get(r)![0]).filter(Boolean);
-          take([...pick, ...ws.slice(0, missing)], `顺子 ${rankName(hi)}`);
+          take(pick, `顺子 ${rankName(want[0])}`);
           str8 = true;
           break;
         }
       }
+      if (!str8) {
+        for (let hi = 14; hi >= 6; hi--) {
+          const lo = hi - 4;
+          let missing = 0;
+          const want: number[] = [];
+          for (let r = lo; r <= hi; r++) {
+            if (ng.has(r)) want.push(r);
+            else missing++;
+          }
+          if (missing > 0 && missing <= ws.length) {
+            const pick = want.map((r) => ng.get(r)![0]).filter(Boolean);
+            take([...pick, ...ws.slice(0, missing)], `顺子 ${rankName(hi)}`);
+            str8 = true;
+            break;
+          }
+        }
+      }
     }
-  }
+  };
 
-  // 5) 三带二：三张 + 一对（变牌补）
-  let full = true;
-  while (full) {
-    full = false;
+  const findFullHouses = () => {
+    let full = true;
+    while (full) {
+      full = false;
+      const ng = groupByR(avail().filter((c) => !isWild(c, level)));
+      const ws = wildsOf(avail());
+      const trips = [...ng.entries()].filter(([, arr]) => arr.length >= 3).map(([k]) => k).sort((a, b) => b - a);
+      for (const t of trips) {
+        const pair = [...ng.entries()].find(([k, arr]) => k < 19 && k !== t && arr.length >= 2);
+        if (pair) { take([...ng.get(t)!.slice(0, 3), ...pair[1].slice(0, 2)], `三带二 ${rankName(t)}`); full = true; break; }
+      }
+      if (!full) {
+        for (const t of trips) {
+          const pair = [...ng.entries()].find(([k, arr]) => k < 19 && k !== t && arr.length >= 1);
+          if (pair && pair[1].length === 1 && ws.length >= 1) {
+            take([...ng.get(t)!.slice(0, 3), pair[1][0], ws[0]], `三带二 ${rankName(t)}`);
+            full = true; break;
+          }
+        }
+      }
+      if (!full) {
+        for (const t of trips) {
+          if (ws.length >= 2) {
+            take([...ng.get(t)!.slice(0, 3), ws[0], ws[1]], `三带二 ${rankName(t)}`);
+            full = true; break;
+          }
+        }
+      }
+    }
+  };
+
+  const findPairs = () => {
     const ng = groupByR(avail().filter((c) => !isWild(c, level)));
     const ws = wildsOf(avail());
-    const trips = [...ng.entries()].filter(([, arr]) => arr.length >= 3).map(([k]) => k).sort((a, b) => b - a);
-    for (const t of trips) {
-      const pair = [...ng.entries()].find(([k, arr]) => k < 19 && k !== t && arr.length >= 2);
-      if (pair) { take([...ng.get(t)!.slice(0, 3), ...pair[1].slice(0, 2)], `三带二 ${rankName(t)}`); full = true; break; }
-    }
-    if (!full) {
-      for (const t of trips) {
-        const pair = [...ng.entries()].find(([k, arr]) => k < 19 && k !== t && arr.length >= 1);
-        if (pair && pair[1].length === 1 && ws.length >= 1) {
-          take([...ng.get(t)!.slice(0, 3), pair[1][0], ws[0]], `三带二 ${rankName(t)}`);
-          full = true; break;
-        }
+    for (const [k, arr] of [...ng.entries()].sort((a, b) => b[0] - a[0])) {
+      if (k < 19 && arr.length >= 2) {
+        take(arr.slice(0, 2), `对子 ${rankName(k)}`);
+      } else if (k < 19 && arr.length === 1 && ws.length >= 1) {
+        take([arr[0], ws[0]], `对子 ${rankName(k)}`);
+        ws.shift();
       }
     }
-    if (!full) {
-      for (const t of trips) {
-        if (ws.length >= 2) {
-          take([...ng.get(t)!.slice(0, 3), ws[0], ws[1]], `三带二 ${rankName(t)}`);
-          full = true; break;
-        }
-      }
-    }
-  }
+  };
 
-  // 6) 剩余：三张 / 对子 / 单张（变牌补三张/对子；单张变牌为顶级单张）
-  const rest = [...groupByR(avail()).entries()].sort((a, b) => {
-    const ka = a[0] >= 19 ? 100 : a[0];
-    const kb = b[0] >= 19 ? 100 : b[0];
-    return kb - ka;
-  });
-  for (const [, arr] of rest) {
-    const c0 = arr[0];
-    if (c0.k === 1) take(arr, '大王');
-    else if (c0.k === 0) take(arr, '小王');
-    else if (isWild(c0, level)) {
-      // 变牌单张：只比王牌小（若有多张变牌则补成三张/对子）
-      const curWs = wildsOf(avail());
-      if (curWs.length >= 3) take(curWs.slice(0, 3), '三张 ·变');
-      else if (curWs.length >= 2) take(curWs.slice(0, 2), '对子 ·变');
-      else take([c0], '变牌 顶级单张');
+  const collectRest = () => {
+    const rest = [...groupByR(avail()).entries()].sort((a, b) => {
+      const ka = a[0] >= 19 ? 100 : a[0];
+      const kb = b[0] >= 19 ? 100 : b[0];
+      return kb - ka;
+    });
+    for (const [, arr] of rest) {
+      const c0 = arr[0];
+      if (c0.k === 1) take(arr, '大王');
+      else if (c0.k === 0) take(arr, '小王');
+      else if (isWild(c0, level)) {
+        const curWs = wildsOf(avail());
+        if (curWs.length >= 3) take(curWs.slice(0, 3), '三张 ·变');
+        else if (curWs.length >= 2) take(curWs.slice(0, 2), '对子 ·变');
+        else take([c0], '变牌 顶级单张');
+      }
+      else if (arr.length === 3) take(arr, `三张 ${rankName(c0.r)}${c0.r === lr ? '·级' : ''}`);
+      else if (arr.length === 2) take(arr, `对子 ${rankName(c0.r)}${c0.r === lr ? '·级' : ''}`);
+      else take(arr, `单张 ${rankName(c0.r)}${c0.r === lr ? '·级' : ''}`);
     }
-    else if (arr.length === 3) take(arr, `三张 ${rankName(c0.r)}${c0.r === lr ? '·级' : ''}`);
-    else if (arr.length === 2) take(arr, `对子 ${rankName(c0.r)}${c0.r === lr ? '·级' : ''}`);
-    else take(arr, `单张 ${rankName(c0.r)}${c0.r === lr ? '·级' : ''}`);
+  };
+
+  // ---- 按方案顺序执行 ----
+  const fns: Record<string, () => void> = {
+    sf: findStraightFlush,
+    bomb: findBombs,
+    trio: findTrioPairs,
+    str8: findStraights,
+    full: findFullHouses,
+    pair: findPairs,
+    rest: collectRest,
+  };
+  for (const key of order) {
+    if (fns[key]) fns[key]();
   }
   return out;
 }
@@ -1015,6 +1054,7 @@ export function GuandanGame() {
   const [game, setGame] = useState<GameState | null>(null);
   const [selected, setSelected] = useState<number[]>([]);
   const [sortMode, setSortMode] = useState<'rank' | 'grouped'>('rank');
+  const [sortScheme, setSortScheme] = useState(0); // 0~3 四套理牌方案循环切换
   // 浮动窗口全屏模式（默认开启，脱离浏览器布局限制）+ 左上角 ☰ 折叠菜单
   const [floating, setFloating] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -1441,13 +1481,26 @@ export function GuandanGame() {
             <div className="gd-menu-grid">
               <button
                 className="gd-menu-btn"
-                onClick={() => { setSortMode((m) => (m === 'rank' ? 'grouped' : 'rank')); setMenuOpen(false); }}
+                onClick={() => {
+                  if (sortMode === 'rank') {
+                    setSortMode('grouped');
+                    setSortScheme(0);
+                  } else {
+                    setSortScheme((s) => (s + 1) % 4);
+                  }
+                  setMenuOpen(false);
+                }}
               >
-                {sortMode === 'rank' ? '🃏 一键理牌' : '↩️ 恢复排序'}
+                {sortMode === 'rank' ? '🃏 一键理牌' : `🔄 方案${sortScheme + 1}/4`}
               </button>
               <button className="gd-menu-btn" onClick={() => { applyHint(); setMenuOpen(false); }} disabled={!isMyTurn}>
                 💡 提示
               </button>
+              {sortMode === 'grouped' && (
+                <button className="gd-menu-btn" onClick={() => { setSortMode('rank'); setMenuOpen(false); }}>
+                  ↩️ 恢复排序
+                </button>
+              )}
               <button className="gd-menu-btn" onClick={() => { startNew(game.level, game.aStrikes || 0); setMenuOpen(false); }}>
                 🔄 重新发牌
               </button>
@@ -1575,9 +1628,12 @@ export function GuandanGame() {
         <button className="gd-btn gd-btn-play gd-btn-primary" onClick={doPlay} disabled={!canPlay}>出牌</button>
         <button
           className="gd-btn gd-btn-sort"
-          onClick={() => setSortMode((m) => (m === 'rank' ? 'grouped' : 'rank'))}
+          onClick={() => {
+            if (sortMode === 'rank') { setSortMode('grouped'); setSortScheme(0); }
+            else { setSortScheme((s) => (s + 1) % 4); }
+          }}
         >
-          {sortMode === 'rank' ? '一键理牌' : '恢复'}
+          {sortMode === 'rank' ? '一键理牌' : `方案${sortScheme + 1}/4`}
         </button>
       </div>
 
@@ -1587,7 +1643,7 @@ export function GuandanGame() {
       {/* 手牌区：按类型竖排 / 普通排序 */}
       {sortMode === 'grouped' ? (
         <div className="gd-hand gd-hand-grouped">
-          {groupHand(me, game.level).map((g, gi) => (
+          {groupHand(me, game.level, sortScheme).map((g, gi) => (
             <div className="gd-hand-group" key={gi}>
               <div className="gd-hand-group-cards">
                 {g.cards.map((c, ci) => (

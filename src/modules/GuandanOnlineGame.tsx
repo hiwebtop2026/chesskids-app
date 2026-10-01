@@ -236,6 +236,7 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
   const [mySeat, setMySeat] = useState(0);
   const [selected, setSelected] = useState<number[]>([]);
   const [sortMode, setSortMode] = useState<'rank' | 'grouped'>('rank');
+  const [sortScheme, setSortScheme] = useState(0); // 0~3 四套理牌方案循环切换
   const [notice, setNotice] = useState('');
   const [errorDetail, setErrorDetail] = useState('');
   const [copied, setCopied] = useState(false);
@@ -1173,12 +1174,21 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
           </button>
           <div className={`gd-menu-panel ${menuOpen ? 'open' : ''}`} onClick={(e) => e.stopPropagation()}>
             <div className="gd-menu-grid">
-              <button className="gd-menu-btn" onClick={() => { setSortMode((m) => (m === 'rank' ? 'grouped' : 'rank')); setMenuOpen(false); }}>
-                {sortMode === 'rank' ? '🃏 一键理牌' : '↩️ 恢复排序'}
+              <button className="gd-menu-btn" onClick={() => {
+                if (sortMode === 'rank') { setSortMode('grouped'); setSortScheme(0); }
+                else { setSortScheme((s) => (s + 1) % 4); }
+                setMenuOpen(false);
+              }}>
+                {sortMode === 'rank' ? '🃏 一键理牌' : `🔄 方案${sortScheme + 1}/4`}
               </button>
               <button className="gd-menu-btn" onClick={() => { copyRoomCode(); setMenuOpen(false); }}>
                 📋 复制房间号
               </button>
+              {sortMode === 'grouped' && (
+                <button className="gd-menu-btn" onClick={() => { setSortMode('rank'); setMenuOpen(false); }}>
+                  ↩️ 恢复排序
+                </button>
+              )}
               {role === 'host' && (
                 <button className="gd-menu-btn" onClick={() => { nextRound(); setMenuOpen(false); }} disabled={!game || game.phase !== 'over'}>
                   🔄 开始下一局
@@ -1306,14 +1316,20 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
         <button className="gd-btn gd-btn-pass" onClick={doPass} disabled={!canPass}>不出</button>
         <button className="gd-btn gd-btn-hint" onClick={applyHint} disabled={!isMyTurn}>提示</button>
         <button className="gd-btn gd-btn-play gd-btn-primary" onClick={doPlay} disabled={!canPlay}>出牌</button>
-        <button className="gd-btn gd-btn-sort" onClick={() => setSortMode((m) => (m === 'rank' ? 'grouped' : 'rank'))}>
-          {sortMode === 'rank' ? '一键理牌' : '恢复'}
+        <button
+          className="gd-btn gd-btn-sort"
+          onClick={() => {
+            if (sortMode === 'rank') { setSortMode('grouped'); setSortScheme(0); }
+            else { setSortScheme((s) => (s + 1) % 4); }
+          }}
+        >
+          {sortMode === 'rank' ? '一键理牌' : `方案${sortScheme + 1}/4`}
         </button>
       </div>
 
       {sortMode === 'grouped' ? (
         <div className="gd-hand gd-hand-grouped">
-          {groupHand(myHand, game.level).map((g, gi) => (
+          {groupHand(myHand, game.level, sortScheme).map((g, gi) => (
             <div className="gd-hand-group" key={gi}>
               <div className="gd-hand-group-cards">
                 {g.cards.map((c, ci) => (
