@@ -6739,6 +6739,28 @@ ul {
   cursor: pointer;
 }
 
+/* —— 模块懒加载过渡 —— */
+.module-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 260px;
+  color: #8a7a5f;
+  font-size: 14px;
+}
+.ml-spinner {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 3px solid rgba(150, 120, 70, 0.25);
+  border-top-color: #b8860b;
+  animation: ml-rotate .8s linear infinite;
+}
+@keyframes ml-rotate { to { transform: rotate(360deg); } }
+.skin-dark .module-loading { color: #8fa2ba; }
+.skin-dark .ml-spinner { border-color: rgba(127, 179, 255, 0.25); border-top-color: #7fb3ff; }
+
 /* —— 夜间皮肤（页面级） —— */
 .skin-dark {
   background: linear-gradient(180deg, #161d28 0%, #1c2634 60%, #131a24 100%);
