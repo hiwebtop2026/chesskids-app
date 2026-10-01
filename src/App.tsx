@@ -130,6 +130,8 @@ function parseUrlParams(): { game: GameType; tab: TabKey; room: string } | null 
     detectedGame = 'go';
   } else if (game === 'gomoku') {
     detectedGame = 'gomoku';
+  } else if (game === 'guandan') {
+    detectedGame = 'guandan';
   } else if (roomUpper.startsWith('W-')) {
     // 从房间号前缀识别五子棋
     detectedGame = 'gomoku';
@@ -147,6 +149,7 @@ function parseUrlParams(): { game: GameType; tab: TabKey; room: string } | null 
   const tab = detectedGame === 'xiangqi' ? 'xq-online' as TabKey
     : detectedGame === 'go' ? 'go-online' as TabKey
     : detectedGame === 'gomoku' ? 'gomoku-online' as TabKey
+    : detectedGame === 'guandan' ? 'gd-online' as TabKey
     : 'online' as TabKey;
   return { game: detectedGame, tab, room: roomUpper };
 }
@@ -263,7 +266,7 @@ const App: React.FC = () => {
   /** 首页选择棋类，进入对应模块 */
   const selectGame = (type: GameType) => {
     setGameType(type);
-    setActiveTab(type === 'chess' ? 'learn' : type === 'xiangqi' ? 'xq-rules' : type === 'go' ? 'go-rules' : 'gomoku-rules');
+    setActiveTab(type === 'chess' ? 'learn' : type === 'xiangqi' ? 'xq-rules' : type === 'go' ? 'go-rules' : type === 'gomoku' ? 'gomoku-rules' : 'gd-rules');
   };
 
   /** 返回首页（重新选择棋类） */
