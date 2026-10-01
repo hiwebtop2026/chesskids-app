@@ -20,7 +20,7 @@ export interface GCard {
   k?: number; // 0=小王 1=大王
 }
 
-const SUIT_SYMBOL: Record<string, string> = { S: '♠', H: '♥', C: '♣', D: '♦' };
+export const SUIT_SYMBOL: Record<string, string> = { S: '♠', H: '♥', C: '♣', D: '♦' };
 
 export function rankName(r: number): string {
   if (r === 15) return '2';
@@ -38,7 +38,7 @@ function cardText(c: GCard): string {
 }
 
 // 牌值：用于牌型比较。王最大，级牌次之
-function cardVal(c: GCard, level: number): number {
+export function cardVal(c: GCard, level: number): number {
   if (c.k === 1) return 18;
   if (c.k === 0) return 17;
   if (c.r === level) return 16;
@@ -70,7 +70,7 @@ export interface PlayInfo {
 
 const TYPE_RANK: Record<string, number> = { ROCKET: 8, STRAIGHT_FLUSH: 7, BOMB: 6 };
 
-function groupByR(cards: GCard[]): Map<number, GCard[]> {
+export function groupByR(cards: GCard[]): Map<number, GCard[]> {
   const m = new Map<number, GCard[]>();
   for (const c of cards) {
     const r = c.k !== undefined ? (c.k === 1 ? 20 : 19) : c.r;
@@ -78,6 +78,36 @@ function groupByR(cards: GCard[]): Map<number, GCard[]> {
     m.get(r)!.push(c);
   }
   return m;
+}
+
+// ================================================================
+// 一键理牌：按牌型分组（王/炸弹/三张/对子/单张），组内按点数降序
+// ================================================================
+export interface HandGroup {
+  label: string;
+  cards: GCard[];
+}
+
+export function groupHand(hand: GCard[], level: number): HandGroup[] {
+  const groups = groupByR(hand);
+  const sorted = [...groups.entries()].sort((a, b) => {
+    const ka = a[0] === 19 || a[0] === 20 ? 100 : a[0];
+    const kb = b[0] === 19 || b[0] === 20 ? 100 : b[0];
+    return kb - ka;
+  });
+
+  const out: HandGroup[] = [];
+  for (const [, cards] of sorted) {
+    const c0 = cards[0];
+    const ordered = [...cards].sort((a, b) => (a.s < b.s ? -1 : 1));
+    if (c0.k === 1) out.push({ label: '大王', cards: ordered });
+    else if (c0.k === 0) out.push({ label: '小王', cards: ordered });
+    else if (cards.length >= 4) out.push({ label: `炸弹 ${cards.length}炸`, cards: ordered });
+    else if (cards.length === 3) out.push({ label: `三张 ${rankName(c0.r)}${c0.r === level ? '·级' : ''}`, cards: ordered });
+    else if (cards.length === 2) out.push({ label: `对子 ${rankName(c0.r)}${c0.r === level ? '·级' : ''}`, cards: ordered });
+    else out.push({ label: `单张 ${rankName(c0.r)}${c0.r === level ? '·级' : ''}`, cards: ordered });
+  }
+  return out;
 }
 
 // 识别一组牌型；不合法返回 null
@@ -168,7 +198,7 @@ export function canBeat(prev: PlayInfo, cur: PlayInfo): boolean {
 // ================================================================
 // 发牌
 // ================================================================
-function buildDeck(): GCard[] {
+export function buildDeck(): GCard[] {
   const deck: GCard[] = [];
   let id = 0;
   for (let copy = 0; copy < 2; copy++) {
@@ -181,7 +211,7 @@ function buildDeck(): GCard[] {
   return deck;
 }
 
-function shuffle<T>(arr: T[]): T[] {
+export function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -281,7 +311,7 @@ function findSeq(hand: GCard[], len: number, minKey: number, isPair: boolean, is
   return null;
 }
 
-function aiPlay(hand: GCard[], prev: PlayInfo | null, level: number, isMyTeamLast: boolean): { play: GCard[] | null; pass: boolean } {
+export function aiPlay(hand: GCard[], prev: PlayInfo | null, level: number, isMyTeamLast: boolean): { play: GCard[] | null; pass: boolean } {
   if (prev === null) {
     // 自由出牌：出最小单张/对子
     const groups = groupByR(hand);
@@ -352,7 +382,7 @@ const NAMES = ['你', '队友', '对手A', '对手B'];
 export function GuandanGame() {
   const [game, setGame] = useState<GameState | null>(null);
   const [selected, setSelected] = useState<number[]>([]);
-  const [sorted, setSorted] = useState(true);
+  const [sortMode, setSortMode] = useState<'rank' | 'grouped'>('rank');
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const startNew = useCallback((prevLevel?: number) => {
@@ -376,7 +406,6 @@ export function GuandanGame() {
       gongMessage: '',
     });
     setSelected([]);
-    setSorted(true);
   }, []);
 
   useEffect(() => {
@@ -514,15 +543,13 @@ export function GuandanGame() {
     }, 900);
   }, [game, commitTurn]);
 
-  const sortedHand = sorted
-    ? [...me].sort((a, b) => {
-        if (a.k !== undefined && b.k !== undefined) return b.k! - a.k!;
-        if (a.k !== undefined) return 1;
-        if (b.k !== undefined) return -1;
-        if (a.r !== b.r) return b.r - a.r;
-        return a.s < b.s ? -1 : 1;
-      })
-    : me;
+  const sortedHand = [...me].sort((a, b) => {
+    if (a.k !== undefined && b.k !== undefined) return b.k! - a.k!;
+    if (a.k !== undefined) return 1;
+    if (b.k !== undefined) return -1;
+    if (a.r !== b.r) return b.r - a.r;
+    return a.s < b.s ? -1 : 1;
+  });
 
   const levelName = game ? rankName(game.level) : '-';
 
@@ -621,25 +648,54 @@ export function GuandanGame() {
         <button className="gd-btn gd-btn-pass" onClick={doPass} disabled={!canPass}>不出</button>
         <button className="gd-btn gd-btn-hint" onClick={applyHint} disabled={!isMyTurn}>提示</button>
         <button className="gd-btn gd-btn-play gd-btn-primary" onClick={doPlay} disabled={!canPlay}>出牌</button>
-        <button className="gd-btn gd-btn-sort" onClick={() => setSorted((s) => !s)}>{sorted ? '乱序' : '理牌'}</button>
+        <button
+          className="gd-btn gd-btn-sort"
+          onClick={() => setSortMode((m) => (m === 'rank' ? 'grouped' : 'rank'))}
+        >
+          {sortMode === 'rank' ? '一键理牌' : '恢复'}
+        </button>
       </div>
 
-      {/* 手牌区 */}
-      <div className="gd-hand">
-        {sortedHand.map((c, i) => (
-          <button
-            key={c.id}
-            className={`gd-card ${selected.includes(c.id) ? 'gd-selected' : ''} ${c.k !== undefined ? 'gd-card-joker' : (c.r === game.level ? 'gd-card-level' : '')} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'}`}
-            onClick={() => toggleCard(c.id)}
-            style={{ marginLeft: i > 0 ? -Math.min(26, 260 / sortedHand.length) : 0 }}
-          >
-            <span className="gd-card-rank">{c.k !== undefined ? (c.k === 1 ? 'JOKER' : 'joker') : rankName(c.r)}</span>
-            {c.k === undefined && <span className="gd-card-suit">{SUIT_SYMBOL[c.s]}</span>}
-            {c.r === game.level && c.k === undefined && <span className="gd-card-level-tag">级</span>}
-          </button>
-        ))}
-        {sortedHand.length === 0 && <div className="gd-hand-empty">牌已出完</div>}
-      </div>
+      {/* 手牌区：按类型竖排 / 普通排序 */}
+      {sortMode === 'grouped' ? (
+        <div className="gd-hand gd-hand-grouped">
+          {groupHand(me, game.level).map((g, gi) => (
+            <div className="gd-hand-group" key={gi}>
+              <span className="gd-hand-group-label">{g.label}</span>
+              <div className="gd-hand-group-cards">
+                {g.cards.map((c) => (
+                  <button
+                    key={c.id}
+                    className={`gd-card ${selected.includes(c.id) ? 'gd-selected' : ''} ${c.k !== undefined ? 'gd-card-joker' : (c.r === game.level ? 'gd-card-level' : '')} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'}`}
+                    onClick={() => toggleCard(c.id)}
+                  >
+                    <span className="gd-card-rank">{c.k !== undefined ? (c.k === 1 ? 'JOKER' : 'joker') : rankName(c.r)}</span>
+                    {c.k === undefined && <span className="gd-card-suit">{SUIT_SYMBOL[c.s]}</span>}
+                    {c.r === game.level && c.k === undefined && <span className="gd-card-level-tag">级</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+          {me.length === 0 && <div className="gd-hand-empty">牌已出完</div>}
+        </div>
+      ) : (
+        <div className="gd-hand">
+          {sortedHand.map((c, i) => (
+            <button
+              key={c.id}
+              className={`gd-card ${selected.includes(c.id) ? 'gd-selected' : ''} ${c.k !== undefined ? 'gd-card-joker' : (c.r === game.level ? 'gd-card-level' : '')} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'}`}
+              onClick={() => toggleCard(c.id)}
+              style={{ marginLeft: i > 0 ? -Math.min(26, 260 / sortedHand.length) : 0 }}
+            >
+              <span className="gd-card-rank">{c.k !== undefined ? (c.k === 1 ? 'JOKER' : 'joker') : rankName(c.r)}</span>
+              {c.k === undefined && <span className="gd-card-suit">{SUIT_SYMBOL[c.s]}</span>}
+              {c.r === game.level && c.k === undefined && <span className="gd-card-level-tag">级</span>}
+            </button>
+          ))}
+          {sortedHand.length === 0 && <div className="gd-hand-empty">牌已出完</div>}
+        </div>
+      )}
 
       {/* 结算/升级弹层 */}
       {game.phase === 'over' && (
