@@ -1113,11 +1113,10 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
     return a.s < b.s ? -1 : 1;
   });
 
-  // 出牌区只显示当前最新一手出牌（显示在出牌人方位），上一手/上一轮自动消失
+  // 出牌区显示每位玩家本轮所有出牌，下一轮出牌时才清空更新
   const roundPlaysOf = (p: number) => {
     if (!game || game.roundPlays.length === 0) return [];
-    const last = game.roundPlays[game.roundPlays.length - 1];
-    return last.player === p ? [last] : [];
+    return game.roundPlays.filter((pl) => pl.player === p);
   };
   const renderRoundPlays = (p: number) => {
     const plays = roundPlaysOf(p);

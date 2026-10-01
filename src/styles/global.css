@@ -7340,11 +7340,13 @@ ul {
   flex-direction: column;
   gap: 4px;
   min-height: 0;
-  max-height: 200px;
+  height: 100%;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 6px 8px;
   position: relative;
   z-index: 1;
+  box-sizing: border-box;
 }
 .gd-play-hand {
   display: flex;
@@ -7370,11 +7372,13 @@ ul {
 }
 .gd-play-cards-row { display: flex; gap: 4px; flex-wrap: wrap; }
 /* 出牌区使用 gd-mini-card 牌面，与手牌区风格统一 */
+/* 四个方位出牌区统一尺寸，确保都能完整显示多牌型（顺子/六张牌等） */
 .gd-play-north, .gd-play-south {
   position: absolute;
   width: 46%;
   max-width: 620px;
   min-height: 0;
+  max-height: 220px;
   align-items: center;
   border-radius: 14px;
   background: rgba(0, 0, 0, 0.16);
@@ -7384,8 +7388,8 @@ ul {
   transform: translateX(-50%);
 }
 /* 四方位出牌区对齐桌垫分区框线（GD_ZONES 出牌区格）：北 34%/44.5%、西 48%/30%、东 48%/58%、南 62%/44.5% */
-.gd-play-north { top: 24%; }
-.gd-play-south { top: 60%; }
+.gd-play-north { top: 20%; }
+.gd-play-south { top: 58%; }
 /* 其他三方向按"本向视角"摆放：北家(对面)牌倒置 180°、西家(左)右旋 90°、东家(右)左旋 90°，牌面朝向对应玩家，与南向我方视角对称 */
 .gd-play-north .gd-play-hand { transform: rotate(180deg); }
 .gd-play-west .gd-play-hand { transform: rotate(90deg); }
@@ -7393,19 +7397,25 @@ ul {
 .gd-side-col { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .gd-play-west, .gd-play-east {
   position: absolute;
-  top: 46%;
-  width: 22%;
+  top: 38%;
+  width: 30%;
+  height: 32%;
+  max-height: 260px;
   min-height: 0;
   align-items: center;
   justify-content: center;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.16);
+  border: 1.5px dashed rgba(255, 213, 79, 0.2);
+  padding: 12px 8px;
 }
-.gd-play-west { left: 17%; }
-.gd-play-east { left: 61%; }
+.gd-play-west { left: 8%; }
+.gd-play-east { left: 62%; }
 @media (max-width: 640px) {
-  .gd-play-north, .gd-play-south { width: 60%; max-width: 400px; left: 50%; }
-  .gd-play-west, .gd-play-east { width: 28%; }
-  .gd-play-west { left: 10%; }
-  .gd-play-east { left: 62%; }
+  .gd-play-north, .gd-play-south { width: 60%; max-width: 400px; left: 50%; max-height: 160px; }
+  .gd-play-west, .gd-play-east { width: 28%; height: 28%; top: 40%; }
+  .gd-play-west { left: 6%; }
+  .gd-play-east { left: 66%; }
 }
 @media (max-width: 640px) {
   .gd-play-card { font-size: 15px; padding: 5px 8px; }

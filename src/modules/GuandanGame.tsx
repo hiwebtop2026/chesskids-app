@@ -1389,11 +1389,10 @@ export function GuandanGame() {
   const myTeamCount = game ? counts[0] + counts[2] : 0;
   const oppTeamCount = game ? counts[1] + counts[3] : 0;
 
-  // 本轮各方位已出的牌（对应出牌区方位展示；一轮出完才清理）
+  // 出牌区显示每位玩家本轮所有出牌，下一轮出牌时才清空更新
   const roundPlaysOf = (p: number) => {
     if (!game || game.roundPlays.length === 0) return [];
-    const last = game.roundPlays[game.roundPlays.length - 1];
-    return last.player === p ? [last] : [];
+    return game.roundPlays.filter((pl) => pl.player === p);
   };
   const renderRoundPlays = (p: number) => {
     if (!game) return null;
