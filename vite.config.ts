@@ -2,27 +2,17 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
-// Vite plugin: serve CDN modules as virtual modules that re-export from CDN URL
-// Vite passes http(s) URL imports through to the browser, which resolves them via importmap
+// Vite plugin: 将 three 等大体积库映射到 CDN URL，减少打包体积
+// peerjs 由 src/utils/peerjsLoader.ts 统一管理（多 CDN 回退 + 智能重试）
 const cdnPlugin = () => ({
   name: 'cdn-modules',
   resolveId(source: string) {
     if (source === 'three') return '\0three-cdn';
-    if (source === 'peerjs') return '\0peerjs-cdn';
     return null;
   },
   load(id: string) {
     if (id === '\0three-cdn') {
       return `export * from 'https://registry.npmmirror.com/three/0.160.0/files/build/three.module.js';`;
-    }
-    if (id === '\0peerjs-cdn') {
-      // Use esm.sh which auto-wraps npm packages as proper ESM modules
-      // Fallback chain: esm.sh -> jsdelivr +esm
-      return `
-import Peer from 'https://esm.sh/peerjs@1.5.4';
-export default Peer;
-export { Peer };
-`;
     }
     return null;
   },
@@ -48,11 +38,11 @@ export default defineConfig({
     open: false,
   },
   optimizeDeps: {
-    exclude: ['three', 'peerjs'],
+    exclude: ['three'],
   },
   build: {
     rollupOptions: {
-      external: ['three', 'peerjs'],
+      external: ['three'],
     },
   },
 });

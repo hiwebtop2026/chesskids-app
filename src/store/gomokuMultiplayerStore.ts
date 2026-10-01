@@ -3,15 +3,11 @@
  * 基于 PeerJS (WebRTC P2P)：创建房间/加入房间，同步落子/认输/重开，聊天+语音
  */
 import { create } from 'zustand';
+import { loadPeerJS, reloadPeerJS } from '../utils/peerjsLoader';
 
-let peerjsPromise: Promise<any> | null = null;
-function loadPeerJS(): Promise<any> {
-  if (peerjsPromise) return peerjsPromise;
-  peerjsPromise = import('peerjs')
-    .then((mod) => mod.default || mod.Peer || mod)
-    .catch((err) => { peerjsPromise = null; throw err; });
-  return peerjsPromise;
-}
+// 使用统一的多 CDN 回退加载器（src/utils/peerjsLoader.ts）
+// 支持 jsdelivr / unpkg / cdnjs / npmmirror / esm.sh 多源自动降级
+export { reloadPeerJS };
 
 export type GomokuConnStatus = 'disconnected' | 'connecting' | 'connected';
 

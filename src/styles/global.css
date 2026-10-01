@@ -7642,7 +7642,10 @@ ul {
 }
 .gd-online-card h2 { margin: 0 0 6px; font-size: 20px; }
 .gd-online-sub { margin: 0 0 16px; font-size: 13px; color: #c8e6c9; }
-.gd-online-error { color: #ffb3a0; font-size: 13px; margin: 0 0 10px; }
+.gd-online-error { color: #ffb3a0; font-size: 13px; margin: 0 0 12px; padding: 10px 12px; background: rgba(255, 87, 34, 0.15); border-radius: 8px; border: 1px solid rgba(255, 87, 34, 0.3); }
+.gd-error-title { font-weight: 600; margin-bottom: 6px; color: #ff7043; }
+.gd-error-detail { font-size: 11px; color: #ffccbc; margin-bottom: 10px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; }
+.gd-retry-btn { width: 100% !important; margin-top: 4px !important; }
 .gd-online-btns { display: flex; justify-content: center; gap: 10px; margin: 12px 0; }
 .gd-online-btns .gd-btn { min-width: 120px; }
 .gd-online-divider {

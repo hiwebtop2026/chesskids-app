@@ -4,16 +4,11 @@
  * 消息设计：双方各自维护对局状态，通过同步落子序列保持一致
  */
 import { create } from 'zustand';
+import { loadPeerJS, reloadPeerJS } from '../utils/peerjsLoader';
 
-/** 动态加载 PeerJS（首次使用时加载） */
-let peerjsPromise: Promise<any> | null = null;
-function loadPeerJS(): Promise<any> {
-  if (peerjsPromise) return peerjsPromise;
-  peerjsPromise = import('peerjs')
-    .then((mod) => mod.default || mod.Peer || mod)
-    .catch((err) => { peerjsPromise = null; throw err; });
-  return peerjsPromise;
-}
+// 使用统一的多 CDN 回退加载器（src/utils/peerjsLoader.ts）
+// 支持 jsdelivr / unpkg / cdnjs / npmmirror / esm.sh 多源自动降级
+export { reloadPeerJS };
 
 export type GoConnStatus = 'disconnected' | 'connecting' | 'connected';
 

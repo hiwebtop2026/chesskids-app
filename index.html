@@ -13,15 +13,19 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <title>棋乐园 - 少儿棋类学堂</title>
-    <!-- CDN 预连接：加速 three/peerjs 等运行时依赖的首包 -->
+    <!-- CDN 预连接：加速 three 等运行时依赖的首包 -->
     <link rel="preconnect" href="https://registry.npmmirror.com" crossorigin />
-    <link rel="preconnect" href="https://esm.sh" crossorigin />
-    <!-- importmap：将构建产物中的裸模块 three/peerjs 映射到 CDN，缺失会导致首页 JS 崩溃白屏 -->
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+    <link rel="preconnect" href="https://unpkg.com" crossorigin />
+    <!--
+      importmap：将构建产物中的裸模块 three 映射到 CDN
+      peerjs 由 src/utils/peerjsLoader.ts 统一管理（多 CDN 自动回退）
+      支持 jsdelivr / unpkg / cdnjs / npmmirror / esm.sh 多源降级
+    -->
     <script type="importmap">
       {
         "imports": {
-          "three": "https://registry.npmmirror.com/three/0.160.0/files/build/three.module.js",
-          "peerjs": "https://esm.sh/peerjs@1.5.4"
+          "three": "https://registry.npmmirror.com/three/0.160.0/files/build/three.module.js"
         }
       }
     </script>

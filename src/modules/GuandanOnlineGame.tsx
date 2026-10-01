@@ -5,6 +5,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { enterFullscreen, exitFullscreen } from '../utils/fullscreen';
+import { loadPeerJS, reloadPeerJS } from '../utils/peerjsLoader';
 import {
   type GCard, type PlayInfo, analyzePlay, canBeat, cardVal, rankName,
   buildDeck, shuffle, groupHand, groupByR, GD_ZONES, SUIT_SYMBOL, isWild, levelRank, findSeq,
@@ -142,13 +143,8 @@ export function gdNewGame(level: number, names: string[], firstSeat: number, kee
 // 优先级：TURNS(TLS/443) > TURN TCP(443) > TURN UDP(443) > STUN
 // 确保校园网/移动网络下能通过中继建立连接
 // ================================================================
-let peerjsPromise: Promise<any> | null = null;
-function loadPeerJS(): Promise<any> {
-  if (peerjsPromise) return peerjsPromise;
-  peerjsPromise = import('peerjs')
-    .catch((err) => { peerjsPromise = null; throw err; });
-  return peerjsPromise;
-}
+// 使用统一的多 CDN 回退加载器（src/utils/peerjsLoader.ts）
+// 支持 jsdelivr / unpkg / cdnjs / npmmirror / esm.sh 多源自动降级
 
 const ICE_SERVERS = [
   { urls: 'turns:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
@@ -190,6 +186,7 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
   const [selected, setSelected] = useState<number[]>([]);
   const [sortMode, setSortMode] = useState<'rank' | 'grouped'>('rank');
   const [notice, setNotice] = useState('');
+  const [errorDetail, setErrorDetail] = useState('');
   const [copied, setCopied] = useState(false);
   // 浮动窗口全屏（对局时默认开启）+ 左上角 ☰ 折叠菜单
   const [floating, setFloating] = useState(false);
@@ -331,6 +328,7 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
     setRoomCode(code);
     setRole('host');
     setStatus('connecting');
+    setErrorDetail('');
     setPlayers((p) => { const np = [...p]; np[0] = '房主'; return np; });
     try {
       const Peer = await loadPeerJS();
@@ -343,7 +341,8 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
           createRoomAs(alt);
         } else {
           setStatus('error');
-          setNotice('房间创建失败：' + (err?.type || '网络错误'));
+          setNotice('房间创建失败');
+          setErrorDetail(err?.type || err?.message || '网络错误');
         }
       });
       peer.on('open', () => {
@@ -358,15 +357,17 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
         incoming.on('close', () => onHostMessage(incoming, JSON.stringify({ type: 'LEAVE' })));
         incoming.on('error', () => onHostMessage(incoming, JSON.stringify({ type: 'LEAVE' })));
       });
-    } catch {
+    } catch (err: any) {
       setStatus('error');
-      setNotice('联机初始化失败，请检查网络后重试');
+      setNotice('联机初始化失败');
+      setErrorDetail(err?.message || '请检查网络后重试');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onHostMessage]);
 
   async function createRoomAs(code: string) {
     setRoomCode(code);
+    setErrorDetail('');
     try {
       const Peer = await loadPeerJS();
       const peer = new Peer(code, { debug: 0, config: { iceServers: ICE_SERVERS } });
@@ -388,10 +389,15 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
           createRoomAs(alt);
         } else {
           setStatus('error');
-          setNotice('房间创建失败：' + (err?.type || '网络错误'));
+          setNotice('房间创建失败');
+          setErrorDetail(err?.type || err?.message || '网络错误');
         }
       });
-    } catch {}
+    } catch (err: any) {
+      setStatus('error');
+      setNotice('联机初始化失败');
+      setErrorDetail(err?.message || '请检查网络后重试');
+    }
   }
 
   // ============ 加入房间（来宾） ============
@@ -401,13 +407,15 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
     setRoomCode(c);
     setRole('guest');
     setStatus('connecting');
+    setErrorDetail('');
     try {
       const Peer = await loadPeerJS();
       const peer = new Peer(`${c}-${Math.floor(Math.random() * 100000)}`, { debug: 0, config: { iceServers: ICE_SERVERS } });
       peerRef.current = peer;
       peer.on('error', (err: any) => {
         setStatus('error');
-        setNotice('连接失败：' + (err?.type || '网络错误'));
+        setNotice('连接失败');
+        setErrorDetail(err?.type || err?.message || '网络错误');
       });
       peer.on('open', () => {
         const conn = peer.connect(c, { reliable: true });
@@ -426,9 +434,10 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
           setNotice('与房主连接已断开');
         });
       });
-    } catch {
+    } catch (err: any) {
       setStatus('error');
-      setNotice('联机初始化失败，请检查网络后重试');
+      setNotice('联机初始化失败');
+      setErrorDetail(err?.message || '请检查网络后重试');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onGuestMessage]);
@@ -634,7 +643,23 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
         <div className="gd-online-card">
           <h2>🃏 掼蛋 · 联机对战</h2>
           <p className="gd-online-sub">四人两两组队 · 经典规则 · 创建房间分享给好友即可开局</p>
-          {status === 'error' && <p className="gd-online-error">{notice}</p>}
+          {status === 'error' && (
+            <div className="gd-online-error">
+              <div className="gd-error-title">❌ {notice}</div>
+              {errorDetail && <div className="gd-error-detail">{errorDetail}</div>}
+              <button
+                className="gd-btn gd-btn-primary gd-retry-btn"
+                onClick={() => {
+                  reloadPeerJS();
+                  setStatus('lobby');
+                  setNotice('');
+                  setErrorDetail('');
+                }}
+              >
+                🔄 重新加载
+              </button>
+            </div>
+          )}
           <div className="gd-online-btns">
             <button className="gd-btn gd-btn-primary" onClick={createRoom} disabled={status === 'connecting'}>
               {status === 'connecting' ? '创建中…' : '创建房间'}

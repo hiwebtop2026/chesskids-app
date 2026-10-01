@@ -23,19 +23,11 @@ import {
   isXiangqiMoveLegal,
   isXiangqiRed,
 } from '../engine/xiangqi';
+import { loadPeerJS, reloadPeerJS } from '../utils/peerjsLoader';
 
-/** 动态加载 PeerJS（首次使用时加载，失败不影响其他模块） */
-let peerjsPromise: Promise<any> | null = null;
-async function loadPeerJS(): Promise<any> {
-  if (peerjsPromise) return peerjsPromise;
-  peerjsPromise = import('peerjs')
-    .then((mod) => mod.default || mod.Peer || mod)
-    .catch((err) => {
-      peerjsPromise = null;
-      throw err;
-    });
-  return peerjsPromise;
-}
+// 使用统一的多 CDN 回退加载器（src/utils/peerjsLoader.ts）
+// 支持 jsdelivr / unpkg / cdnjs / npmmirror / esm.sh 多源自动降级
+export { reloadPeerJS };
 
 /** 连接状态 */
 type ConnectionStatus = 'disconnected' | 'connecting' | 'connected';
