@@ -197,12 +197,25 @@ function parseRoomCode(code: string): { peerId: string; serverIdx: number } {
   return { peerId: c, serverIdx: 0 };
 }
 
-/** 检查 DataChannel 是否真正就绪 */
-function isChannelReady(conn: any): boolean {
-  if (!conn || !conn.open) return false;
-  const ch = conn.dataChannel || conn.channel || conn._dc;
-  if (ch && ch.readyState !== 'open') return false;
-  return true;
+/** 带重试的消息发送：若 DataChannel 正在连接中，等待后重试 */
+async function sendWithRetry(conn: any, data: string, maxRetries = 3): Promise<boolean> {
+  for (let i = 0; i < maxRetries; i++) {
+    if (!conn) return false;
+    const ch = conn.dataChannel || conn.channel || conn._dc;
+    if (conn.open && (!ch || ch.readyState === 'open')) {
+      try {
+        conn.send(data);
+        return true;
+      } catch {
+        // 发送失败，等待后重试
+      }
+    }
+    // DataChannel 正在连接中，等待 200ms 后重试
+    if (i < maxRetries - 1) {
+      await new Promise(r => setTimeout(r, 200));
+    }
+  }
+  return false;
 }
 
 // ================================================================
@@ -262,19 +275,16 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
   const sendAll = useCallback((msg: object) => {
     const data = JSON.stringify(msg);
     for (const c of connsRef.current) {
-      try {
-        if (isChannelReady(c)) c.send(data);
-      } catch (e) {
-        console.warn('[gd-online] sendAll error:', e);
-      }
+      sendWithRetry(c, data).catch(() => {});
     }
   }, []);
 
-  const sendToHost = useCallback((msg: object) => {
-    try {
-      if (isChannelReady(connRef.current)) connRef.current.send(JSON.stringify(msg));
-    } catch (e) {
-      console.warn('[gd-online] sendToHost error:', e);
+  const sendToHost = useCallback(async (msg: object) => {
+    const data = JSON.stringify(msg);
+    const ok = await sendWithRetry(connRef.current, data);
+    if (!ok) {
+      setNotice('⚠ 连接不稳定，正在重连…请稍候再试');
+      console.warn('[gd-online] sendToHost failed: channel not ready');
     }
   }, []);
 
@@ -351,6 +361,7 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
     } else if (msg.type === 'STATE') {
       setGame(msg.state);
       setStatus('playing');
+      setNotice('');
       setSelected([]);
       // 进入对局：默认浮动窗口全屏，隐藏浏览器窗口（桌面全屏 / iOS 沉浸兜底）
       setFloating(true);
@@ -641,6 +652,7 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
     broadcastState(st);
     setStatus('playing');
     setNotice('');
+    setErrorDetail('');
   }, [aiCount, aiDifficulty, broadcastState]);
 
   // ============ 房主：重新发牌（下一局） ============
@@ -673,10 +685,12 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
         broadcastState(next);
         return next;
       });
+      setSelected([]);
     } else {
-      sendToHost({ type: 'PLAY', cards });
+      sendToHost({ type: 'PLAY', cards }).then(() => {
+        setSelected([]);
+      });
     }
-    setSelected([]);
   };
 
   const doPass = () => {
@@ -688,10 +702,12 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
         broadcastState(next);
         return next;
       });
+      setSelected([]);
     } else {
-      sendToHost({ type: 'PASS' });
+      sendToHost({ type: 'PASS' }).then(() => {
+        setSelected([]);
+      });
     }
-    setSelected([]);
   };
 
   // 连续点击提示：依次切换所有可压方案（先同型从小到大，再炸弹/同花顺/王炸），不限同类牌型
@@ -851,6 +867,18 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
       if (aiTimerRef.current) clearTimeout(aiTimerRef.current);
     };
   }, [game?.current, game?.lastPlayBy, game?.hands, game?.finished, game?.level, game?.phase, role, status, aiPlayers, broadcastState]);
+
+  // ============ 房主定期状态同步（每 3 秒重播，确保客户端状态不脱节） ============
+  useEffect(() => {
+    if (role !== 'host' || status !== 'playing' || !game) return;
+    const timer = setInterval(() => {
+      setGame((prev) => {
+        if (prev && prev.phase === 'playing') broadcastState(prev);
+        return prev;
+      });
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [role, status, game?.phase, broadcastState]);
 
   // 点击理牌分组名称：整组选中（已全选则取消）
   const selectGroup = (cards: GCard[]) => {
