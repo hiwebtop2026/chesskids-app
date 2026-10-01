@@ -499,6 +499,62 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
       }
       return best;
     }
+    // 同型找不到时：尝试用炸弹/同花顺/王炸压（如对方出对子，提示可用炸弹压）
+    const bombBeat = findBombBeat(hand, prev, level);
+    if (bombBeat) return bombBeat;
+    return null;
+  }
+
+  // 找最小可压炸弹：4炸→5炸→同花顺→王炸（炸弹间张数多者大，同张数比点数；同花顺大于炸弹、小于王炸）
+  function findBombBeat(hand: GCard[], prev: PlayInfo, level: number): GCard[] | null {
+    if (prev.type === 'ROCKET') return null;
+    const groups = groupByR(hand);
+    const kings = hand.filter((c) => c.k !== undefined);
+    interface Cand { cards: GCard[]; kind: number; n: number; key: number }
+    const cands: Cand[] = [];
+    for (const g of groups.values()) {
+      if (g.some((c) => c.k !== undefined)) continue;
+      if (g.length >= 4) cands.push({ cards: g.slice(0, 4), kind: 0, n: g.length, key: cardVal(g[0], level) });
+    }
+    const sf = findStraightFlush(hand);
+    if (sf) cands.push({ cards: sf, kind: 1, n: 5, key: Math.max(...sf.filter((c) => c.k === undefined).map((c) => c.r)) });
+    if (kings.length === 4) cands.push({ cards: kings, kind: 2, n: 4, key: 0 });
+
+    const ok = cands.filter((c) => {
+      if (prev.type === 'BOMB') {
+        if (c.kind === 0) return c.n > prev.size || (c.n === prev.size && c.key > prev.key);
+        return true;
+      }
+      if (prev.type === 'STRAIGHT_FLUSH') {
+        if (c.kind === 1) return c.key > prev.key;
+        return c.kind === 2;
+      }
+      return true;
+    });
+    if (!ok.length) return null;
+    ok.sort((a, b) => {
+      if (a.kind !== b.kind) return a.kind - b.kind;
+      if (a.kind === 0) return a.n !== b.n ? a.n - b.n : a.key - b.key;
+      if (a.kind === 1) return a.key - b.key;
+      return 0;
+    });
+    return ok[0].cards;
+  }
+
+  // 找 5 张同花色连续（纯牌）
+  function findStraightFlush(hand: GCard[]): GCard[] | null {
+    for (const s of ['S', 'H', 'C', 'D']) {
+      const sc = hand.filter((c) => c.s === s && c.k === undefined);
+      const ranks = [...new Set(sc.map((c) => c.r))].filter((r) => r >= 3 && r <= 14).sort((a, b) => b - a);
+      for (let i = 0; i + 4 < ranks.length; i++) {
+        let len = 1;
+        while (i + len < ranks.length && ranks[i + len] === ranks[i] - len) len++;
+        if (len >= 5) {
+          const want = ranks.slice(i, i + 5);
+          return want.map((r) => sc.find((c) => c.r === r)!);
+        }
+      }
+    }
     return null;
   }
 

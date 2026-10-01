@@ -233,7 +233,45 @@ export function groupHand(hand: GCard[], level: number): HandGroup[] {
     }
   }
 
-  // 4) 三带二：三张 + 一对（变牌补）
+  // 4) 顺子：5 张连续（非同花色；级牌 2/大小王不参与；变牌可补缺口）
+  let str8 = true;
+  while (str8) {
+    str8 = false;
+    const ng = groupByR(avail().filter((c) => c.k === undefined && !isWild(c, level)));
+    const ranks = [...ng.keys()].filter((k) => k >= 3 && k <= 14).sort((a, b) => b - a);
+    const ws = wildsOf(avail());
+    for (let i = 0; i + 4 < ranks.length; i++) {
+      let len = 1;
+      while (i + len < ranks.length && ranks[i + len] === ranks[i] - len) len++;
+      if (len >= 5) {
+        const want = ranks.slice(i, i + 5);
+        const pick = want.map((r) => ng.get(r)![0]).filter(Boolean);
+        take(pick, `顺子 ${rankName(want[0])}`);
+        str8 = true;
+        break;
+      }
+    }
+    if (!str8) {
+      // 变牌补缺
+      for (let hi = 14; hi >= 6; hi--) {
+        const lo = hi - 4;
+        let missing = 0;
+        const want: number[] = [];
+        for (let r = lo; r <= hi; r++) {
+          if (ng.has(r)) want.push(r);
+          else missing++;
+        }
+        if (missing > 0 && missing <= ws.length) {
+          const pick = want.map((r) => ng.get(r)![0]).filter(Boolean);
+          take([...pick, ...ws.slice(0, missing)], `顺子 ${rankName(hi)}`);
+          str8 = true;
+          break;
+        }
+      }
+    }
+  }
+
+  // 5) 三带二：三张 + 一对（变牌补）
   let full = true;
   while (full) {
     full = false;
@@ -263,7 +301,7 @@ export function groupHand(hand: GCard[], level: number): HandGroup[] {
     }
   }
 
-  // 5) 剩余：三张 / 对子 / 单张（变牌补三张/对子；单张变牌为顶级单张）
+  // 6) 剩余：三张 / 对子 / 单张（变牌补三张/对子；单张变牌为顶级单张）
   const rest = [...groupByR(avail()).entries()].sort((a, b) => {
     const ka = a[0] >= 19 ? 100 : a[0];
     const kb = b[0] >= 19 ? 100 : b[0];
@@ -515,6 +553,63 @@ function findSmallestBeat(hand: GCard[], prev: PlayInfo, level: number): GCard[]
   if (prev.type === 'PLANE') {
     const len = prev.size / 3;
     return findSeq(hand, len * 3, prev.key + 1, false, true);
+  }
+  // 同型找不到时：尝试用炸弹/同花顺/王炸压（如对方出对子，提示可用炸弹压）
+  const bombBeat = findBombBeat(hand, prev, level);
+  if (bombBeat) return bombBeat;
+  return null;
+}
+
+// 找最小可压炸弹：4炸→5炸→同花顺→王炸（炸弹间张数多者大，同张数比点数；同花顺大于炸弹、小于王炸）
+function findBombBeat(hand: GCard[], prev: PlayInfo, level: number): GCard[] | null {
+  if (prev.type === 'ROCKET') return null;
+  const groups = groupByR(hand);
+  const kings = hand.filter((c) => c.k !== undefined);
+  interface Cand { cards: GCard[]; kind: number; n: number; key: number }
+  // kind: 0=普通炸弹(比张数n，同张数比点数key) 1=同花顺(比key) 2=王炸
+  const cands: Cand[] = [];
+  for (const g of groups.values()) {
+    if (g.some((c) => c.k !== undefined)) continue;
+    if (g.length >= 4) cands.push({ cards: g.slice(0, 4), kind: 0, n: g.length, key: cardVal(g[0], level) });
+  }
+  const sf = findStraightFlush(hand);
+  if (sf) cands.push({ cards: sf, kind: 1, n: 5, key: Math.max(...sf.filter((c) => c.k === undefined).map((c) => c.r)) });
+  if (kings.length === 4) cands.push({ cards: kings, kind: 2, n: 4, key: 0 });
+
+  const ok = cands.filter((c) => {
+    if (prev.type === 'BOMB') {
+      if (c.kind === 0) return c.n > prev.size || (c.n === prev.size && c.key > prev.key);
+      return true; // 同花顺/王炸都大于炸弹
+    }
+    if (prev.type === 'STRAIGHT_FLUSH') {
+      if (c.kind === 1) return c.key > prev.key;
+      return c.kind === 2;
+    }
+    return true; // 普通牌型：任何炸弹都能压
+  });
+  if (!ok.length) return null;
+  ok.sort((a, b) => {
+    if (a.kind !== b.kind) return a.kind - b.kind;
+    if (a.kind === 0) return a.n !== b.n ? a.n - b.n : a.key - b.key;
+    if (a.kind === 1) return a.key - b.key;
+    return 0;
+  });
+  return ok[0].cards;
+}
+
+// 找 5 张同花色连续（纯牌，不含变牌；变牌补同花顺由出牌校验/理牌负责）
+function findStraightFlush(hand: GCard[]): GCard[] | null {
+  for (const s of ['S', 'H', 'C', 'D']) {
+    const sc = hand.filter((c) => c.s === s && c.k === undefined);
+    const ranks = [...new Set(sc.map((c) => c.r))].filter((r) => r >= 3 && r <= 14).sort((a, b) => b - a);
+    for (let i = 0; i + 4 < ranks.length; i++) {
+      let len = 1;
+      while (i + len < ranks.length && ranks[i + len] === ranks[i] - len) len++;
+      if (len >= 5) {
+        const want = ranks.slice(i, i + 5);
+        return want.map((r) => sc.find((c) => c.r === r)!);
+      }
+    }
   }
   return null;
 }
