@@ -4,6 +4,7 @@
  * 消息协议：JOIN / WELCOME / ROOM_STATE / STATE / PLAY / PASS / ERROR / LEAVE
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { enterFullscreen, exitFullscreen } from '../utils/fullscreen';
 import {
   type GCard, type PlayInfo, analyzePlay, canBeat, cardVal, rankName,
   buildDeck, shuffle, groupHand, SUIT_SYMBOL, groupByR,
@@ -131,6 +132,10 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
   const [sortMode, setSortMode] = useState<'rank' | 'grouped'>('rank');
   const [notice, setNotice] = useState('');
   const [copied, setCopied] = useState(false);
+  // 浮动窗口全屏（对局时默认开启）+ 左上角 ☰ 折叠菜单
+  const [floating, setFloating] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const enteredFsRef = useRef(false);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const peerRef = useRef<any>(null);
@@ -234,6 +239,12 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
       setGame(msg.state);
       setStatus('playing');
       setSelected([]);
+      // 进入对局：默认浮动窗口全屏，隐藏浏览器窗口（桌面全屏 / iOS 沉浸兜底）
+      setFloating(true);
+      if (!enteredFsRef.current) {
+        enteredFsRef.current = true;
+        try { enterFullscreen(); } catch { /* 忽略 */ }
+      }
     } else if (msg.type === 'ERROR') {
       setNotice(msg.message || '错误');
     }
@@ -588,7 +599,41 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
   const showSeatCards = (s: number) => (game.lastPlay && game.lastPlay.player === s ? game.lastPlay.cards : null);
 
   return (
-    <div className="gd-table">
+    <div className={`gd-table ${floating ? 'gd-floating' : ''}`}>
+      {/* 浮动全屏：左上角 ☰ 折叠菜单 */}
+      {floating && (
+        <>
+          <button
+            className={`gd-top-handle ${menuOpen ? 'active' : ''}`}
+            onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}
+            title="游戏功能"
+            aria-label="游戏功能"
+          >
+            <span className="gd-handle-bar" />
+            <span className="gd-handle-bar" />
+            <span className="gd-handle-bar" />
+          </button>
+          <div className={`gd-menu-panel ${menuOpen ? 'open' : ''}`} onClick={(e) => e.stopPropagation()}>
+            <div className="gd-menu-grid">
+              <button className="gd-menu-btn" onClick={() => { setSortMode((m) => (m === 'rank' ? 'grouped' : 'rank')); setMenuOpen(false); }}>
+                {sortMode === 'rank' ? '🃏 一键理牌' : '↩️ 恢复排序'}
+              </button>
+              <button className="gd-menu-btn" onClick={() => { copyRoomCode(); setMenuOpen(false); }}>
+                📋 复制房间号
+              </button>
+              {role === 'host' && (
+                <button className="gd-menu-btn" onClick={() => { nextRound(); setMenuOpen(false); }} disabled={!game || game.phase !== 'over'}>
+                  🔄 开始下一局
+                </button>
+              )}
+              <button className="gd-menu-btn danger" onClick={() => { setFloating(false); try { exitFullscreen(); } catch { /* 忽略 */ } setMenuOpen(false); }}>
+                ⛶ 退出全屏
+              </button>
+            </div>
+            <div className="gd-menu-hint">点击棋盘任意位置关闭面板</div>
+          </div>
+        </>
+      )}
       <div className="gd-topbar">
         <span className="gd-info">我方 <b>{myTeamCount}</b> 张</span>
         <span className="gd-info">对方 <b>{oppTeamCount}</b> 张</span>

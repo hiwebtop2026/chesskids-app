@@ -6952,6 +6952,116 @@ ul {
   pointer-events: none;
   font-weight: 700;
 }
+/* 浮动窗口全屏：占满视口、脱离浏览器布局，各终端自动适配 */
+.gd-floating {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  min-height: 100dvh;
+  border-radius: 0;
+  padding: 12px 12px 8px;
+  background:
+    radial-gradient(ellipse at 50% 32%, rgba(80, 140, 100, 0.28), transparent 62%),
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.025) 0 2px, transparent 2px 7px),
+    repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.018) 0 2px, transparent 2px 7px),
+    linear-gradient(160deg, #12402b 0%, #0d3422 55%, #092a1b 100%);
+}
+/* 左上角 ☰ 折叠菜单把手 */
+.gd-top-handle {
+  position: absolute;
+  left: 12px;
+  top: 10px;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 44px;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 215, 0, 0.4);
+  background: rgba(6, 24, 16, 0.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #ffe8c8;
+  cursor: pointer;
+  touch-action: manipulation;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: background .18s, transform .12s, border-color .18s;
+}
+.gd-top-handle .gd-handle-bar {
+  display: block;
+  width: 20px;
+  height: 2px;
+  border-radius: 2px;
+  background: currentColor;
+}
+.gd-top-handle:hover, .gd-top-handle.active {
+  background: rgba(6, 24, 16, 0.85);
+  border-color: rgba(255, 215, 0, 0.65);
+  transform: scale(1.06);
+}
+/* 折叠菜单面板：左上角把手下方下拉展开 */
+.gd-menu-panel {
+  position: absolute;
+  left: 12px;
+  top: 54px;
+  z-index: 72;
+  width: min(320px, 88vw);
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  visibility: hidden;
+  transform-origin: top left;
+  transform: translateY(-8px) scale(0.98);
+  transition: max-height .3s cubic-bezier(.4,0,.2,1), opacity .22s, transform .3s cubic-bezier(.4,0,.2,1), visibility .3s;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(16, 46, 32, 0.97), rgba(9, 30, 20, 0.97));
+  border: 1px solid rgba(255, 213, 79, 0.35);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.gd-menu-panel.open {
+  max-height: 420px;
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+}
+.gd-menu-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  padding: 12px 14px 6px;
+}
+.gd-menu-btn {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 213, 79, 0.3);
+  background: linear-gradient(180deg, #1d5a40, #144330);
+  color: #eaf6ec;
+  font-size: 13.5px; font-weight: 600; cursor: pointer;
+  min-height: 40px; touch-action: manipulation; white-space: nowrap;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  transition: background .15s, transform .12s, border-color .15s;
+}
+.gd-menu-btn:hover:not(:disabled) { background: linear-gradient(180deg, #24704f, #1a543c); transform: translateY(-1px); }
+.gd-menu-btn:active:not(:disabled) { transform: scale(0.96); }
+.gd-menu-btn:disabled { opacity: 0.42; cursor: not-allowed; }
+.gd-menu-btn.danger { background: linear-gradient(180deg, #4a2b26, #3a211d); border-color: rgba(255, 150, 120, 0.35); color: #ffcfc2; }
+.gd-menu-hint {
+  padding: 6px 14px 12px;
+  text-align: center;
+  font-size: 11.5px;
+  color: rgba(234, 246, 236, 0.55);
+}
+@media (max-width: 640px) {
+  .gd-top-handle { min-width: 40px; height: 34px; padding: 0 8px; }
+  .gd-menu-panel { width: min(300px, 92vw); }
+}
 .gd-topbar {
   display: flex;
   justify-content: center;

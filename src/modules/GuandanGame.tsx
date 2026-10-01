@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { enterFullscreen, exitFullscreen } from '../utils/fullscreen';
 
 /**
  * 掼蛋 · 人机对战（经典规则，四人两两组队）
@@ -383,7 +384,29 @@ export function GuandanGame() {
   const [game, setGame] = useState<GameState | null>(null);
   const [selected, setSelected] = useState<number[]>([]);
   const [sortMode, setSortMode] = useState<'rank' | 'grouped'>('rank');
+  // 浮动窗口全屏模式（默认开启，脱离浏览器布局限制）+ 左上角 ☰ 折叠菜单
+  const [floating, setFloating] = useState(true);
+  const [menuOpen, setMenuOpen] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const enteredFsRef = useRef(false);
+
+  // 挂载即进入浮动全屏容器；首次交互（用户手势）尝试隐藏浏览器窗口（桌面全屏 / iOS 沉浸兜底）
+  useEffect(() => {
+    setFloating(true);
+    const t = setTimeout(() => {
+      if (!enteredFsRef.current) {
+        enteredFsRef.current = true;
+        try { enterFullscreen(); } catch { /* 忽略 */ }
+      }
+    }, 400);
+    return () => clearTimeout(t);
+  }, []);
+
+  const requestFullscreenOnGesture = useCallback(() => {
+    if (enteredFsRef.current) return;
+    enteredFsRef.current = true;
+    try { enterFullscreen(); } catch { /* 忽略 */ }
+  }, []);
 
   const startNew = useCallback((prevLevel?: number) => {
     const deck = shuffle(buildDeck());
@@ -576,7 +599,42 @@ export function GuandanGame() {
   if (!game) return <div className="module-loading">发牌中…</div>;
 
   return (
-    <div className="gd-table">
+    <div className={`gd-table ${floating ? 'gd-floating' : ''}`} onClick={requestFullscreenOnGesture}>
+      {/* 浮动全屏：左上角 ☰ 折叠菜单（常用功能，点击展开/收起） */}
+      {floating && (
+        <>
+          <button
+            className={`gd-top-handle ${menuOpen ? 'active' : ''}`}
+            onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}
+            title="游戏功能"
+            aria-label="游戏功能"
+          >
+            <span className="gd-handle-bar" />
+            <span className="gd-handle-bar" />
+            <span className="gd-handle-bar" />
+          </button>
+          <div className={`gd-menu-panel ${menuOpen ? 'open' : ''}`} onClick={(e) => e.stopPropagation()}>
+            <div className="gd-menu-grid">
+              <button
+                className="gd-menu-btn"
+                onClick={() => { setSortMode((m) => (m === 'rank' ? 'grouped' : 'rank')); setMenuOpen(false); }}
+              >
+                {sortMode === 'rank' ? '🃏 一键理牌' : '↩️ 恢复排序'}
+              </button>
+              <button className="gd-menu-btn" onClick={() => { applyHint(); setMenuOpen(false); }} disabled={!isMyTurn}>
+                💡 提示
+              </button>
+              <button className="gd-menu-btn" onClick={() => { startNew(game.level); setMenuOpen(false); }}>
+                🔄 重新发牌
+              </button>
+              <button className="gd-menu-btn danger" onClick={() => { setFloating(false); try { exitFullscreen(); } catch { /* 忽略 */ } setMenuOpen(false); }}>
+                ⛶ 退出全屏
+              </button>
+            </div>
+            <div className="gd-menu-hint">点击棋盘任意位置关闭面板</div>
+          </div>
+        </>
+      )}
       {/* 顶部状态条 */}
       <div className="gd-topbar">
         <span className="gd-info">我方 <b>{myTeamCount}</b> 张</span>
