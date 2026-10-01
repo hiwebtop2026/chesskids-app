@@ -171,6 +171,25 @@ const App: React.FC = () => {
   const [showWeChatGuide, setShowWeChatGuide] = useState(false);
   const [weChatRoom, setWeChatRoom] = useState<string | null>(null);
   const [weChatGame, setWeChatGame] = useState<GameType>('chess');
+  // 国庆主题皮肤：国庆期间（10.1-10.7）自动开启，用户可手动切换
+  const [national, setNational] = useState<boolean>(() => {
+    try {
+      if (typeof localStorage !== 'undefined' && localStorage.getItem('national-skin') !== null) {
+        return localStorage.getItem('national-skin') === '1';
+      }
+      const now = new Date();
+      const m = now.getMonth() + 1;
+      const d = now.getDate();
+      return m === 10 && d >= 1 && d <= 7;
+    } catch { return true; }
+  });
+  const toggleNational = useCallback(() => {
+    setNational((v) => {
+      const next = !v;
+      try { localStorage.setItem('national-skin', next ? '1' : '0'); } catch { /* 忽略 */ }
+      return next;
+    });
+  }, []);
   const { progress } = useProgressStore();
 
   const tabs = gameType === 'chess' ? CHESS_TABS : gameType === 'xiangqi' ? XIANGQI_TABS : gameType === 'go' ? GO_TABS : GOMOKU_TABS;
@@ -309,7 +328,7 @@ const App: React.FC = () => {
   // ================================================================
   if (gameType === null) {
     return (
-      <div className="app app-home">
+      <div className={`app app-home${national ? ' national-skin' : ''}`}>
         <header className="app-header">
           <div className="header-left">
             <h1 className="app-title">
@@ -319,9 +338,23 @@ const App: React.FC = () => {
             <span className="app-subtitle">少儿棋类学堂</span>
           </div>
           <div className="header-right">
+            <button
+              className={`national-toggle ${national ? 'on' : ''}`}
+              onClick={toggleNational}
+              title={national ? '关闭国庆皮肤' : '开启国庆皮肤'}
+              aria-label="国庆皮肤"
+            >🇨🇳 国庆</button>
             <UserProfile progress={progress} compact />
           </div>
         </header>
+
+        {national && (
+          <div className="national-banner" role="banner">
+            <span className="nb-lantern">🏮</span>
+            <span className="nb-text">欢度国庆 · 棋乐融融</span>
+            <span className="nb-lantern">🏮</span>
+          </div>
+        )}
 
         <main className="app-main home-main">
           <div className="game-select-screen">
@@ -396,7 +429,7 @@ const App: React.FC = () => {
   // 棋类模块界面
   // ================================================================
   return (
-    <div className={`app ${isFullscreen ? 'app-fullscreen' : ''}`}>
+    <div className={`app ${isFullscreen ? 'app-fullscreen' : ''}${national ? ' national-skin' : ''}`}>
       {/* 顶部导航栏 */}
       <header className="app-header">
         <div className="header-left">
@@ -418,6 +451,12 @@ const App: React.FC = () => {
           >
             🏠 首页
           </button>
+          <button
+            className={`national-toggle ${national ? 'on' : ''}`}
+            onClick={toggleNational}
+            title={national ? '关闭国庆皮肤' : '开启国庆皮肤'}
+            aria-label="国庆皮肤"
+          >🇨🇳 国庆</button>
           <UserProfile progress={progress} compact />
           <button
             className="fullscreen-btn"

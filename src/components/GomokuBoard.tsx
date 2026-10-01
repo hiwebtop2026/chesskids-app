@@ -213,6 +213,17 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
             <stop offset="50%" stopColor={dark ? "#62786a" : "#eae3cb"} />
             <stop offset="100%" stopColor={dark ? "#546a5d" : "#dcd2b4"} />
           </linearGradient>
+          {/* 国庆皮肤：喜庆红木渐变（national-skin 时启用） */}
+          <linearGradient id="gBoardNational" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#b53a1e" />
+            <stop offset="50%" stopColor="#a02f14" />
+            <stop offset="100%" stopColor="#8c240e" />
+          </linearGradient>
+          <linearGradient id="gBoardNationalDark" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#7a2614" />
+            <stop offset="50%" stopColor="#661f10" />
+            <stop offset="100%" stopColor="#54190c" />
+          </linearGradient>
           {/* 黑云子：乌黑带温润高光 */}
           <radialGradient id="gStoneBlack" cx="42%" cy="38%" r="80%">
             <stop offset="0%" stopColor={dark ? "#40362c" : "#26211c"} />

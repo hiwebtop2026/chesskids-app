@@ -116,7 +116,9 @@ export const GomokuGame: React.FC = () => {
   const aiMove = useCallback((g: GomokuGameState, diff: GomokuDifficulty) => {
     setAiThinking(true);
     setHint(null);
+    if (aiTimer.current) clearTimeout(aiTimer.current);
     aiTimer.current = setTimeout(() => {
+      aiTimer.current = null;
       const mv = gomokuBestMove(g.board, g.turn, diff, learning);
       if (mv) {
         const next = gomokuPlayMove(g, mv[0], mv[1]);
@@ -125,6 +127,11 @@ export const GomokuGame: React.FC = () => {
       setAiThinking(false);
     }, 400);
   }, [checkOver]);
+
+  // 组件卸载时清理 AI 定时器，避免向已卸载组件写入状态
+  useEffect(() => () => {
+    if (aiTimer.current) { clearTimeout(aiTimer.current); aiTimer.current = null; }
+  }, []);
 
   // 玩家执白（AI 黑先手）：自动开始
   useEffect(() => {
@@ -135,6 +142,7 @@ export const GomokuGame: React.FC = () => {
   }, [started, humanColor, game.turn, game.moves.length, aiThinking]);
 
   const handleStart = () => {
+    if (aiTimer.current) { clearTimeout(aiTimer.current); aiTimer.current = null; }
     enterFullscreen(); // 用户手势链内触发全屏，隐藏浏览器窗口
     setDifficulty(selectedDifficulty);
     setHumanColor(selectedColor);
@@ -147,6 +155,7 @@ export const GomokuGame: React.FC = () => {
   };
 
   const handleReset = () => {
+    if (aiTimer.current) { clearTimeout(aiTimer.current); aiTimer.current = null; }
     gameRecorded.current = false;
     setResult(null);
     setShowResultModal(false);
@@ -163,7 +172,7 @@ export const GomokuGame: React.FC = () => {
     if (!next) { showToast('该位置已有棋子'); return; }
     setGame(next);
     playGomokuMove();
-    if (!next.over) setTimeout(() => aiMove(next, difficulty), 120);
+    if (!next.over) aiMove(next, difficulty);
     else checkOver(next);
   };
 
