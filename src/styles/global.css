@@ -7352,9 +7352,18 @@ ul {
 }
 .gd-play-cards-row { display: flex; gap: 3px; flex-wrap: wrap; }
 .gd-play-area .gd-play-card { font-size: 14.5px; padding: 4px 8px; }
+.gd-play-north, .gd-play-south {
+  width: min(46%, 420px);
+  margin: 0 auto;
+  align-items: center;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.16);
+  border: 1.5px dashed rgba(255, 213, 79, 0.2);
+  padding: 6px 14px;
+}
 .gd-play-north { order: -1; }
 .gd-side-col { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.gd-play-west, .gd-play-east { max-height: 120px; align-items: flex-start; }
+.gd-play-west, .gd-play-east { max-height: 120px; align-items: center; }
 .gd-play-south { max-height: 96px; }
 @media (max-width: 640px) {
   .gd-play-card { font-size: 15px; padding: 5px 8px; }
