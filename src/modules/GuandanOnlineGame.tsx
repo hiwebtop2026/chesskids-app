@@ -635,8 +635,12 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
     return a.s < b.s ? -1 : 1;
   });
 
-  // 本轮各方位已出的牌（对应出牌区方位展示；一轮出完才清理）
-  const roundPlaysOf = (p: number) => (game ? game.roundPlays.filter((x) => x.player === p) : []);
+  // 出牌区只显示当前最新一手出牌（显示在出牌人方位），上一手/上一轮自动消失
+  const roundPlaysOf = (p: number) => {
+    if (!game || game.roundPlays.length === 0) return [];
+    const last = game.roundPlays[game.roundPlays.length - 1];
+    return last.player === p ? [last] : [];
+  };
   const renderRoundPlays = (p: number) => {
     const plays = roundPlaysOf(p);
     if (plays.length === 0) return null;

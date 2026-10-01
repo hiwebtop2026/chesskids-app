@@ -7563,13 +7563,13 @@ ul {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* 组内竖向叠牌：第 1 张在最下，后续每张上移露出牌面（像实战理牌堆叠） */
+/* 组内竖向叠牌：第 1 张在最上，后续每张上移 30px 盖住上一张底部（露出每张的下半部，左上角被上一张遮挡，避免漏角） */
 .gd-hand-group-cards {
   display: flex;
-  flex-direction: column-reverse;
+  flex-direction: column;
   gap: 0;
   min-height: 96px;
-  justify-content: flex-start;
+  justify-content: flex-end;
 }
 .gd-hand-group .gd-card {
   width: 54px;

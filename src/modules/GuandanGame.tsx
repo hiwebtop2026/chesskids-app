@@ -855,7 +855,11 @@ export function GuandanGame() {
   const oppTeamCount = game ? counts[1] + counts[3] : 0;
 
   // 本轮各方位已出的牌（对应出牌区方位展示；一轮出完才清理）
-  const roundPlaysOf = (p: number) => (game ? game.roundPlays.filter((x) => x.player === p) : []);
+  const roundPlaysOf = (p: number) => {
+    if (!game || game.roundPlays.length === 0) return [];
+    const last = game.roundPlays[game.roundPlays.length - 1];
+    return last.player === p ? [last] : [];
+  };
   const renderRoundPlays = (p: number) => {
     const plays = roundPlaysOf(p);
     if (plays.length === 0) return null;
