@@ -91,20 +91,20 @@ export interface HandGroup {
 }
 
 // 桌垫分区框线（参考比赛专用桌垫：出牌区/收牌区/报牌区，按图片位置比例布置）
-// 背景装饰层，游戏牌面与出牌区浮于其上，位置已结合对局布局调整
-export const GD_ZONES: { top: number; left: number; w: number; h: number; label: string }[] = [
-  { top: 24, left: 38, w: 24, h: 6, label: '收牌区' },
-  { top: 33, left: 38, w: 24, h: 8, label: '出牌区' },
-  { top: 36, left: 27, w: 9, h: 6, label: '报牌区' },
-  { top: 36, left: 64, w: 9, h: 6, label: '报牌区' },
-  { top: 45, left: 20, w: 13, h: 6, label: '出牌区' },
-  { top: 45, left: 67, w: 13, h: 6, label: '收牌区' },
-  { top: 45, left: 34, w: 8, h: 6, label: '报牌区' },
-  { top: 45, left: 58, w: 8, h: 6, label: '报牌区' },
-  { top: 54, left: 38, w: 24, h: 6, label: '出牌区' },
-  { top: 62, left: 38, w: 24, h: 6, label: '收牌区' },
-  { top: 54, left: 13, w: 10, h: 6, label: '收牌区' },
-  { top: 54, left: 77, w: 10, h: 6, label: '出牌区' },
+// 背景装饰层，游戏牌面与出牌区浮于其上；文字按方位旋转（北倒/南正/西左/东右），外围大正方形白框
+export const GD_ZONES: { top: number; left: number; w: number; h: number; label: string; dir: string }[] = [
+  { top: 21, left: 44.5, w: 11, h: 11, label: '收牌区', dir: 'n' },
+  { top: 33, left: 44.5, w: 11, h: 11, label: '出牌区', dir: 'c' },
+  { top: 34, left: 29.5, w: 11, h: 11, label: '报牌区', dir: 'c' },
+  { top: 34, left: 59.5, w: 11, h: 11, label: '报牌区', dir: 'c' },
+  { top: 45, left: 27, w: 11, h: 11, label: '出牌区', dir: 'w' },
+  { top: 45, left: 62, w: 11, h: 11, label: '收牌区', dir: 'e' },
+  { top: 45, left: 44.5, w: 11, h: 11, label: '报牌区', dir: 'c' },
+  { top: 45, left: 55.5, w: 11, h: 11, label: '报牌区', dir: 'c' },
+  { top: 56, left: 44.5, w: 11, h: 11, label: '出牌区', dir: 's' },
+  { top: 67, left: 44.5, w: 11, h: 11, label: '收牌区', dir: 's' },
+  { top: 56, left: 13, w: 11, h: 11, label: '收牌区', dir: 'w' },
+  { top: 56, left: 76, w: 11, h: 11, label: '出牌区', dir: 'e' },
 ];
 
 export function groupHand(hand: GCard[], level: number): HandGroup[] {
@@ -721,7 +721,7 @@ export function GuandanGame() {
         {GD_ZONES.map((z, i) => (
           <span
             key={i}
-            className="gd-zone"
+            className={`gd-zone gd-zone-dir-${z.dir}`}
             style={{ top: `${z.top}%`, left: `${z.left}%`, width: `${z.w}%`, height: `${z.h}%` }}
           >
             {z.label}

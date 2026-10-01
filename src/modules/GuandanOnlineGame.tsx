@@ -641,7 +641,7 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
         {GD_ZONES.map((z, i) => (
           <span
             key={i}
-            className="gd-zone"
+            className={`gd-zone gd-zone-dir-${z.dir}`}
             style={{ top: `${z.top}%`, left: `${z.left}%`, width: `${z.w}%`, height: `${z.h}%` }}
           >
             {z.label}

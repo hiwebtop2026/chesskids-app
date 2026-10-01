@@ -6945,23 +6945,31 @@ ul {
   color: #fff;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), inset 0 0 60px rgba(0, 0, 0, 0.35);
 }
-/* 桌垫四边方位大字水印（南/北/西/东）+ 底部铭牌（参考比赛专用桌垫） */
+/* 桌垫四边方位大字（带正方形白框，按方位旋转：北倒/南正/西左/东右，参考比赛专用桌垫）+ 底部铭牌 */
 .gd-dir {
   position: absolute;
   font-family: 'STKaiti', 'KaiTi', 'SimSun', serif;
-  font-size: 52px;
+  font-size: 24px;
   font-weight: 900;
-  color: rgba(255, 255, 255, 0.10);
+  color: rgba(255, 255, 255, 0.5);
   pointer-events: none;
   user-select: none;
   z-index: 0;
   line-height: 1;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 50px;
+  height: 50px;
+  border: 2.5px solid rgba(255, 255, 255, 0.4);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.2);
 }
-.gd-dir-n { top: 2px; left: 50%; transform: translateX(-50%); }
-.gd-dir-s { bottom: 2px; left: 50%; transform: translateX(-50%); }
-.gd-dir-w { left: 6px; top: 50%; transform: translateY(-50%); }
-.gd-dir-e { right: 6px; top: 50%; transform: translateY(-50%); }
+.gd-dir-n { top: 6px; left: 50%; transform: translateX(-50%) rotate(180deg); }
+.gd-dir-s { bottom: 6px; left: 50%; transform: translateX(-50%); }
+.gd-dir-w { left: 8px; top: 50%; transform: translateY(-50%) rotate(-90deg); }
+.gd-dir-e { right: 8px; top: 50%; transform: translateY(-50%) rotate(90deg); }
 .gd-table-name {
   position: absolute;
   bottom: 10px;
@@ -6987,20 +6995,27 @@ ul {
 .gd-zone {
   position: absolute;
   box-sizing: border-box;
-  border: 1.5px solid rgba(255, 255, 255, 0.26);
-  border-radius: 10px;
+  border: 2px solid rgba(255, 255, 255, 0.32);
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
-  letter-spacing: 2px;
-  color: rgba(255, 255, 255, 0.42);
+  font-size: 15px;
+  letter-spacing: 3px;
+  color: rgba(255, 255, 255, 0.55);
   font-family: 'STKaiti', 'KaiTi', serif;
-  background: rgba(255, 255, 255, 0.03);
-  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.15);
+  background: rgba(255, 255, 255, 0.035);
+  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.18);
+  white-space: nowrap;
 }
+/* 分区文字按方位旋转：北区倒立、西区朝左、东区朝右、南区与中央正立 */
+.gd-zone-dir-n { transform: rotate(180deg); }
+.gd-zone-dir-w { transform: rotate(-90deg); }
+.gd-zone-dir-e { transform: rotate(90deg); }
+.gd-zone-dir-s { transform: rotate(0deg); }
+.gd-zone-dir-c { transform: rotate(0deg); }
 @media (max-width: 640px) {
-  .gd-dir { font-size: 40px; }
+  .gd-dir { font-size: 20px; width: 42px; height: 42px; }
 }
 /* 浮动窗口全屏：占满视口、脱离浏览器布局，各终端自动适配 */
 /* 隐藏 App 上下红色导航栏（header/nav），全屏只显示棋盘容器 */
