@@ -6905,6 +6905,209 @@ ul {
 .skin-dark .skin-option.active { border-color: #7fb3ff; background: #2f3c4e; }
 .skin-dark .skin-modal-close { background: #2a3544; color: #d5e0ef; border-color: rgba(120, 150, 190, 0.4); }
 
+/* ============================================================
+   掼蛋（Guandan）
+   ============================================================ */
+/* 规则学习页 */
+.gd-rules { max-width: 900px; margin: 0 auto; }
+.gd-rules-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 0 14px 20px; }
+@media (max-width: 760px) { .gd-rules-grid { grid-template-columns: 1fr; } }
+.gd-rules-card {
+  background: linear-gradient(180deg, #fffdf7, #f6ecd8);
+  border: 1px solid rgba(160, 120, 60, 0.35);
+  border-radius: 14px;
+  padding: 14px 16px;
+  box-shadow: 0 3px 10px rgba(120, 80, 30, 0.08);
+}
+.gd-rules-card h3 { margin: 0 0 8px; font-size: 15.5px; color: #5a3a1c; }
+.gd-rules-card p { margin: 4px 0; font-size: 13.5px; line-height: 1.65; color: #5a4a2f; }
+.gd-rules-card b { color: #c0392b; }
+.gd-type-list { margin: 4px 0; padding-left: 18px; font-size: 13.5px; line-height: 1.75; color: #5a4a2f; }
+
+/* 对局桌 */
+.gd-table {
+  position: relative;
+  min-height: calc(100dvh - 118px);
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(90, 150, 110, 0.35), transparent 60%),
+    linear-gradient(160deg, #1f6d4f 0%, #17543d 50%, #12412f 100%);
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 10px 6px;
+  color: #fff;
+  box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.35);
+}
+.gd-topbar {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding: 8px 6px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 10px;
+  flex-wrap: wrap;
+}
+.gd-info { font-size: 13px; color: #e8f5e9; padding: 2px 8px; background: rgba(255,255,255,0.08); border-radius: 99px; }
+.gd-info b { font-size: 14px; }
+.gd-level { color: #ffd54f; }
+
+.gd-seats { flex: 1; display: flex; flex-direction: column; gap: 8px; padding: 10px 4px 4px; }
+.gd-seat {
+  position: relative;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1.5px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: 6px 12px;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: all .2s;
+}
+.gd-seat.gd-active { border-color: #ffd54f; box-shadow: 0 0 14px rgba(255, 213, 79, 0.35); }
+.gd-seat-top { width: 100%; justify-content: center; }
+.gd-side-row { display: flex; gap: 8px; align-items: stretch; }
+.gd-seat-left, .gd-seat-right { flex: 1; }
+.gd-seat-name { font-size: 13.5px; font-weight: 600; }
+.gd-seat-count { font-size: 12.5px; color: #c8e6c9; background: rgba(0,0,0,0.3); padding: 1px 8px; border-radius: 99px; }
+.gd-pass-tag { font-size: 12px; color: #ffd54f; background: rgba(0,0,0,0.35); padding: 1px 10px; border-radius: 99px; }
+.gd-finished-tag { font-size: 12px; color: #fff; background: rgba(255, 90, 60, 0.6); padding: 1px 10px; border-radius: 99px; }
+.gd-mini-cards { display: flex; gap: 3px; flex-wrap: wrap; }
+.gd-mini-card {
+  font-size: 10.5px;
+  background: #fff;
+  color: #222;
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.gd-mini-card.gd-joker { background: linear-gradient(135deg, #7b1fa2, #c62828); color: #fff; }
+
+.gd-center-play {
+  flex: 2.2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 74px;
+}
+.gd-last-play { text-align: center; }
+.gd-last-name { display: block; font-size: 11.5px; color: #ffd54f; margin-bottom: 4px; }
+.gd-last-cards { display: flex; gap: 4px; justify-content: center; flex-wrap: wrap; }
+.gd-play-card {
+  font-size: 13px; font-weight: 700;
+  background: linear-gradient(180deg, #fff, #e8e2d5);
+  color: #222; border-radius: 6px;
+  padding: 4px 7px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+.gd-play-card.gd-joker { background: linear-gradient(135deg, #7b1fa2, #c62828); color: #fff; }
+.gd-freetext { font-size: 14px; color: rgba(255, 255, 255, 0.65); }
+
+.gd-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.gd-turn-hint { flex-basis: 100%; text-align: center; font-size: 12.5px; color: #e8f5e9; }
+.gd-btn {
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  border-radius: 99px;
+  padding: 8px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s;
+  min-width: 64px;
+}
+.gd-btn:hover:not(:disabled) { transform: scale(1.05); }
+.gd-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.gd-btn-primary { background: linear-gradient(135deg, #ffb300, #f57c00); border-color: #ffd54f; color: #5a3300; }
+.gd-btn-pass { background: rgba(255, 255, 255, 0.12); }
+.gd-btn-hint { background: rgba(190, 220, 255, 0.22); }
+.gd-btn-sort { background: rgba(255, 213, 79, 0.2); }
+
+.gd-hand {
+  display: flex;
+  justify-content: center;
+  padding: 4px 6px 12px;
+  min-height: 108px;
+  align-items: flex-end;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+.gd-card {
+  position: relative;
+  width: 46px;
+  height: 68px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  background: linear-gradient(180deg, #fff, #f0ece2);
+  color: #222;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding-top: 2px;
+  transition: transform .12s, box-shadow .12s;
+}
+.gd-card:hover { transform: translateY(-6px); }
+.gd-card.gd-selected { transform: translateY(-16px); border-color: #ffb300; box-shadow: 0 4px 12px rgba(255, 179, 0, 0.5); }
+.gd-card.gd-red { color: #d32f2f; }
+.gd-card.gd-black { color: #1b1b1b; }
+.gd-card-joker { background: linear-gradient(135deg, #6a1b9a, #c62828); color: #fff !important; }
+.gd-card-level { box-shadow: inset 0 0 0 2.5px #ffb300; }
+.gd-card-rank { font-size: 13px; line-height: 1.1; }
+.gd-card-suit { font-size: 11px; }
+.gd-card-level-tag {
+  position: absolute;
+  top: 2px; right: 3px;
+  font-size: 8.5px;
+  background: #ffb300;
+  color: #5a3300;
+  border-radius: 3px;
+  padding: 0 3px;
+  font-weight: 800;
+}
+.gd-hand-empty { color: rgba(255, 255, 255, 0.7); font-size: 15px; padding: 30px 0; }
+
+.gd-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 30;
+  backdrop-filter: blur(3px);
+}
+.gd-overlay-card {
+  background: linear-gradient(180deg, #fffdf4, #f2e5c8);
+  color: #5a3a1c;
+  border-radius: 18px;
+  padding: 24px 30px;
+  text-align: center;
+  max-width: 320px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+.gd-overlay-card h2 { margin: 0 0 10px; font-size: 19px; }
+.gd-overlay-level { font-size: 14px; color: #8a6a40; }
+.gd-overlay-win { color: #c0392b; font-weight: 700; font-size: 15px; }
+.gd-overlay-lose { color: #5a7a9e; font-size: 14px; }
+.gd-overlay-btns { margin-top: 14px; }
+
 /* 规则学习 */
 .rules-layout { display: flex; gap: 16px; flex-wrap: wrap; max-width: 860px; margin: 0 auto; }
 .rules-toc { flex: 0 0 200px; display: flex; flex-direction: column; gap: 6px; }

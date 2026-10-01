@@ -50,8 +50,10 @@ const GomokuRulesLearning = lazyWithRetry(() => import('./modules/GomokuRulesLea
 const GomokuGame = lazyWithRetry(() => import('./modules/GomokuGame').then((m) => ({ default: m.GomokuGame })));
 const GomokuLocalGame = lazyWithRetry(() => import('./modules/GomokuLocalGame').then((m) => ({ default: m.GomokuLocalGame })));
 const GomokuOnlineGame = lazyWithRetry(() => import('./modules/GomokuOnlineGame').then((m) => ({ default: m.GomokuOnlineGame })));
+const GuandanRulesLearning = lazyWithRetry(() => import('./modules/GuandanRulesLearning').then((m) => ({ default: m.GuandanRulesLearning })));
+const GuandanGame = lazyWithRetry(() => import('./modules/GuandanGame').then((m) => ({ default: m.GuandanGame })));
 
-type GameType = 'chess' | 'xiangqi' | 'go' | 'gomoku';
+type GameType = 'chess' | 'xiangqi' | 'go' | 'gomoku' | 'guandan';
 type SkinKey = 'default' | 'dark' | 'national' | 'porcelain' | 'wood';
 const SKIN_OPTIONS: { key: SkinKey; label: string; icon: string; desc: string }[] = [
   { key: 'default', label: '日间', icon: '☀️', desc: '明亮护眼默认皮肤' },
@@ -64,7 +66,8 @@ type ChessTabKey = 'learn' | 'rules' | 'tactics' | 'game' | 'local' | 'online' |
 type XiangqiTabKey = 'xq-rules' | 'xq-tactics' | 'xq-ai' | 'xq-local' | 'xq-online' | 'progress';
 type GoTabKey = 'go-rules' | 'go-ai' | 'go-local' | 'go-online' | 'progress';
 type GomokuTabKey = 'gomoku-rules' | 'gomoku-ai' | 'gomoku-local' | 'gomoku-online' | 'progress';
-type TabKey = ChessTabKey | XiangqiTabKey | GoTabKey | GomokuTabKey;
+type GuandanTabKey = 'gd-rules' | 'gd-ai';
+type TabKey = ChessTabKey | XiangqiTabKey | GoTabKey | GomokuTabKey | GuandanTabKey;
 
 const CHESS_TABS: { key: ChessTabKey; label: string; icon: string }[] = [
   { key: 'learn', label: '棋子学习', icon: '♟️' },
@@ -99,6 +102,11 @@ const GOMOKU_TABS: { key: GomokuTabKey; label: string; icon: string }[] = [
   { key: 'gomoku-local', label: '双人对战', icon: '👥' },
   { key: 'gomoku-online', label: '联机对战', icon: '🌐' },
   { key: 'progress', label: '我的进度', icon: '🏆' },
+];
+
+const GUANDAN_TABS: { key: GuandanTabKey; label: string; icon: string }[] = [
+  { key: 'gd-rules', label: '规则学习', icon: '📖' },
+  { key: 'gd-ai', label: '人机对战', icon: '🤖' },
 ];
 
 // 启动时解析 URL 参数，支持通过分享链接自动进入房间
@@ -219,7 +227,7 @@ const App: React.FC = () => {
   const isNational = skin === 'national';
   const { progress } = useProgressStore();
 
-  const tabs = gameType === 'chess' ? CHESS_TABS : gameType === 'xiangqi' ? XIANGQI_TABS : gameType === 'go' ? GO_TABS : GOMOKU_TABS;
+  const tabs = gameType === 'chess' ? CHESS_TABS : gameType === 'xiangqi' ? XIANGQI_TABS : gameType === 'go' ? GO_TABS : gameType === 'gomoku' ? GOMOKU_TABS : GUANDAN_TABS;
 
   /** 启动时检测 URL 参数，自动进入对应联机房间 */
   useEffect(() => {
@@ -345,6 +353,10 @@ const App: React.FC = () => {
         return <GomokuLocalGame />;
       case 'gomoku-online':
         return <GomokuOnlineGame autoJoinRoom={autoRoom} />;
+      case 'gd-rules':
+        return <GuandanRulesLearning />;
+      case 'gd-ai':
+        return <GuandanGame />;
       default:
         return null;
     }
@@ -458,6 +470,17 @@ const App: React.FC = () => {
                 </span>
                 <span className="game-card-btn">进入游戏 →</span>
               </button>
+              <button
+                className="game-select-card game-card-guandan"
+                onClick={() => selectGame('guandan')}
+              >
+                <span className="game-card-icon">🃏</span>
+                <span className="game-card-title">掼蛋</span>
+                <span className="game-card-desc">
+                  经典规则学习 · 四人两两组队 · 人机对战（2 副牌 / 升级过 A）
+                </span>
+                <span className="game-card-btn">进入游戏 →</span>
+              </button>
             </div>
           </div>
         </main>
@@ -483,11 +506,11 @@ const App: React.FC = () => {
       <header className="app-header">
         <div className="header-left">
           <h1 className="app-title" onClick={goHome} style={{ cursor: 'pointer' }} title="返回首页">
-            <span className="app-logo">{gameType === 'chess' ? '♔' : gameType === 'xiangqi' ? '帥' : gameType === 'go' ? '⚫' : <GomokuLogoIcon size={1.15} />}</span>
+            <span className="app-logo">{gameType === 'chess' ? '♔' : gameType === 'xiangqi' ? '帥' : gameType === 'go' ? '⚫' : gameType === 'gomoku' ? <GomokuLogoIcon size={1.15} /> : '🃏'}</span>
             棋乐园
           </h1>
           <span className="app-subtitle">
-            {gameType === 'chess' ? '国际象棋' : gameType === 'xiangqi' ? '中国象棋' : gameType === 'go' ? '围棋' : '五子棋'}
+            {gameType === 'chess' ? '国际象棋' : gameType === 'xiangqi' ? '中国象棋' : gameType === 'go' ? '围棋' : gameType === 'gomoku' ? '五子棋' : '掼蛋'}
           </span>
         </div>
         <div className="header-right">

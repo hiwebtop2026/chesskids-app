@@ -28,3 +28,7 @@ export { GomokuRulesLearning } from './GomokuRulesLearning';
 export { GomokuGame } from './GomokuGame';
 export { GomokuLocalGame } from './GomokuLocalGame';
 export { GomokuOnlineGame } from './GomokuOnlineGame';
+
+// 掼蛋模块
+export { GuandanRulesLearning } from './GuandanRulesLearning';
+export { GuandanGame } from './GuandanGame';

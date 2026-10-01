@@ -8,7 +8,7 @@ import { isIOS, isAndroid, copyLinkForBrowserOpen } from '../utils/wechat';
 
 export interface WeChatGuideProps {
   roomCode: string;
-  gameType: 'chess' | 'xiangqi' | 'go' | 'gomoku';
+  gameType: 'chess' | 'xiangqi' | 'go' | 'gomoku' | 'guandan';
   onClose?: () => void;
 }
 
@@ -17,7 +17,7 @@ export const WeChatGuide: React.FC<WeChatGuideProps> = ({ roomCode, gameType, on
   const [copiedRoom, setCopiedRoom] = useState(false);
 
   const displayRoom = roomCode.replace(/^[CXWG]-/, '');
-  const gameName = gameType === 'chess' ? '国际象棋' : gameType === 'xiangqi' ? '中国象棋' : gameType === 'go' ? '围棋' : '五子棋';
+  const gameName = gameType === 'chess' ? '国际象棋' : gameType === 'xiangqi' ? '中国象棋' : gameType === 'go' ? '围棋' : gameType === 'gomoku' ? '五子棋' : '掼蛋';
   const link = copyLinkForBrowserOpen();
 
   const copyLink = async () => {
