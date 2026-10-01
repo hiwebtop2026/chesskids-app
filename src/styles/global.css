@@ -7195,6 +7195,22 @@ ul {
   transition: all .2s;
 }
 .gd-seat.gd-active { border-color: #ffd54f; box-shadow: 0 0 14px rgba(255, 213, 79, 0.35); }
+/* 队伍颜色编码：我方蓝色边框，对方红色边框 */
+.gd-seat.gd-team-mine { border-color: rgba(100, 181, 246, 0.5); }
+.gd-seat.gd-team-mine.gd-active { border-color: #ffd54f; }
+.gd-seat.gd-team-opp { border-color: rgba(239, 83, 80, 0.5); }
+.gd-seat.gd-team-opp.gd-active { border-color: #ffd54f; }
+/* 队伍标签 */
+.gd-team-tag {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 7px;
+  border-radius: 99px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.gd-team-mine-tag { color: #64b5f6; background: rgba(100, 181, 246, 0.15); border: 1px solid rgba(100, 181, 246, 0.35); }
+.gd-team-opp-tag { color: #ef5350; background: rgba(239, 83, 80, 0.15); border: 1px solid rgba(239, 83, 80, 0.35); }
 /* 头游标记（金色徽章，脉冲高亮） */
 .gd-head-tag {
   font-size: 11px;
@@ -7730,6 +7746,12 @@ ul {
 .gd-room-player.gd-me { border: 1.5px solid #80deea; color: #80deea; font-weight: 700; }
 .gd-room-player.gd-ai { border: 1.5px solid #ce93d8; color: #e1bee7; background: rgba(206, 147, 216, 0.15); }
 .gd-room-player.gd-empty { color: rgba(255,255,255,0.4); background: rgba(255,255,255,0.05); }
+/* 大厅队伍标识 */
+.gd-room-player.gd-room-team-mine { border-left: 3px solid #64b5f6; }
+.gd-room-player.gd-room-team-opp { border-left: 3px solid #ef5350; }
+.gd-room-team-label { font-size: 10px; font-weight: 700; margin-left: 6px; padding: 0 5px; border-radius: 99px; }
+.gd-mine-label { color: #64b5f6; background: rgba(100, 181, 246, 0.15); }
+.gd-opp-label { color: #ef5350; background: rgba(239, 83, 80, 0.15); }
 .gd-online-tip { font-size: 12.5px; color: #c8e6c9; margin: 8px 0 0; }
 .gd-online-notice {
   position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);

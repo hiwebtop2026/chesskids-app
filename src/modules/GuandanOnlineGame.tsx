@@ -237,7 +237,7 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
   // AI 玩家状态（仅房主侧有效）
   const [aiPlayers, setAiPlayers] = useState<AIPlayer[]>([]);
   const [aiDifficulty, setAiDifficulty] = useState<GDAIDifficulty>('medium');
-  const [aiCount, setAiCount] = useState(3); // 默认 3 个 AI（房主 + 3AI 直接开局）
+  const [aiCount, setAiCount] = useState(2); // 默认 2 个 AI（房主+好友 vs 2AI）
   const aiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ============ 复制房间号 ============
@@ -624,8 +624,9 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
       }
     }
 
-    // 分配 AI 到空座位（按座位 2→1→3 顺序：先队友，再对手）
-    const emptySeats = [2, 1, 3].filter(s => !playerNames[s]);
+    // 分配 AI 到空座位（按座位 1→3→2 顺序：先填对手位，再填队友位）
+    // 房主(0) + 好友(2) = 我方，AI(1) + AI(3) = 对方
+    const emptySeats = [1, 3, 2].filter(s => !playerNames[s]);
     for (let i = 0; i < needAI && i < emptySeats.length; i++) {
       const seat = emptySeats[i];
       playerNames[seat] = `🤖 ${aiNames[i]}`;
@@ -994,11 +995,12 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
           <div className="gd-room-players">
             {playerList.map((p, i) => (
               <div
-                className={`gd-room-player ${p.type === 'host' ? 'gd-host' : ''} ${p.type === 'empty' ? 'gd-empty' : ''} ${p.type === 'ai' ? 'gd-ai' : ''}`}
+                className={`gd-room-player ${p.type === 'host' ? 'gd-host' : ''} ${p.type === 'empty' ? 'gd-empty' : ''} ${p.type === 'ai' ? 'gd-ai' : ''} ${(i === 0 || i === 2) ? 'gd-room-team-mine' : 'gd-room-team-opp'}`}
                 key={i}
               >
                 {p.type === 'host' ? '👑 ' : p.type === 'guest' ? '🎮 ' : p.type === 'ai' ? '🤖 ' : '⏳ '}
                 {p.name}
+                <span className={`gd-room-team-label ${(i === 0 || i === 2) ? 'gd-mine-label' : 'gd-opp-label'}`}>{(i === 0 || i === 2) ? '我方' : '对方'}</span>
               </div>
             ))}
           </div>
@@ -1150,8 +1152,9 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
       </div>
 
       <div className="gd-seats">
-        <div className={`gd-seat gd-seat-top ${game.current === 2 ? 'gd-active' : ''}`}>
+        <div className={`gd-seat gd-seat-top gd-team-mine ${game.current === 2 ? 'gd-active' : ''}`}>
           <span className="gd-seat-name">🤝 {seatLabel(2)}</span>
+          <span className="gd-team-tag gd-team-mine-tag">我方</span>
           {headSeat === 2 && <span className="gd-head-tag">🏆 头游</span>}
           {counts[2] <= 10 && <span className="gd-seat-count">{counts[2]} 张</span>}
           {game.roundPass.includes(2) && <span className="gd-pass-tag">不出</span>}
@@ -1178,8 +1181,9 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
         <div className="gd-play-area gd-play-north">{renderRoundPlays(2)}</div>
         <div className="gd-side-row">
           <div className="gd-side-col">
-            <div className={`gd-seat gd-seat-left ${game.current === 3 ? 'gd-active' : ''}`}>
+            <div className={`gd-seat gd-seat-left gd-team-opp ${game.current === 3 ? 'gd-active' : ''}`}>
               <span className="gd-seat-name">😈 {seatLabel(3)}</span>
+              <span className="gd-team-tag gd-team-opp-tag">对方</span>
               {headSeat === 3 && <span className="gd-head-tag">🏆 头游</span>}
               {counts[3] <= 10 && <span className="gd-seat-count">{counts[3]} 张</span>}
               {game.roundPass.includes(3) && <span className="gd-pass-tag">不出</span>}
@@ -1212,8 +1216,9 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
               <span className="gd-freetext">自由出牌</span>}
           </div>
           <div className="gd-side-col">
-            <div className={`gd-seat gd-seat-right ${game.current === 1 ? 'gd-active' : ''}`}>
+            <div className={`gd-seat gd-seat-right gd-team-opp ${game.current === 1 ? 'gd-active' : ''}`}>
               <span className="gd-seat-name">😈 {seatLabel(1)}</span>
+              <span className="gd-team-tag gd-team-opp-tag">对方</span>
               {headSeat === 1 && <span className="gd-head-tag">🏆 头游</span>}
               {counts[1] <= 10 && <span className="gd-seat-count">{counts[1]} 张</span>}
               {game.roundPass.includes(1) && <span className="gd-pass-tag">不出</span>}
