@@ -992,24 +992,34 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
     const needAI = Math.max(0, 4 - totalPlayers);
     const canStart = needAI <= aiCount; // AI 补位够就能开局
 
-    // 构建完整玩家列表（含 AI 预分配）
-    const playerList: { name: string; type: 'host' | 'guest' | 'ai' | 'empty' }[] = [
+    // 构建完整玩家列表（按座位号排列：0=房主, 1=对手A, 2=队友, 3=对手B）
+    // AI 优先填对手位(1,3)，好友加入时自动坐队友位(2)
+    const seats: { name: string; type: 'host' | 'guest' | 'ai' | 'empty' }[] = [
       { name: '房主（你）', type: 'host' },
+      { name: '', type: 'empty' },
+      { name: '', type: 'empty' },
+      { name: '', type: 'empty' },
     ];
-    // 已连接玩家
-    for (const c of connsRef.current) {
-      playerList.push({ name: c._gdName || '玩家', type: 'guest' });
+    // 已连接好友按加入顺序分配座位：第一个→2(队友)，第二个→1，第三个→3
+    const guestSeatOrder = [2, 1, 3];
+    const guests = connsRef.current;
+    for (let i = 0; i < guests.length && i < 3; i++) {
+      const seat = guestSeatOrder[i];
+      seats[seat] = { name: guests[i]._gdName || '玩家', type: 'guest' };
     }
-    // AI 补位
+    // AI 补位：优先填对手位(1,3)，再填队友位(2)
     const aiToShow = Math.min(needAI, aiCount);
-    for (let i = 0; i < aiToShow; i++) {
-      playerList.push({ name: `AI ${aiDifficulty === 'easy' ? '简单' : aiDifficulty === 'medium' ? '中等' : aiDifficulty === 'hard' ? '困难' : '大师'}`, type: 'ai' });
+    const aiSeatOrder = [1, 3, 2]; // 对手优先
+    let aiIdx = 0;
+    for (const seat of aiSeatOrder) {
+      if (aiIdx >= aiToShow) break;
+      if (seats[seat].type === 'empty') {
+        const diffName = aiDifficulty === 'easy' ? '简单' : aiDifficulty === 'medium' ? '中等' : aiDifficulty === 'hard' ? '困难' : '大师';
+        seats[seat] = { name: `AI ${diffName}`, type: 'ai' };
+        aiIdx++;
+      }
     }
-    // 空位
-    const emptyCount = 3 - connected - aiToShow;
-    for (let i = 0; i < emptyCount; i++) {
-      playerList.push({ name: '等待加入…', type: 'empty' });
-    }
+    const playerList = seats;
 
     return (
       <div className="gd-online">
