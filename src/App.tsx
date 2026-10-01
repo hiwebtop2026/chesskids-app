@@ -224,6 +224,7 @@ const App: React.FC = () => {
     } catch { return 'default'; }
   });
   const [skinOpen, setSkinOpen] = useState(false);
+  const [selectType, setSelectType] = useState<'chess' | 'card'>('chess');
   const selectSkin = useCallback((k: SkinKey) => {
     setSkin(k);
     try { localStorage.setItem('app-skin', k); } catch { /* 忽略 */ }
@@ -427,77 +428,95 @@ const App: React.FC = () => {
         <main className="app-main home-main">
           <div className="game-select-screen">
             <div className="game-select-header">
-              <h2>🎯 选择你想学习的棋类</h2>
-              <p>点击卡片进入，开始你的棋艺之旅吧！</p>
+              <h2>🎯 选择游戏类型</h2>
+              <p>先选择游戏类型，再点击卡片进入对应游戏</p>
+            </div>
+            <div className="game-type-switch">
+              <button
+                className={`game-type-btn ${selectType === 'chess' ? 'game-type-active' : ''}`}
+                onClick={() => setSelectType('chess')}
+              >
+                ♟️ 棋类游戏
+              </button>
+              <button
+                className={`game-type-btn ${selectType === 'card' ? 'game-type-active' : ''}`}
+                onClick={() => setSelectType('card')}
+              >
+                🃏 牌类游戏
+              </button>
             </div>
             <div className="game-select-cards">
-              <div className="game-select-group">
-                <h3 className="game-select-group-title">♟️ 棋类游戏</h3>
-                <div className="game-select-group-cards">
-                  <button
-                    className="game-select-card game-card-chess"
-                    onClick={() => selectGame('chess')}
-                  >
-                    <span className="game-card-icon">♔</span>
-                    <span className="game-card-title">国际象棋</span>
-                    <span className="game-card-desc">
-                      棋子学习 · 规则 · 战术训练 · 人机 / 双人 / 联机对战
-                    </span>
-                    <span className="game-card-btn">进入游戏 →</span>
-                  </button>
-                  <button
-                    className="game-select-card game-card-xiangqi"
-                    onClick={() => selectGame('xiangqi')}
-                  >
-                    <span className="game-card-icon">帥</span>
-                    <span className="game-card-title">中国象棋</span>
-                    <span className="game-card-desc">
-                      规则学习 · 战术训练 · 人机对战 · 双人对战 · 在线联机
-                    </span>
-                    <span className="game-card-btn">进入游戏 →</span>
-                  </button>
-                  <button
-                    className="game-select-card game-card-go"
-                    onClick={() => selectGame('go')}
-                  >
-                    <span className="game-card-icon">⚫</span>
-                    <span className="game-card-title">围棋</span>
-                    <span className="game-card-desc">
-                      规则学习 · 人机对战 · 双人对战 · 在线联机（9/13/19 路）
-                    </span>
-                    <span className="game-card-btn">进入游戏 →</span>
-                  </button>
-                  <button
-                    className="game-select-card game-card-gomoku"
-                    onClick={() => selectGame('gomoku')}
-                  >
-                    <span className="game-card-icon">
-                      <GomokuLogoIcon size={1.45} />
-                    </span>
-                    <span className="game-card-title">五子棋</span>
-                    <span className="game-card-desc">
-                      规则学习 · 人机对战 · 双人对战 · 在线联机（花梨木 3D 棋盘）
-                    </span>
-                    <span className="game-card-btn">进入游戏 →</span>
-                  </button>
+              {selectType === 'chess' && (
+                <div className="game-select-group">
+                  <h3 className="game-select-group-title">♟️ 棋类游戏</h3>
+                  <div className="game-select-group-cards">
+                    <button
+                      className="game-select-card game-card-chess"
+                      onClick={() => selectGame('chess')}
+                    >
+                      <span className="game-card-icon">♔</span>
+                      <span className="game-card-title">国际象棋</span>
+                      <span className="game-card-desc">
+                        棋子学习 · 规则 · 战术训练 · 人机 / 双人 / 联机对战
+                      </span>
+                      <span className="game-card-btn">进入游戏 →</span>
+                    </button>
+                    <button
+                      className="game-select-card game-card-xiangqi"
+                      onClick={() => selectGame('xiangqi')}
+                    >
+                      <span className="game-card-icon">帥</span>
+                      <span className="game-card-title">中国象棋</span>
+                      <span className="game-card-desc">
+                        规则学习 · 战术训练 · 人机对战 · 双人对战 · 在线联机
+                      </span>
+                      <span className="game-card-btn">进入游戏 →</span>
+                    </button>
+                    <button
+                      className="game-select-card game-card-go"
+                      onClick={() => selectGame('go')}
+                    >
+                      <span className="game-card-icon">⚫</span>
+                      <span className="game-card-title">围棋</span>
+                      <span className="game-card-desc">
+                        规则学习 · 人机对战 · 双人对战 · 在线联机（9/13/19 路）
+                      </span>
+                      <span className="game-card-btn">进入游戏 →</span>
+                    </button>
+                    <button
+                      className="game-select-card game-card-gomoku"
+                      onClick={() => selectGame('gomoku')}
+                    >
+                      <span className="game-card-icon">
+                        <GomokuLogoIcon size={1.45} />
+                      </span>
+                      <span className="game-card-title">五子棋</span>
+                      <span className="game-card-desc">
+                        规则学习 · 人机对战 · 双人对战 · 在线联机（花梨木 3D 棋盘）
+                      </span>
+                      <span className="game-card-btn">进入游戏 →</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <div className="game-select-group">
-                <h3 className="game-select-group-title">🃏 牌类游戏</h3>
-                <div className="game-select-group-cards">
-                  <button
-                    className="game-select-card game-card-guandan"
-                    onClick={() => selectGame('guandan')}
-                  >
-                    <span className="game-card-icon">🃏</span>
-                    <span className="game-card-title">掼蛋</span>
-                    <span className="game-card-desc">
-                      经典规则学习 · 四人两两组队 · 人机对战 / 联机对战
-                    </span>
-                    <span className="game-card-btn">进入游戏 →</span>
-                  </button>
+              )}
+              {selectType === 'card' && (
+                <div className="game-select-group">
+                  <h3 className="game-select-group-title">🃏 牌类游戏</h3>
+                  <div className="game-select-group-cards">
+                    <button
+                      className="game-select-card game-card-guandan"
+                      onClick={() => selectGame('guandan')}
+                    >
+                      <span className="game-card-icon">🃏</span>
+                      <span className="game-card-title">掼蛋</span>
+                      <span className="game-card-desc">
+                        经典规则学习 · 四人两两组队 · 人机对战 / 联机对战
+                      </span>
+                      <span className="game-card-btn">进入游戏 →</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </main>
