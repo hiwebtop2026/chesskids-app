@@ -998,6 +998,8 @@ interface GameState {
   roundPass: number[]; // 本轮已 pass 的玩家
   /** 本轮各方位已出的牌（一轮出完才清理），用于方位展示 */
   roundPlays: { player: number; cards: GCard[] }[];
+  /** 一圈全过后标记为 true：保留出牌信息显示，直到下一次出牌才清除 */
+  roundEnded: boolean;
   phase: 'idle' | 'playing' | 'over';
   winnerTeam: number | null;
   resultText: string;
@@ -1078,6 +1080,7 @@ export function GuandanGame() {
       finished: [],
       roundPass: [],
       roundPlays: [],
+      roundEnded: false,
       phase: 'playing',
       winnerTeam: null,
       resultText: '',
@@ -1166,8 +1169,10 @@ export function GuandanGame() {
       const lastPlay = play ? { player, cards: play, info: analyzePlay(play, prev.level)! } : null;
       const roundPass = [...prev.roundPass];
       const finished = [...prev.finished];
-      // 本轮已出的牌：出牌追加到对应方位；一圈全过（新一轮）时清空
-      const roundPlays = play ? [...prev.roundPlays, { player, cards: play }] : prev.roundPlays;
+      // 出牌时：若上一轮已结束（roundEnded），清除旧 roundPlays 重新开始；否则追加
+      const roundPlays = play
+        ? (prev.roundEnded ? [{ player, cards: play }] : [...prev.roundPlays, { player, cards: play }])
+        : prev.roundPlays;
 
       if (play) {
         hands[player] = hands[player].filter((c) => !play.some((p) => p.id === c.id));
@@ -1218,7 +1223,7 @@ export function GuandanGame() {
               resultText = win === 0 ? '🚀 打到 A！下一局双上即获胜！' : '对方打到 A';
             }
             return {
-              ...prev, hands, lastPlay, roundPass: [], roundPlays, finished,
+              ...prev, hands, lastPlay, roundPass: [], roundPlays, roundEnded: false, finished,
               phase: 'over', winnerTeam, resultText,
               level: newLevel,
               aStrikes,
@@ -1228,15 +1233,16 @@ export function GuandanGame() {
         }
         // 出完非全结束：本轮继续（出牌追加到方位区，待一圈全过才清理）；跳过头游者
         return {
-          ...prev, hands, lastPlay, lastPlayBy: player, roundPass: [], roundPlays, current: nextAlive(player + 1, finished), turnStart: nextAlive(player + 1, finished),
+          ...prev, hands, lastPlay, lastPlayBy: player, roundPass: [], roundPlays, roundEnded: false, current: nextAlive(player + 1, finished), turnStart: nextAlive(player + 1, finished),
         };
       } else {
         // 不出
         roundPass.push(player);
         if (roundPass.length >= 3) {
-          // 一圈全过 → 最后出牌者自由出牌（新一轮开始，清理本轮出牌）；若最后出牌者已头游，则顺延给下一未出完者
+          // 一圈全过 → 保留出牌信息显示（roundPlays 不清空），标记 roundEnded
+          // 最后出牌者自由出牌（lastPlay=null），下一次出牌时才清除旧 roundPlays
           const freer = finished.includes(prev.lastPlayBy) ? nextAlive(prev.lastPlayBy + 1, finished) : prev.lastPlayBy;
-          return { ...prev, hands, roundPass: [], roundPlays: [], current: freer, lastPlay: null, lastPlayBy: freer };
+          return { ...prev, hands, roundPass: [], roundPlays, roundEnded: true, current: freer, lastPlay: null, lastPlayBy: freer };
         }
         return { ...prev, hands, roundPass, roundPlays, current: nextAlive(player + 1, finished) };
       }

@@ -36,6 +36,8 @@ export interface GDOnlineState {
   roundPass: number[];
   /** 本轮各方位已出的牌（一轮出完才清理），用于方位展示 */
   roundPlays: { player: number; cards: GCard[] }[];
+  /** 一圈全过后标记为 true：保留出牌信息显示，直到下一次出牌才清除 */
+  roundEnded: boolean;
   phase: 'playing' | 'over';
   winnerTeam: number | null;
   resultText: string;
@@ -61,8 +63,10 @@ export function gdApplyTurn(prev: GDOnlineState, player: number, play: GCard[] |
   const hands = prev.hands.map((h) => [...h]);
   const roundPass = [...prev.roundPass];
   const finished = [...prev.finished];
-  // 本轮已出的牌：出牌追加到对应方位；一圈全过（新一轮）时清空
-  const roundPlays = play ? [...prev.roundPlays, { player, cards: play }] : prev.roundPlays;
+  // 出牌时：若上一轮已结束（roundEnded），清除旧 roundPlays 重新开始；否则追加
+  const roundPlays = play
+    ? (prev.roundEnded ? [{ player, cards: play }] : [...prev.roundPlays, { player, cards: play }])
+    : prev.roundPlays;
 
   if (play) {
     hands[player] = hands[player].filter((c) => !play.some((p) => p.id === c.id));
@@ -111,23 +115,24 @@ export function gdApplyTurn(prev: GDOnlineState, player: number, play: GCard[] |
           resultText = myTeamWon ? '🚀 打到 A！下一局双上即获胜！' : '对方打到 A';
         }
         return {
-          ...prev, hands, roundPass: [], roundPlays, finished, phase: 'over', winnerTeam, resultText,
+          ...prev, hands, roundPass: [], roundPlays, roundEnded: false, finished, phase: 'over', winnerTeam, resultText,
           level: newLevel, aStrikes, current: order[0], lastPlay: null, lastPlayBy: -1,
         };
       }
     }
     return {
       ...prev, hands,
-      lastPlay: { player, cards: play }, lastPlayBy: player, roundPass: [], roundPlays,
+      lastPlay: { player, cards: play }, lastPlayBy: player, roundPass: [], roundPlays, roundEnded: false,
       current: nextAliveSeat(player + 1, finished), turnStart: nextAliveSeat(player + 1, finished),
     };
   }
   // 不出
   roundPass.push(player);
   if (roundPass.length >= 3) {
-    // 一圈全过 → 最后出牌者自由出牌；若已头游则顺延给下一未出完者
+    // 一圈全过 → 保留出牌信息显示（roundPlays 不清空），标记 roundEnded
+    // 最后出牌者自由出牌（lastPlay=null），下一次出牌时才清除旧 roundPlays
     const freer = finished.includes(prev.lastPlayBy) ? nextAliveSeat(prev.lastPlayBy + 1, finished) : prev.lastPlayBy;
-    return { ...prev, hands, roundPass: [], roundPlays: [], current: freer, lastPlay: null, lastPlayBy: freer };
+    return { ...prev, hands, roundPass: [], roundPlays, roundEnded: true, current: freer, lastPlay: null, lastPlayBy: freer };
   }
   return { ...prev, hands, roundPass, roundPlays, current: nextAliveSeat(player + 1, finished) };
 }
@@ -138,7 +143,7 @@ export function gdNewGame(level: number, names: string[], firstSeat: number, kee
   deck.forEach((c, i) => hands[i % 4].push(c));
   return {
     hands, level, current: firstSeat, lastPlay: null, lastPlayBy: -1, turnStart: firstSeat,
-    finished: [], roundPass: [], roundPlays: [], phase: 'playing', winnerTeam: null, resultText: '', playerNames: names,
+    finished: [], roundPass: [], roundPlays: [], roundEnded: false, phase: 'playing', winnerTeam: null, resultText: '', playerNames: names,
     aStrikes: keepStrikes,
   };
 }
