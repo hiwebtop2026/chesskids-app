@@ -38,12 +38,6 @@ export function rankName(r: number): string {
   return String(r);
 }
 
-function cardText(c: GCard): string {
-  if (c.k === 1) return '大王';
-  if (c.k === 0) return '小王';
-  return `${rankName(c.r)}${SUIT_SYMBOL[c.s] || ''}`;
-}
-
 // 级牌点数 → 牌面点数 r 的映射：级牌 2 在牌面中用 r=15 表示，A 用 r=14
 export function levelRank(level: number): number {
   return level === 2 || level === 15 ? 15 : level;
@@ -1356,6 +1350,7 @@ export function GuandanGame() {
     return last.player === p ? [last] : [];
   };
   const renderRoundPlays = (p: number) => {
+    if (!game) return null;
     const plays = roundPlaysOf(p);
     if (plays.length === 0) return null;
     return (
@@ -1365,7 +1360,15 @@ export function GuandanGame() {
             <span className="gd-play-hand-name">{NAMES[pl.player]}</span>
             <div className="gd-play-cards-row">
               {pl.cards.map((c) => (
-                <span key={c.id} className={`gd-play-card ${c.k !== undefined ? 'gd-joker' : ''}`}>{cardText(c)}</span>
+                <span
+                  key={c.id}
+                  className={`gd-mini-card ${c.k !== undefined ? 'gd-mini-joker' : ''} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
+                >
+                  <span className="gd-mini-rank">{c.k !== undefined ? (c.k === 1 ? '大王' : '小王') : rankName(c.r)}</span>
+                  {c.k === undefined && <span className="gd-mini-suit">{SUIT_SYMBOL[c.s]}</span>}
+                  {c.r === levelRank(game.level) && c.k === undefined && <span className="gd-mini-level">级</span>}
+                  {isWild(c, game.level) && <span className="gd-wild-tag">变</span>}
+                </span>
               ))}
             </div>
           </div>

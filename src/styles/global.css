@@ -7324,9 +7324,9 @@ ul {
   flex-direction: column;
   gap: 4px;
   min-height: 0;
-  max-height: 150px;
+  max-height: 120px;
   overflow-y: auto;
-  padding: 2px 4px;
+  padding: 4px 6px;
   position: relative;
   z-index: 1;
 }
@@ -7349,20 +7349,20 @@ ul {
   font-weight: 700;
   color: #ffd54f;
   white-space: nowrap;
-  min-width: 40px;
+  min-width: 36px;
 }
-.gd-play-cards-row { display: flex; gap: 3px; flex-wrap: wrap; }
-.gd-play-area .gd-play-card { font-size: 14.5px; padding: 4px 8px; }
+.gd-play-cards-row { display: flex; gap: 4px; flex-wrap: wrap; }
+/* 出牌区使用 gd-mini-card 牌面，与手牌区风格统一 */
 .gd-play-north, .gd-play-south {
   position: absolute;
-  width: 24%;
-  max-width: 420px;
+  width: 28%;
+  max-width: 460px;
   min-height: 0;
   align-items: center;
-  border-radius: 999px;
+  border-radius: 14px;
   background: rgba(0, 0, 0, 0.16);
   border: 1.5px dashed rgba(255, 213, 79, 0.2);
-  padding: 6px 14px;
+  padding: 6px 10px;
   left: 38.5%;
   transform: translateX(-50%);
 }
@@ -7377,22 +7377,24 @@ ul {
 .gd-play-west, .gd-play-east {
   position: absolute;
   top: 48%;
-  width: 12%;
+  width: 14%;
   min-height: 0;
   align-items: center;
   justify-content: center;
 }
-.gd-play-west { left: 26%; }
-.gd-play-east { left: 58%; }
+.gd-play-west { left: 25%; }
+.gd-play-east { left: 61%; }
 @media (max-width: 640px) {
-  .gd-play-north, .gd-play-south { width: 38%; left: 31%; }
-  .gd-play-west, .gd-play-east { width: 16%; }
-  .gd-play-west { left: 22%; }
+  .gd-play-north, .gd-play-south { width: 42%; left: 29%; }
+  .gd-play-west, .gd-play-east { width: 18%; }
+  .gd-play-west { left: 20%; }
   .gd-play-east { left: 62%; }
 }
 @media (max-width: 640px) {
   .gd-play-card { font-size: 15px; padding: 5px 8px; }
-  .gd-play-area .gd-play-card { font-size: 13px; padding: 3px 6px; }
+  .gd-play-area .gd-mini-card { width: 28px; height: 40px; }
+  .gd-play-area .gd-mini-rank { font-size: 9px; }
+  .gd-play-area .gd-mini-suit { font-size: 8px; }
 }
 
 .gd-actions {
