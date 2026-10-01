@@ -125,7 +125,7 @@ export function groupHand(hand: GCard[], level: number): HandGroup[] {
   const take = (cards: GCard[], label: string) => {
     if (!cards || cards.length === 0) return;
     cards.forEach((c) => used.add(c.id));
-    out.push({ label, cards: [...cards].sort((a, b) => (a.s < b.s ? -1 : 1)) });
+    out.push({ label, cards: [...cards] }); // 保持传入顺序：三带二三张在前聚在一起、顺子按点数顺序
   };
   const avail = () => hand.filter((c) => !used.has(c.id));
 
@@ -614,8 +614,72 @@ function findStraightFlush(hand: GCard[]): GCard[] | null {
   return null;
 }
 
+// 所有炸弹候选（4炸→5炸→同花顺→王炸 升序；供"连续点提示循环切换"枚举）
+function bombCandidates(hand: GCard[], level: number): { cards: GCard[]; kind: number; n: number; key: number }[] {
+  const groups = groupByR(hand);
+  const kings = hand.filter((c) => c.k !== undefined);
+  const out: { cards: GCard[]; kind: number; n: number; key: number }[] = [];
+  for (const g of groups.values()) {
+    if (g.some((c) => c.k !== undefined)) continue;
+    if (g.length >= 4) out.push({ cards: g.slice(0, 4), kind: 0, n: g.length, key: cardVal(g[0], level) });
+  }
+  for (const s of ['S', 'H', 'C', 'D']) {
+    const sc = hand.filter((c) => c.s === s && c.k === undefined);
+    const ranks = [...new Set(sc.map((c) => c.r))].filter((r) => r >= 3 && r <= 14).sort((a, b) => b - a);
+    for (let i = 0; i + 4 < ranks.length; i++) {
+      let len = 1;
+      while (i + len < ranks.length && ranks[i + len] === ranks[i] - len) len++;
+      if (len >= 5) {
+        const want = ranks.slice(i, i + 5);
+        const cards = want.map((r) => sc.find((c) => c.r === r)!);
+        out.push({ cards, kind: 1, n: 5, key: want[0] });
+        i += 4;
+      }
+    }
+  }
+  if (kings.length === 4) out.push({ cards: kings, kind: 2, n: 4, key: 0 });
+  out.sort((a, b) => (a.kind !== b.kind ? a.kind - b.kind : (a.kind === 0 ? (a.n !== b.n ? a.n - b.n : a.key - b.key) : (a.kind === 1 ? a.key - b.key : 0))));
+  return out;
+}
+
+// 所有能压 prev 的出牌方案（同型从最小到大，再追加炸弹/同花顺/王炸），供连续点击提示循环切换
+function allBeats(hand: GCard[], prev: PlayInfo, level: number): GCard[][] {
+  const out: GCard[][] = [];
+  const push = (cards: GCard[]) => {
+    const info = analyzePlay(cards, level);
+    if (info && canBeat(prev, info)) out.push(cards);
+  };
+  const groups = groupByR(hand);
+  const norm = [...groups.values()].filter((g) => !g.some((c) => c.k !== undefined));
+  if (prev.type === 'SINGLE') {
+    const cands: GCard[] = [];
+    for (const g of norm) cands.push(g[0]);
+    for (const k of hand.filter((c) => c.k !== undefined)) cands.push(k);
+    cands.sort((a, b) => cardVal(a, level) - cardVal(b, level));
+    cands.forEach((c) => push([c]));
+  } else if (prev.type === 'PAIR') {
+    norm.filter((g) => g.length >= 2).sort((a, b) => cardVal(a[0], level) - cardVal(b[0], level)).forEach((g) => push(g.slice(0, 2)));
+  } else if (prev.type === 'TRIPLE') {
+    norm.filter((g) => g.length >= 3).sort((a, b) => cardVal(a[0], level) - cardVal(b[0], level)).forEach((g) => push(g.slice(0, 3)));
+  } else if (prev.type === 'TRIPLE_PAIR') {
+    for (const t of norm.filter((g) => g.length >= 3).sort((a, b) => cardVal(a[0], level) - cardVal(b[0], level))) {
+      const p = norm.find((g) => g !== t && g.length >= 2);
+      if (p) push([...t.slice(0, 3), ...p.slice(0, 2)]);
+    }
+  } else if (prev.type === 'STRAIGHT') {
+    for (let min = prev.key + 1; min <= 10; min++) { const seq = findSeq(hand, 5, min - 1, false); if (seq) push(seq); }
+  } else if (prev.type === 'PAIR_SEQ') {
+    for (let min = prev.key + 2; min <= 14; min += 2) { const seq = findSeq(hand, prev.size, min - 1, true); if (seq) push(seq); }
+  } else if (prev.type === 'PLANE') {
+    for (let min = prev.key + 3; min <= 14; min += 3) { const seq = findSeq(hand, prev.size, min - 1, false, true); if (seq) push(seq); }
+  }
+  // 炸弹/同花顺/王炸（不限同类）
+  for (const b of bombCandidates(hand, level)) push(b.cards);
+  return out;
+}
+
 // 找顺子：len 张连续（或连对 len 张=len/2 对）
-function findSeq(hand: GCard[], len: number, minKey: number, isPair: boolean, isPlane = false): GCard[] | null {
+export function findSeq(hand: GCard[], len: number, minKey: number, isPair: boolean, isPlane = false): GCard[] | null {
   const groups = groupByR(hand);
   const usable = new Map<number, GCard[]>();
   for (const [r, g] of groups) {
@@ -803,10 +867,28 @@ export function GuandanGame() {
     return beat ? beat.map((c) => c.id) : [];
   }, [game]);
 
+  // 连续点击提示：依次切换所有可压方案（先同型从小到大，再炸弹/同花顺/王炸），不限同类牌型
+  const hintBeatsRef = useRef<number[][]>([]);
+  const hintKeyRef = useRef('');
+  const hintIdxRef = useRef(-1);
   const applyHint = useCallback(() => {
-    const ids = hint();
-    if (ids.length) setSelected(ids);
-  }, [hint]);
+    if (!game) return;
+    if (!game.lastPlay) {
+      const ids = hint();
+      if (ids.length) setSelected(ids);
+      return;
+    }
+    const key = `${game.lastPlayBy}:${game.lastPlay.cards.map((c) => c.id).join(',')}`;
+    if (hintKeyRef.current !== key) {
+      hintKeyRef.current = key;
+      hintIdxRef.current = -1;
+      hintBeatsRef.current = allBeats(game.hands[0], game.lastPlay.info, game.level).map((b) => b.map((c) => c.id));
+    }
+    const beats = hintBeatsRef.current;
+    if (!beats.length) return;
+    hintIdxRef.current = (hintIdxRef.current + 1) % beats.length;
+    setSelected(beats[hintIdxRef.current]);
+  }, [game, hint]);
 
   // 校验玩家所选：合法且（自由出牌或大过）
   const checkSelection = (): PlayInfo | null => {
