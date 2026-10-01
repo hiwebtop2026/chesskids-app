@@ -376,9 +376,9 @@ const App: React.FC = () => {
           <div className="header-left">
             <h1 className="app-title">
               <span className="app-logo">♔</span>
-              棋乐园
+              棋牌乐
             </h1>
-            <span className="app-subtitle">少儿棋类学堂</span>
+            <span className="app-subtitle">少儿棋牌学堂</span>
           </div>
           <div className="header-right">
             <button
@@ -521,7 +521,7 @@ const App: React.FC = () => {
         <div className="header-left">
           <h1 className="app-title" onClick={goHome} style={{ cursor: 'pointer' }} title="返回首页">
             <span className="app-logo">{gameType === 'chess' ? '♔' : gameType === 'xiangqi' ? '帥' : gameType === 'go' ? '⚫' : gameType === 'gomoku' ? <GomokuLogoIcon size={1.15} /> : '🃏'}</span>
-            棋乐园
+            棋牌乐
           </h1>
           <span className="app-subtitle">
             {gameType === 'chess' ? '国际象棋' : gameType === 'xiangqi' ? '中国象棋' : gameType === 'go' ? '围棋' : gameType === 'gomoku' ? '五子棋' : '掼蛋'}
