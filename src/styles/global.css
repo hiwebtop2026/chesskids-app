@@ -6928,29 +6928,56 @@ ul {
 .gd-table {
   position: relative;
   min-height: calc(100dvh - 118px);
+  /* 比赛专用桌垫：深墨绿布纹 + 中央柔光 + 边缘轮廓感 */
   background:
-    radial-gradient(ellipse at 50% 32%, rgba(80, 140, 100, 0.26), transparent 62%),
-    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.025) 0 2px, transparent 2px 7px),
-    repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.018) 0 2px, transparent 2px 7px),
-    linear-gradient(160deg, #12402b 0%, #0d3422 55%, #092a1b 100%);
-  border-radius: 14px;
+    radial-gradient(ellipse at 50% 30%, rgba(88, 158, 108, 0.30), transparent 60%),
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.028) 0 2px, transparent 2px 8px),
+    repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.02) 0 2px, transparent 2px 8px),
+    linear-gradient(160deg, #155a3c 0%, #0e4030 55%, #0a2e20 100%);
+  border-radius: 18px;
+  border: 2.5px solid rgba(216, 232, 214, 0.16);
+  outline: 1px solid rgba(0, 0, 0, 0.55);
+  outline-offset: -6px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   padding: 10px 10px 6px;
   color: #fff;
-  box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), inset 0 0 60px rgba(0, 0, 0, 0.35);
 }
-.gd-table::after {
-  content: '掼 蛋';
+/* 桌垫四边方位大字水印（南/北/西/东）+ 底部铭牌（参考比赛专用桌垫） */
+.gd-dir {
   position: absolute;
-  right: 14px;
-  bottom: 8px;
-  font-size: 15px;
-  letter-spacing: 6px;
-  color: rgba(255, 255, 255, 0.09);
+  font-family: 'STKaiti', 'KaiTi', 'SimSun', serif;
+  font-size: 52px;
+  font-weight: 900;
+  color: rgba(255, 255, 255, 0.10);
   pointer-events: none;
+  user-select: none;
+  z-index: 0;
+  line-height: 1;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+.gd-dir-n { top: 2px; left: 50%; transform: translateX(-50%); }
+.gd-dir-s { bottom: 2px; left: 50%; transform: translateX(-50%); }
+.gd-dir-w { left: 6px; top: 50%; transform: translateY(-50%); }
+.gd-dir-e { right: 6px; top: 50%; transform: translateY(-50%); }
+.gd-table-name {
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: rgba(255, 255, 255, 0.22);
   font-weight: 700;
+  pointer-events: none;
+  z-index: 0;
+  white-space: nowrap;
+  font-family: 'STKaiti', 'KaiTi', serif;
+}
+@media (max-width: 640px) {
+  .gd-dir { font-size: 40px; }
 }
 /* 浮动窗口全屏：占满视口、脱离浏览器布局，各终端自动适配 */
 /* 隐藏 App 上下红色导航栏（header/nav），全屏只显示棋盘容器 */
@@ -7101,22 +7128,7 @@ ul {
   transition: all .2s;
 }
 .gd-seat.gd-active { border-color: #ffd54f; box-shadow: 0 0 14px rgba(255, 213, 79, 0.35); }
-/* 方位水印（参考比赛专用桌垫：北/西/东） */
-.gd-seat-top::before { content: '北'; }
-.gd-seat-left::before { content: '西'; }
-.gd-seat-right::before { content: '东'; }
-.gd-seat-top::before, .gd-seat-left::before, .gd-seat-right::before {
-  position: absolute;
-  right: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 28px;
-  font-weight: 900;
-  line-height: 1;
-  color: rgba(255, 255, 255, 0.08);
-  pointer-events: none;
-  font-family: serif;
-}
+/* 方位由桌垫四边大字水印承担（参考比赛专用桌垫），座位条不再单独标注 */
 .gd-seat-top { width: 100%; justify-content: center; }
 .gd-side-row { display: flex; gap: 8px; align-items: stretch; }
 .gd-seat-left, .gd-seat-right { flex: 1; }

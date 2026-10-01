@@ -626,6 +626,12 @@ export function GuandanGame() {
 
   return (
     <div className={`gd-table ${floating ? 'gd-floating' : ''}`} onClick={requestFullscreenOnGesture}>
+      {/* 桌垫方位水印与铭牌（参考比赛专用桌垫） */}
+      <span className="gd-dir gd-dir-n">北</span>
+      <span className="gd-dir gd-dir-s">南</span>
+      <span className="gd-dir gd-dir-w">西</span>
+      <span className="gd-dir gd-dir-e">东</span>
+      <span className="gd-table-name">♠ 掼蛋比赛专用桌垫 ♠</span>
       {/* 浮动全屏：左上角 ☰ 折叠菜单（常用功能，点击展开/收起） */}
       {floating && (
         <>
