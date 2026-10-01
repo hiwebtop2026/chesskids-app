@@ -6658,6 +6658,7 @@ ul {
   .national-banner .nb-text { font-size: 13.5px; letter-spacing: 2px; }
   .skin-national, .national-skin .app-home::before { top: 88px; font-size: 20px; letter-spacing: 12px; }
   .skin-toggle { padding: 5px 9px; font-size: 12px; }
+  .skin-toggle .skin-label { display: none; }
 }
 
 /* ============================================================

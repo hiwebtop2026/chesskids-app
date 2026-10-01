@@ -370,7 +370,7 @@ const App: React.FC = () => {
               onClick={() => setSkinOpen(true)}
               title="切换皮肤"
               aria-label="切换皮肤"
-            >🎨 {SKIN_OPTIONS.find((s) => s.key === skin)?.label}</button>
+            >🎨 <span className="skin-label">{SKIN_OPTIONS.find((s) => s.key === skin)?.label}</span></button>
             <UserProfile progress={progress} compact />
           </div>
         </header>
@@ -505,7 +505,7 @@ const App: React.FC = () => {
             onClick={() => setSkinOpen(true)}
             title="切换皮肤"
             aria-label="切换皮肤"
-          >🎨 {SKIN_OPTIONS.find((s) => s.key === skin)?.label}</button>
+          >🎨 <span className="skin-label">{SKIN_OPTIONS.find((s) => s.key === skin)?.label}</span></button>
           <UserProfile progress={progress} compact />
           <button
             className="fullscreen-btn"
