@@ -105,10 +105,10 @@ export interface HandGroup {
 export const GD_ZONES: { top: number; left: number; w: number; h: number; label: string; dir: string }[] = [
   { top: 20, left: 44.5, w: 12, h: 12, label: '收牌区', dir: 'n' },
   { top: 34, left: 44.5, w: 12, h: 12, label: '出牌区', dir: 'c' },
-  { top: 48, left: 20, w: 12, h: 12, label: '收牌区', dir: 'w' },
-  { top: 48, left: 34, w: 12, h: 12, label: '出牌区', dir: 'w' },
-  { top: 48, left: 54, w: 12, h: 12, label: '出牌区', dir: 'e' },
-  { top: 48, left: 68, w: 12, h: 12, label: '收牌区', dir: 'e' },
+  { top: 48, left: 16, w: 12, h: 12, label: '收牌区', dir: 'w' },
+  { top: 48, left: 30, w: 12, h: 12, label: '出牌区', dir: 'w' },
+  { top: 48, left: 58, w: 12, h: 12, label: '出牌区', dir: 'e' },
+  { top: 48, left: 72, w: 12, h: 12, label: '收牌区', dir: 'e' },
   { top: 62, left: 44.5, w: 12, h: 12, label: '出牌区', dir: 's' },
   { top: 76, left: 44.5, w: 12, h: 12, label: '收牌区', dir: 's' },
 ];

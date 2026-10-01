@@ -6975,7 +6975,7 @@ ul {
 /* 桌垫四边方位大字（带正方形白框，按方位旋转：北倒/南正/西左/东右，参考比赛专用桌垫）+ 底部铭牌 */
 .gd-dir {
   position: absolute;
-  font-family: 'STKaiti', 'KaiTi', 'SimSun', serif;
+  font-family: 'Microsoft YaHei', 'PingFang SC', 'Microsoft JhengHei', sans-serif;
   font-size: 24px;
   font-weight: 900;
   color: rgba(255, 255, 255, 0.5);
@@ -7005,11 +7005,11 @@ ul {
   font-size: 12px;
   letter-spacing: 6px;
   color: rgba(255, 255, 255, 0.28);
-  font-weight: 700;
+  font-weight: 800;
   pointer-events: none;
   z-index: 0;
   white-space: nowrap;
-  font-family: 'STKaiti', 'KaiTi', serif;
+  font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
 }
 /* 桌垫分区框线层（出牌区/收牌区/报牌区，参考比赛专用桌垫） */
 .gd-zones {
@@ -7030,7 +7030,8 @@ ul {
   font-size: 13px;
   letter-spacing: 2px;
   color: rgba(255, 255, 255, 0.5);
-  font-family: 'STKaiti', 'KaiTi', 'SimSun', serif;
+  font-family: 'Microsoft YaHei', 'PingFang SC', 'Microsoft JhengHei', sans-serif;
+  font-weight: 800;
   background: rgba(255, 255, 255, 0.03);
   box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.15);
   white-space: nowrap;
@@ -7547,7 +7548,7 @@ ul {
   border-radius: 7px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
 }
-.gd-hand-group .gd-card + .gd-card { margin-top: -40px; }
+.gd-hand-group .gd-card + .gd-card { margin-top: -28px; }
 .gd-hand-group .gd-card-rank { font-size: 13px; }
 .gd-hand-group-cards:hover .gd-card, .gd-hand-group-cards .gd-card:hover {
   z-index: 5;
