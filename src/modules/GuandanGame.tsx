@@ -90,21 +90,21 @@ export interface HandGroup {
   cards: GCard[];
 }
 
-// 桌垫分区框线（参考比赛专用桌垫：出牌区/收牌区/报牌区，按图片位置比例布置）
+// 桌垫分区框线（参考比赛专用桌垫：出牌区/收牌区/报牌区，3 行网格对称布置）
 // 背景装饰层，游戏牌面与出牌区浮于其上；文字按方位旋转（北倒/南正/西左/东右），外围大正方形白框
 export const GD_ZONES: { top: number; left: number; w: number; h: number; label: string; dir: string }[] = [
-  { top: 21, left: 44.5, w: 11, h: 11, label: '收牌区', dir: 'n' },
+  { top: 20, left: 44.5, w: 11, h: 11, label: '收牌区', dir: 'n' },
+  { top: 33, left: 28, w: 11, h: 11, label: '报牌区', dir: 'c' },
   { top: 33, left: 44.5, w: 11, h: 11, label: '出牌区', dir: 'c' },
-  { top: 34, left: 29.5, w: 11, h: 11, label: '报牌区', dir: 'c' },
-  { top: 34, left: 59.5, w: 11, h: 11, label: '报牌区', dir: 'c' },
-  { top: 45, left: 27, w: 11, h: 11, label: '出牌区', dir: 'w' },
-  { top: 45, left: 62, w: 11, h: 11, label: '收牌区', dir: 'e' },
-  { top: 45, left: 44.5, w: 11, h: 11, label: '报牌区', dir: 'c' },
-  { top: 45, left: 55.5, w: 11, h: 11, label: '报牌区', dir: 'c' },
-  { top: 56, left: 44.5, w: 11, h: 11, label: '出牌区', dir: 's' },
-  { top: 67, left: 44.5, w: 11, h: 11, label: '收牌区', dir: 's' },
-  { top: 56, left: 13, w: 11, h: 11, label: '收牌区', dir: 'w' },
-  { top: 56, left: 76, w: 11, h: 11, label: '出牌区', dir: 'e' },
+  { top: 33, left: 61, w: 11, h: 11, label: '报牌区', dir: 'c' },
+  { top: 46, left: 20, w: 11, h: 11, label: '收牌区', dir: 'w' },
+  { top: 46, left: 33, w: 11, h: 11, label: '出牌区', dir: 'w' },
+  { top: 46, left: 56, w: 11, h: 11, label: '出牌区', dir: 'e' },
+  { top: 46, left: 69, w: 11, h: 11, label: '收牌区', dir: 'e' },
+  { top: 59, left: 28, w: 11, h: 11, label: '报牌区', dir: 'w' },
+  { top: 59, left: 44.5, w: 11, h: 11, label: '出牌区', dir: 's' },
+  { top: 59, left: 61, w: 11, h: 11, label: '报牌区', dir: 'e' },
+  { top: 72, left: 44.5, w: 11, h: 11, label: '收牌区', dir: 's' },
 ];
 
 export function groupHand(hand: GCard[], level: number): HandGroup[] {

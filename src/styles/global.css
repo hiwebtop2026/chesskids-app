@@ -7043,6 +7043,7 @@ ul {
 .gd-zone-dir-c { transform: rotate(0deg); }
 @media (max-width: 640px) {
   .gd-dir { font-size: 20px; width: 42px; height: 42px; }
+  .gd-zone { font-size: 12px; letter-spacing: 2px; border-radius: 8px; }
 }
 /* 浮动窗口全屏：占满视口、脱离浏览器布局，各终端自动适配 */
 /* 隐藏 App 上下红色导航栏（header/nav），全屏只显示棋盘容器 */
