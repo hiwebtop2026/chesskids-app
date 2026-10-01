@@ -6489,26 +6489,26 @@ ul {
     radial-gradient(circle at 85% 80%, rgba(217, 38, 28, 0.18) 0%, transparent 50%),
     linear-gradient(180deg, #fdf3e0 0%, #f7e3c4 45%, #f3d8b2 100%);
 }
-.skin-national, .national-skin .app-header {
+.skin-national .app-header , .national-skin .app-header {
   background: linear-gradient(135deg, #c8102e 0%, #e23a2e 55%, #d9261c 100%);
   color: #fff;
 }
-.skin-national, .national-skin .app-header .app-title { color: #fff3d0; text-shadow: 0 1px 3px rgba(120, 10, 0, 0.5); }
-.skin-national, .national-skin .app-header .app-subtitle { color: #ffe8b0; }
-.skin-national, .national-skin .app-header .home-back-btn,
-.skin-national, .national-skin .app-header .fullscreen-btn {
+.skin-national .app-header .app-title , .national-skin .app-header .app-title { color: #fff3d0; text-shadow: 0 1px 3px rgba(120, 10, 0, 0.5); }
+.skin-national .app-header .app-subtitle , .national-skin .app-header .app-subtitle { color: #ffe8b0; }
+.skin-national .app-header .home-back-btn, .national-skin .app-header .home-back-btn,
+.skin-national .app-header .fullscreen-btn , .national-skin .app-header .fullscreen-btn {
   background: rgba(255, 246, 220, 0.16);
   border-color: rgba(255, 230, 160, 0.6);
   color: #fff3d0;
 }
 
 /* —— 首页背景 + 灯笼/烟花装饰 —— */
-.skin-national, .national-skin .app-home {
+.skin-national .app-home , .national-skin .app-home {
   background:
     radial-gradient(ellipse at 50% -10%, rgba(255, 220, 120, 0.35) 0%, transparent 55%),
     linear-gradient(180deg, #fdf0da 0%, #f8e2be 55%, #f0cf9e 100%);
 }
-.skin-national, .national-skin .app-home::before {
+.skin-national .app-home::before , .national-skin .app-home::before {
   content: "🏮 🏮";
   position: absolute;
   top: 96px;
@@ -6562,14 +6562,14 @@ ul {
 }
 
 /* —— 首页卡片 —— */
-.skin-national, .national-skin .game-select-header h2 { color: #a03a12; }
-.skin-national, .national-skin .game-select-header p { color: #8a5a30; }
-.skin-national, .national-skin .game-select-card {
+.skin-national .game-select-header h2 , .national-skin .game-select-header h2 { color: #a03a12; }
+.skin-national .game-select-header p , .national-skin .game-select-header p { color: #8a5a30; }
+.skin-national .game-select-card , .national-skin .game-select-card {
   background: linear-gradient(180deg, #fffdf4, #f9e9c8);
   border: 2px solid rgba(205, 130, 40, 0.45);
   box-shadow: 0 6px 16px rgba(150, 90, 30, 0.18);
 }
-.skin-national, .national-skin .game-select-card::before {
+.skin-national .game-select-card::before , .national-skin .game-select-card::before {
   content: "";
   position: absolute;
   top: 0; left: 0; right: 0;
@@ -6577,78 +6577,78 @@ ul {
   background: linear-gradient(90deg, #ffd25e, #d9261c, #ffd25e);
   border-radius: 14px 14px 0 0;
 }
-.skin-national, .national-skin .game-select-card:hover {
+.skin-national .game-select-card:hover , .national-skin .game-select-card:hover {
   border-color: #d9261c;
   box-shadow: 0 10px 24px rgba(190, 40, 20, 0.28);
   transform: translateY(-3px);
 }
-.skin-national, .national-skin .game-card-btn {
+.skin-national .game-card-btn , .national-skin .game-card-btn {
   background: linear-gradient(135deg, #d9261c, #b31a12);
   color: #fff3d0;
   box-shadow: 0 2px 8px rgba(180, 30, 10, 0.35);
 }
 
 /* —— 底部导航 —— */
-.skin-national, .national-skin .app-nav {
+.skin-national .app-nav , .national-skin .app-nav {
   background: linear-gradient(180deg, rgba(200, 16, 46, 0.97), rgba(160, 12, 36, 0.97));
   border-top: 1px solid rgba(255, 210, 94, 0.5);
 }
-.skin-national, .national-skin .app-nav .nav-tab { color: rgba(255, 240, 210, 0.85); }
-.skin-national, .national-skin .app-nav .nav-tab.active { color: #ffd25e; }
-.skin-national, .national-skin .app-nav .nav-tab.active::after { background: #ffd25e; }
+.skin-national .app-nav .nav-tab , .national-skin .app-nav .nav-tab { color: rgba(255, 240, 210, 0.85); }
+.skin-national .app-nav .nav-tab.active , .national-skin .app-nav .nav-tab.active { color: #ffd25e; }
+.skin-national .app-nav .nav-tab.active::after , .national-skin .app-nav .nav-tab.active::after { background: #ffd25e; }
 
 /* —— 棋盘容器金红描边 —— */
-.skin-national, .national-skin .gomoku-board-wrap:not(.gomoku-floating) {
+.skin-national .gomoku-board-wrap:not(.gomoku-floating) , .national-skin .gomoku-board-wrap:not(.gomoku-floating) {
   border: 1.5px solid rgba(205, 130, 40, 0.5);
   border-radius: 12px;
   box-shadow: 0 8px 28px rgba(150, 60, 20, 0.3);
 }
-.skin-national, .national-skin .gomoku-floating {
+.skin-national .gomoku-floating , .national-skin .gomoku-floating {
   border: 1.5px solid rgba(255, 210, 94, 0.55);
   border-radius: 16px;
   box-shadow: 0 12px 44px rgba(150, 50, 20, 0.45), 0 0 0 4px rgba(217, 38, 28, 0.12);
 }
 
 /* —— 五子棋棋盘：喜庆红木 + 金线 —— */
-.skin-national, .national-skin .gomoku-board-bg {
+.skin-national .gomoku-board-bg , .national-skin .gomoku-board-bg {
   fill: url(#gBoardNational) !important;
 }
-.skin-national, .national-skin .gomoku-grid line {
+.skin-national .gomoku-grid line , .national-skin .gomoku-grid line {
   stroke: rgba(255, 214, 90, 0.75) !important;
 }
-.skin-national, .national-skin .gomoku-stars circle {
+.skin-national .gomoku-stars circle , .national-skin .gomoku-stars circle {
   fill: #d9261c !important;
 }
 /* 夜间模式下的国庆棋盘（保持辨识度） */
-.skin-national, .national-skin .gomoku-theme-dark .gomoku-board-bg {
+.skin-national .gomoku-theme-dark .gomoku-board-bg , .national-skin .gomoku-theme-dark .gomoku-board-bg {
   fill: url(#gBoardNationalDark) !important;
 }
 
 /* —— 功能按钮金红 —— */
-.skin-national, .national-skin .gomoku-top-handle {
+.skin-national .gomoku-top-handle , .national-skin .gomoku-top-handle {
   background: linear-gradient(180deg, rgba(200, 16, 46, 0.9), rgba(150, 12, 34, 0.92));
   border-color: rgba(255, 210, 94, 0.75);
   color: #fff2c0;
   box-shadow: 0 2px 10px rgba(170, 20, 10, 0.4);
 }
-.skin-national, .national-skin .gomoku-top-handle:hover,
-.skin-national, .national-skin .gomoku-top-handle.active {
+.skin-national .gomoku-top-handle:hover, .national-skin .gomoku-top-handle:hover,
+.skin-national .gomoku-top-handle.active , .national-skin .gomoku-top-handle.active {
   background: linear-gradient(180deg, rgba(220, 40, 40, 0.95), rgba(180, 18, 30, 0.95));
   border-color: #ffd25e;
 }
-.skin-national, .national-skin .ctrl-btn,
-.skin-national, .national-skin .gomoku-menu-btn {
+.skin-national .ctrl-btn, .national-skin .ctrl-btn,
+.skin-national .gomoku-menu-btn , .national-skin .gomoku-menu-btn {
   border-color: rgba(205, 130, 40, 0.55);
 }
-.skin-national, .national-skin .gomoku-menu-btn.primary { background: linear-gradient(135deg, #d9261c, #b31a12); color: #fff3d0; }
+.skin-national .gomoku-menu-btn.primary , .national-skin .gomoku-menu-btn.primary { background: linear-gradient(135deg, #d9261c, #b31a12); color: #fff3d0; }
 
 /* —— 面板/弹窗鎏金 —— */
-.skin-national, .national-skin .gomoku-menu-panel {
+.skin-national .gomoku-menu-panel , .national-skin .gomoku-menu-panel {
   border: 1.5px solid rgba(255, 210, 94, 0.65);
   background: linear-gradient(180deg, rgba(255, 250, 240, 0.98), rgba(250, 235, 205, 0.98));
   box-shadow: 0 12px 40px rgba(150, 50, 20, 0.4);
 }
-.skin-national, .national-skin .gomoku-inboard-modal {
+.skin-national .gomoku-inboard-modal , .national-skin .gomoku-inboard-modal {
   border-color: rgba(255, 210, 94, 0.75);
 }
 
@@ -6656,7 +6656,7 @@ ul {
 @media (max-width: 720px) {
   .national-banner { margin: 8px 10px 0; padding: 7px 10px; }
   .national-banner .nb-text { font-size: 13.5px; letter-spacing: 2px; }
-  .skin-national, .national-skin .app-home::before { top: 88px; font-size: 20px; letter-spacing: 12px; }
+  .skin-national .app-home::before , .national-skin .app-home::before { top: 88px; font-size: 20px; letter-spacing: 12px; }
   .skin-toggle { padding: 5px 9px; font-size: 12px; }
   .skin-toggle .skin-label { display: none; }
 }
