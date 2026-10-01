@@ -689,7 +689,7 @@ export function GuandanGame() {
   const me = game ? game.hands[0] : [];
 
   // 轮到玩家？
-  const isMyTurn = game !== null && game.phase === 'playing' && game.current === 0;
+  const isMyTurn = game !== null && game.phase === 'playing' && game.current === 0 && !game.finished.includes(0);
 
   // 提示：给出一个可出的最小合法牌
   const hint = useCallback((): number[] => {
@@ -725,6 +725,16 @@ export function GuandanGame() {
   };
 
   // 出牌/不出后推进
+  // 找到下一个未出完（未 finished）的玩家：头游后跳过，避免轮到空手玩家
+  const nextAlive = useCallback((from: number, finished: number[]) => {
+    let s = ((from % 4) + 4) % 4;
+    for (let i = 0; i < 4; i++) {
+      const p = (s + i) % 4;
+      if (!finished.includes(p)) return p;
+    }
+    return s;
+  }, []);
+
   const commitTurn = useCallback((player: number, play: GCard[] | null) => {
     setGame((prev) => {
       if (!prev) return prev;
@@ -792,19 +802,19 @@ export function GuandanGame() {
             };
           }
         }
-        // 出完非全结束：本轮继续（出牌追加到方位区，待一圈全过才清理）
+        // 出完非全结束：本轮继续（出牌追加到方位区，待一圈全过才清理）；跳过头游者
         return {
-          ...prev, hands, lastPlay, lastPlayBy: player, roundPass: [], roundPlays, current: (player + 1) % 4, turnStart: (player + 1) % 4,
+          ...prev, hands, lastPlay, lastPlayBy: player, roundPass: [], roundPlays, current: nextAlive(player + 1, finished), turnStart: nextAlive(player + 1, finished),
         };
       } else {
         // 不出
         roundPass.push(player);
         if (roundPass.length >= 3) {
-          // 一圈全过 → 最后出牌者自由出牌（新一轮开始，清理本轮出牌）
-          const freer = prev.lastPlayBy;
+          // 一圈全过 → 最后出牌者自由出牌（新一轮开始，清理本轮出牌）；若最后出牌者已头游，则顺延给下一未出完者
+          const freer = finished.includes(prev.lastPlayBy) ? nextAlive(prev.lastPlayBy + 1, finished) : prev.lastPlayBy;
           return { ...prev, hands, roundPass: [], roundPlays: [], current: freer, lastPlay: null, lastPlayBy: freer };
         }
-        return { ...prev, hands, roundPass, roundPlays, current: (player + 1) % 4 };
+        return { ...prev, hands, roundPass, roundPlays, current: nextAlive(player + 1, finished) };
       }
     });
   }, []);
@@ -889,10 +899,11 @@ export function GuandanGame() {
 
   if (!game) return <div className="module-loading">发牌中…</div>;
 
-  // 头游：第一个出完牌的玩家；对家（搭档）= 头游 ^ 2（0↔2、1↔3）；对家是自己则不重复展示
+  // 头游：第一个出完牌的玩家；对家（搭档）= 头游 ^ 2（0↔2、1↔3）
+  // 明牌规则：仅本方（我方 0 或队友 2）头游时，把本队另一人的剩余手牌明牌给本方看；对手头游不泄露对手牌
   const headSeat = game.finished.length > 0 ? game.finished[0] : -1;
   const partnerSeat = headSeat >= 0 ? headSeat ^ 2 : -1;
-  const showPartnerCards = headSeat >= 0 && partnerSeat >= 0 && partnerSeat !== 0;
+  const showPartnerCards = headSeat >= 0 && (headSeat === 0 || headSeat === 2) && partnerSeat !== 0;
 
   return (
     <div className={`gd-table ${floating ? 'gd-floating' : ''}`} onClick={requestFullscreenOnGesture}>

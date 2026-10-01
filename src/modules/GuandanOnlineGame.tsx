@@ -41,6 +41,16 @@ export interface GDOnlineState {
 // ================================================================
 // 纯函数状态机（房主侧）：applyTurn(state, player, playCards|null)
 // ================================================================
+// 找到下一个未出完（未 finished）的玩家：头游后跳过，避免轮到空手玩家
+export function nextAliveSeat(from: number, finished: number[]): number {
+  let s = ((from % 4) + 4) % 4;
+  for (let i = 0; i < 4; i++) {
+    const p = (s + i) % 4;
+    if (!finished.includes(p)) return p;
+  }
+  return s;
+}
+
 export function gdApplyTurn(prev: GDOnlineState, player: number, play: GCard[] | null): GDOnlineState {
   const hands = prev.hands.map((h) => [...h]);
   const roundPass = [...prev.roundPass];
@@ -103,16 +113,17 @@ export function gdApplyTurn(prev: GDOnlineState, player: number, play: GCard[] |
     return {
       ...prev, hands,
       lastPlay: { player, cards: play }, lastPlayBy: player, roundPass: [], roundPlays,
-      current: (player + 1) % 4, turnStart: (player + 1) % 4,
+      current: nextAliveSeat(player + 1, finished), turnStart: nextAliveSeat(player + 1, finished),
     };
   }
   // 不出
   roundPass.push(player);
   if (roundPass.length >= 3) {
-    const freer = prev.lastPlayBy;
+    // 一圈全过 → 最后出牌者自由出牌；若已头游则顺延给下一未出完者
+    const freer = finished.includes(prev.lastPlayBy) ? nextAliveSeat(prev.lastPlayBy + 1, finished) : prev.lastPlayBy;
     return { ...prev, hands, roundPass: [], roundPlays: [], current: freer, lastPlay: null, lastPlayBy: freer };
   }
-  return { ...prev, hands, roundPass, roundPlays, current: (player + 1) % 4 };
+  return { ...prev, hands, roundPass, roundPlays, current: nextAliveSeat(player + 1, finished) };
 }
 
 export function gdNewGame(level: number, names: string[], firstSeat: number, keepStrikes = 0): GDOnlineState {
@@ -402,7 +413,7 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
   }, [game, broadcastState]);
 
   // ============ 我的回合操作 ============
-  const isMyTurn = !!game && game.phase === 'playing' && game.current === mySeat;
+  const isMyTurn = !!game && game.phase === 'playing' && game.current === mySeat && !game.finished.includes(mySeat);
   const myHand = game ? game.hands[mySeat] : [];
 
   const doPlay = () => {
@@ -615,10 +626,11 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
   // ============ 渲染：对局 ============
   if (!game) return <div className="module-loading">对局准备中…</div>;
 
-  // 头游：第一个出完牌的玩家；对家（搭档）= 头游 ^ 2（0↔2、1↔3）；对家是自己则不重复展示
+  // 头游：第一个出完牌的玩家；对家（搭档）= 头游 ^ 2（0↔2、1↔3）
+  // 明牌规则：仅本方（0 我 或 2 队友）头游时，把本队另一人的剩余手牌明牌给本方看；对手头游不泄露对手牌
   const headSeat = game.finished.length > 0 ? game.finished[0] : -1;
   const partnerSeat = headSeat >= 0 ? headSeat ^ 2 : -1;
-  const showPartnerCards = headSeat >= 0 && partnerSeat >= 0 && partnerSeat !== 0;
+  const showPartnerCards = headSeat >= 0 && (headSeat === 0 || headSeat === 2) && partnerSeat !== 0;
 
   const counts = game.hands.map((h) => h.length);
   const myTeamCount = counts[0] + counts[2];
