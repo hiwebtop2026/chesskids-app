@@ -6929,15 +6929,28 @@ ul {
   position: relative;
   min-height: calc(100dvh - 118px);
   background:
-    radial-gradient(ellipse at 50% 30%, rgba(90, 150, 110, 0.35), transparent 60%),
-    linear-gradient(160deg, #1f6d4f 0%, #17543d 50%, #12412f 100%);
+    radial-gradient(ellipse at 50% 32%, rgba(80, 140, 100, 0.26), transparent 62%),
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.025) 0 2px, transparent 2px 7px),
+    repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.018) 0 2px, transparent 2px 7px),
+    linear-gradient(160deg, #12402b 0%, #0d3422 55%, #092a1b 100%);
   border-radius: 14px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   padding: 10px 10px 6px;
   color: #fff;
-  box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.45);
+}
+.gd-table::after {
+  content: '掼 蛋';
+  position: absolute;
+  right: 14px;
+  bottom: 8px;
+  font-size: 15px;
+  letter-spacing: 6px;
+  color: rgba(255, 255, 255, 0.09);
+  pointer-events: none;
+  font-weight: 700;
 }
 .gd-topbar {
   display: flex;
@@ -6947,16 +6960,18 @@ ul {
   background: rgba(0, 0, 0, 0.25);
   border-radius: 10px;
   flex-wrap: wrap;
+  position: relative;
+  z-index: 1;
 }
 .gd-info { font-size: 13px; color: #e8f5e9; padding: 2px 8px; background: rgba(255,255,255,0.08); border-radius: 99px; }
 .gd-info b { font-size: 14px; }
 .gd-level { color: #ffd54f; }
 
-.gd-seats { flex: 1; display: flex; flex-direction: column; gap: 8px; padding: 10px 4px 4px; }
+.gd-seats { flex: 1; display: flex; flex-direction: column; gap: 8px; padding: 10px 4px 4px; position: relative; z-index: 1; }
 .gd-seat {
   position: relative;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1.5px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.22);
+  border: 1.5px solid rgba(255, 213, 79, 0.3);
   border-radius: 12px;
   padding: 6px 12px;
   min-height: 52px;
@@ -6966,6 +6981,22 @@ ul {
   transition: all .2s;
 }
 .gd-seat.gd-active { border-color: #ffd54f; box-shadow: 0 0 14px rgba(255, 213, 79, 0.35); }
+/* 方位水印（参考比赛专用桌垫：北/西/东） */
+.gd-seat-top::before { content: '北'; }
+.gd-seat-left::before { content: '西'; }
+.gd-seat-right::before { content: '东'; }
+.gd-seat-top::before, .gd-seat-left::before, .gd-seat-right::before {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+  font-family: serif;
+}
 .gd-seat-top { width: 100%; justify-content: center; }
 .gd-side-row { display: flex; gap: 8px; align-items: stretch; }
 .gd-seat-left, .gd-seat-right { flex: 1; }
@@ -6991,6 +7022,16 @@ ul {
   align-items: center;
   justify-content: center;
   min-height: 74px;
+  position: relative;
+}
+/* 中央出牌区框线（参考桌垫分区样式） */
+.gd-center-play::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border: 1.5px dashed rgba(255, 213, 79, 0.25);
+  border-radius: 14px;
+  pointer-events: none;
 }
 .gd-last-play { text-align: center; }
 .gd-last-name { display: block; font-size: 11.5px; color: #ffd54f; margin-bottom: 4px; }
@@ -7012,6 +7053,8 @@ ul {
   padding: 6px 4px 8px;
   flex-wrap: wrap;
   justify-content: center;
+  position: relative;
+  z-index: 1;
 }
 .gd-turn-hint { flex-basis: 100%; text-align: center; font-size: 12.5px; color: #e8f5e9; }
 .gd-btn {
@@ -7041,6 +7084,8 @@ ul {
   align-items: flex-end;
   flex-wrap: nowrap;
   overflow-x: auto;
+  position: relative;
+  z-index: 1;
 }
 .gd-card {
   position: relative;
