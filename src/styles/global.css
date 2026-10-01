@@ -6617,7 +6617,7 @@ ul {
   stroke: rgba(255, 214, 90, 0.75) !important;
 }
 .skin-national .gomoku-stars circle , .national-skin .gomoku-stars circle {
-  fill: #d9261c !important;
+  fill: #ffd76e !important;
 }
 /* 夜间模式下的国庆棋盘（保持辨识度） */
 .skin-national .gomoku-theme-dark .gomoku-board-bg , .national-skin .gomoku-theme-dark .gomoku-board-bg {

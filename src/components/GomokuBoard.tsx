@@ -215,14 +215,14 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
           </linearGradient>
           {/* 国庆皮肤：喜庆红木渐变（skin-national 时启用） */}
           <linearGradient id="gBoardNational" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#b53a1e" />
-            <stop offset="50%" stopColor="#a02f14" />
-            <stop offset="100%" stopColor="#8c240e" />
+            <stop offset="0%" stopColor="#d97a45" />
+            <stop offset="50%" stopColor="#c25a2c" />
+            <stop offset="100%" stopColor="#a83e1c" />
           </linearGradient>
           <linearGradient id="gBoardNationalDark" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#7a2614" />
-            <stop offset="50%" stopColor="#661f10" />
-            <stop offset="100%" stopColor="#54190c" />
+            <stop offset="0%" stopColor="#8a3a20" />
+            <stop offset="50%" stopColor="#752e16" />
+            <stop offset="100%" stopColor="#5e2410" />
           </linearGradient>
           {/* 青花瓷皮肤：白底青蓝渐变（skin-porcelain 时启用） */}
           <linearGradient id="gBoardPorcelain" x1="0" y1="0" x2="0" y2="1">
