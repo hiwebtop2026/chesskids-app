@@ -448,7 +448,6 @@ const App: React.FC = () => {
             <div className="game-select-cards">
               {selectType === 'chess' && (
                 <div className="game-select-group">
-                  <h3 className="game-select-group-title">♟️ 棋类游戏</h3>
                   <div className="game-select-group-cards">
                     <button
                       className="game-select-card game-card-chess"
@@ -501,7 +500,6 @@ const App: React.FC = () => {
               )}
               {selectType === 'card' && (
                 <div className="game-select-group">
-                  <h3 className="game-select-group-title">🃏 牌类游戏</h3>
                   <div className="game-select-group-cards">
                     <button
                       className="game-select-card game-card-guandan"
