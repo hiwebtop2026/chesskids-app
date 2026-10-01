@@ -1,7 +1,8 @@
 /**
- * 掼蛋 · 联机对战（四人两两组队，PeerJS P2P 星型）
- * 房主(座位0)为中枢：发牌、回合仲裁、广播完整状态；其余三人通过房间码连接房主。
- * 消息协议：JOIN / WELCOME / ROOM_STATE / STATE / PLAY / PASS / ERROR / LEAVE
+ * 掼蛋 · 联机对战（四人两两组队，PeerJS P2P 星型 + AI 补位）
+ * 房主(座位0)为中枢：发牌、回合仲裁、广播完整状态；其余玩家通过房间码连接房主。
+ * 人数不足时可用 AI 补位，支持 1 人 + 3AI / 2 人 + 2AI / 3 人 + 1AI
+ * 消息协议：JOIN / WELCOME / ROOM_STATE / STATE / PLAY / PASS / ERROR / LEAVE / AI_PLAY
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { enterFullscreen, exitFullscreen } from '../utils/fullscreen';
@@ -10,6 +11,10 @@ import {
   type GCard, type PlayInfo, analyzePlay, canBeat, cardVal, rankName,
   buildDeck, shuffle, groupHand, groupByR, GD_ZONES, SUIT_SYMBOL, isWild, levelRank, findSeq,
 } from './GuandanGame';
+import {
+  aiDecide, generateAINames,
+  type GDAIDifficulty, type AIPlayer,
+} from '../engine/guandanAI';
 
 // ================================================================
 // 座位与队伍：0=房主(南) 2=队友(北) 1/3=对手
@@ -139,12 +144,20 @@ export function gdNewGame(level: number, names: string[], firstSeat: number, kee
 }
 
 // ================================================================
-// PeerJS 封装 + ICE 配置
+// PeerJS 封装 + ICE 配置 + 多信令服务器
 // 优先级：TURNS(TLS/443) > TURN TCP(443) > TURN UDP(443) > STUN
 // 确保校园网/移动网络下能通过中继建立连接
+// 多信令节点：0.peerjs.com ~ 3.peerjs.com，自动切换避免单点故障
 // ================================================================
 // 使用统一的多 CDN 回退加载器（src/utils/peerjsLoader.ts）
 // 支持 jsdelivr / unpkg / cdnjs / npmmirror / esm.sh 多源自动降级
+
+const PEER_SERVERS = [
+  { host: '0.peerjs.com', port: 443, secure: true, path: '/' },
+  { host: '1.peerjs.com', port: 443, secure: true, path: '/' },
+  { host: '2.peerjs.com', port: 443, secure: true, path: '/' },
+  { host: '3.peerjs.com', port: 443, secure: true, path: '/' },
+];
 
 const ICE_SERVERS = [
   { urls: 'turns:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
@@ -157,11 +170,31 @@ const ICE_SERVERS = [
   { urls: 'stun:global.stun.twilio.com:3478' },
 ];
 
-function generateRoomCode(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const ROOM_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+/**
+ * 生成房间号：6位字母数字 + 1位节点序号(0-3) = 共7位
+ * 新格式：ABCDEF0 → 节点0
+ * 旧格式兼容：6位纯字母数字 → 视为节点0
+ */
+function generateRoomCode(serverIdx = 0): string {
   let code = '';
-  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
-  return code;
+  for (let i = 0; i < 6; i++) code += ROOM_CODE_CHARS[Math.floor(Math.random() * ROOM_CODE_CHARS.length)];
+  return code + String(serverIdx);
+}
+
+/**
+ * 解析房间号 → { peerId, serverIdx }
+ * - 7位且末位为数字 → 新格式，末位为节点序号
+ * - 6位 → 旧格式，默认节点0
+ * - 其他情况 → 原样返回，节点0
+ */
+function parseRoomCode(code: string): { peerId: string; serverIdx: number } {
+  const c = (code || '').trim().toUpperCase();
+  if (c.length === 7 && c[6] >= '0' && c[6] <= '3') {
+    return { peerId: c.slice(0, 6), serverIdx: Number(c[6]) };
+  }
+  return { peerId: c, serverIdx: 0 };
 }
 
 /** 检查 DataChannel 是否真正就绪 */
@@ -198,6 +231,14 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
   const connsRef = useRef<any[]>([]); // host：已连接的 guest connections
   const connRef = useRef<any>(null);  // guest：到 host 的连接
   const myNameRef = useRef('玩家');
+  const statusRef = useRef(status);
+  statusRef.current = status;
+
+  // AI 玩家状态（仅房主侧有效）
+  const [aiPlayers, setAiPlayers] = useState<AIPlayer[]>([]);
+  const [aiDifficulty, setAiDifficulty] = useState<GDAIDifficulty>('medium');
+  const [aiCount, setAiCount] = useState(3); // 默认 3 个 AI（房主 + 3AI 直接开局）
+  const aiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ============ 复制房间号 ============
   const copyRoomCode = useCallback(() => {
@@ -322,85 +363,115 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
     }
   }, []);
 
-  // ============ 创建房间（房主） ============
+  // ============ 创建房间（房主）—— 多信令节点自动选择 ============
   const createRoom = useCallback(async () => {
-    const code = generateRoomCode();
-    setRoomCode(code);
     setRole('host');
     setStatus('connecting');
     setErrorDetail('');
     setPlayers((p) => { const np = [...p]; np[0] = '房主'; return np; });
-    try {
-      const Peer = await loadPeerJS();
-      const peer = new Peer(code, { debug: 0, config: { iceServers: ICE_SERVERS } });
-      peerRef.current = peer;
-      peer.on('error', (err: any) => {
-        if (err?.type === 'unavailable-id') {
-          const alt = `${code}${Math.floor(Math.random() * 100)}`;
-          setRoomCode(alt);
-          createRoomAs(alt);
-        } else {
-          setStatus('error');
-          setNotice('房间创建失败');
-          setErrorDetail(err?.type || err?.message || '网络错误');
-        }
-      });
-      peer.on('open', () => {
-        setStatus('waiting');
-        setNotice('房间已创建，等待其他玩家加入…');
-      });
-      peer.on('connection', (incoming: any) => {
-        incoming.on('open', () => {
-          setStatus('waiting');
-        });
-        incoming.on('data', (d: any) => onHostMessage(incoming, typeof d === 'string' ? d : JSON.stringify(d)));
-        incoming.on('close', () => onHostMessage(incoming, JSON.stringify({ type: 'LEAVE' })));
-        incoming.on('error', () => onHostMessage(incoming, JSON.stringify({ type: 'LEAVE' })));
-      });
-    } catch (err: any) {
-      setStatus('error');
-      setNotice('联机初始化失败');
-      setErrorDetail(err?.message || '请检查网络后重试');
+
+    // 随机选择起始节点，均衡负载
+    const startIdx = Math.floor(Math.random() * PEER_SERVERS.length);
+    const serverOrder: number[] = [];
+    for (let i = 0; i < PEER_SERVERS.length; i++) {
+      serverOrder.push((startIdx + i) % PEER_SERVERS.length);
     }
+
+    let lastErr: any = null;
+    for (const serverIdx of serverOrder) {
+      try {
+        const code = generateRoomCode(serverIdx);
+        const result = await tryCreateRoom(code, serverIdx);
+        if (result.success) {
+          setRoomCode(code);
+          setStatus('waiting');
+          setNotice('房间已创建，等待其他玩家加入…');
+          return;
+        }
+        lastErr = result.error;
+        // unavailable-id：换个房间码重试当前节点
+        if (result.error?.type === 'unavailable-id') {
+          for (let retry = 0; retry < 3; retry++) {
+            const altCode = generateRoomCode(serverIdx);
+            const r2 = await tryCreateRoom(altCode, serverIdx);
+            if (r2.success) {
+              setRoomCode(altCode);
+              setStatus('waiting');
+              setNotice('房间已创建，等待其他玩家加入…');
+              return;
+            }
+            lastErr = r2.error;
+          }
+        }
+        // 其他错误：尝试下一个节点
+      } catch (err) {
+        lastErr = err;
+      }
+    }
+
+    // 全部失败
+    setStatus('error');
+    setNotice('房间创建失败');
+    setErrorDetail(lastErr?.type || lastErr?.message || '所有信令服务器均无法连接');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onHostMessage]);
 
-  async function createRoomAs(code: string) {
-    setRoomCode(code);
-    setErrorDetail('');
-    try {
-      const Peer = await loadPeerJS();
-      const peer = new Peer(code, { debug: 0, config: { iceServers: ICE_SERVERS } });
-      peerRef.current = peer;
-      peer.on('open', () => {
-        setStatus('waiting');
-        setNotice('房间已创建，等待其他玩家加入…');
-      });
-      peer.on('connection', (incoming: any) => {
-        incoming.on('open', () => { setStatus('waiting'); });
-        incoming.on('data', (d: any) => onHostMessage(incoming, typeof d === 'string' ? d : JSON.stringify(d)));
-        incoming.on('close', () => onHostMessage(incoming, JSON.stringify({ type: 'LEAVE' })));
-        incoming.on('error', () => onHostMessage(incoming, JSON.stringify({ type: 'LEAVE' })));
-      });
-      peer.on('error', (err: any) => {
-        if (err?.type === 'unavailable-id') {
-          const alt = `${code}${Math.floor(Math.random() * 100)}`;
-          setRoomCode(alt);
-          createRoomAs(alt);
-        } else {
-          setStatus('error');
-          setNotice('房间创建失败');
-          setErrorDetail(err?.type || err?.message || '网络错误');
+  /** 尝试在指定信令节点创建房间 */
+  async function tryCreateRoom(code: string, serverIdx: number): Promise<{ success: boolean; error?: any }> {
+    return new Promise(async (resolve) => {
+      let settled = false;
+      const server = PEER_SERVERS[serverIdx];
+      const timer = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          try { peerRef.current?.destroy(); } catch {}
+          resolve({ success: false, error: { type: 'signal-timeout', message: `信令服务器 ${server.host} 连接超时` } });
         }
-      });
-    } catch (err: any) {
-      setStatus('error');
-      setNotice('联机初始化失败');
-      setErrorDetail(err?.message || '请检查网络后重试');
-    }
+      }, 8000);
+
+      try {
+        const Peer = await loadPeerJS();
+        const peer = new Peer(parseRoomCode(code).peerId, {
+          debug: 0,
+          host: server.host,
+          port: server.port,
+          path: server.path,
+          secure: server.secure,
+          config: { iceServers: ICE_SERVERS },
+        });
+        peerRef.current = peer;
+
+        peer.on('error', (err: any) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          try { peer.destroy(); } catch {}
+          resolve({ success: false, error: err });
+        });
+
+        peer.on('open', () => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          // 设置连接监听
+          peer.on('connection', (incoming: any) => {
+            incoming.on('open', () => { if (statusRef.current === 'waiting') setStatus('waiting'); });
+            incoming.on('data', (d: any) => onHostMessage(incoming, typeof d === 'string' ? d : JSON.stringify(d)));
+            incoming.on('close', () => onHostMessage(incoming, JSON.stringify({ type: 'LEAVE' })));
+            incoming.on('error', () => onHostMessage(incoming, JSON.stringify({ type: 'LEAVE' })));
+          });
+          resolve({ success: true });
+        });
+      } catch (err) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve({ success: false, error: err });
+      }
+    });
   }
 
-  // ============ 加入房间（来宾） ============
+  // ============ 加入房间（来宾）—— 多信令节点自动遍历 ============
   const joinRoom = useCallback(async (code: string) => {
     const c = code.trim().toUpperCase();
     if (!c) return;
@@ -408,59 +479,179 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
     setRole('guest');
     setStatus('connecting');
     setErrorDetail('');
-    try {
-      const Peer = await loadPeerJS();
-      const peer = new Peer(`${c}-${Math.floor(Math.random() * 100000)}`, { debug: 0, config: { iceServers: ICE_SERVERS } });
-      peerRef.current = peer;
-      peer.on('error', (err: any) => {
-        setStatus('error');
-        setNotice('连接失败');
-        setErrorDetail(err?.type || err?.message || '网络错误');
-      });
-      peer.on('open', () => {
-        const conn = peer.connect(c, { reliable: true });
-        connRef.current = conn;
-        const timeout = setTimeout(() => {
-          setStatus('error');
-          setNotice('连接超时，请检查房间号与网络');
-        }, 15000);
-        conn.on('open', () => {
-          clearTimeout(timeout);
-          conn.send(JSON.stringify({ type: 'JOIN', name: myNameRef.current }));
-        });
-        conn.on('data', (d: any) => onGuestMessage(typeof d === 'string' ? d : JSON.stringify(d)));
-        conn.on('close', () => {
-          setStatus('error');
-          setNotice('与房主连接已断开');
-        });
-      });
-    } catch (err: any) {
-      setStatus('error');
-      setNotice('联机初始化失败');
-      setErrorDetail(err?.message || '请检查网络后重试');
+
+    const { peerId, serverIdx: hintIdx } = parseRoomCode(c);
+    // 优先尝试房间号指定的节点，然后依次尝试其他所有节点
+    const serverOrder: number[] = [hintIdx];
+    for (let i = 0; i < PEER_SERVERS.length; i++) {
+      if (i !== hintIdx) serverOrder.push(i);
     }
+
+    const errors: string[] = [];
+    let attempt = 0;
+
+    for (const serverIdx of serverOrder) {
+      attempt++;
+      setNotice(`正在连接（${attempt}/${PEER_SERVERS.length}）…`);
+      const result = await tryJoinRoom(peerId, serverIdx);
+      if (result.success) return;
+      const server = PEER_SERVERS[serverIdx];
+      errors.push(`${server.host}: ${result.errorType || result.errorMsg || '未知错误'}`);
+      // peer-unavailable：继续尝试下一个节点
+      // 其他错误：也继续尝试（可能该节点暂时不可用）
+    }
+
+    // 全部失败
+    const lastType = errors[errors.length - 1]?.split(': ')[1];
+    setStatus('error');
+    if (lastType === 'peer-unavailable') {
+      setNotice('未找到房间，请确认房间号是否正确');
+    } else if (lastType === 'signal-timeout') {
+      setNotice('连接超时，请检查网络');
+    } else {
+      setNotice('加入房间失败');
+    }
+    setErrorDetail(`已尝试 ${PEER_SERVERS.length} 个信令服务器：\n` + errors.map((e, i) => `  ${i + 1}. ${e}`).join('\n'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onGuestMessage]);
 
-  // ============ 房主：开始对局 ============
+  /** 尝试在指定信令节点加入房间 */
+  async function tryJoinRoom(hostPeerId: string, serverIdx: number): Promise<{ success: boolean; errorType?: string; errorMsg?: string }> {
+    return new Promise(async (resolve) => {
+      let settled = false;
+      const server = PEER_SERVERS[serverIdx];
+      const signalTimer = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          try { peerRef.current?.destroy(); } catch {}
+          resolve({ success: false, errorType: 'signal-timeout', errorMsg: '信令服务器连接超时' });
+        }
+      }, 6000);
+
+      try {
+        const Peer = await loadPeerJS();
+        const guestId = `${hostPeerId}-g${Math.floor(Math.random() * 100000)}`;
+        const peer = new Peer(guestId, {
+          debug: 0,
+          host: server.host,
+          port: server.port,
+          path: server.path,
+          secure: server.secure,
+          config: { iceServers: ICE_SERVERS },
+        });
+        peerRef.current = peer;
+
+        let connectTimer: ReturnType<typeof setTimeout> | null = null;
+
+        peer.on('error', (err: any) => {
+          if (settled) return;
+          settled = true;
+          if (connectTimer) clearTimeout(connectTimer);
+          clearTimeout(signalTimer);
+          try { peer.destroy(); } catch {}
+          resolve({ success: false, errorType: err?.type, errorMsg: err?.message });
+        });
+
+        peer.on('open', () => {
+          if (settled) return;
+          const conn = peer.connect(hostPeerId, { reliable: true });
+          connRef.current = conn;
+
+          connectTimer = setTimeout(() => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(signalTimer);
+            try { conn.close(); peer.destroy(); } catch {}
+            resolve({ success: false, errorType: 'connect-timeout', errorMsg: '对方无响应' });
+          }, 10000);
+
+          conn.on('open', () => {
+            if (settled) return;
+            settled = true;
+            if (connectTimer) clearTimeout(connectTimer);
+            clearTimeout(signalTimer);
+            conn.send(JSON.stringify({ type: 'JOIN', name: myNameRef.current }));
+            // 设置消息监听
+            conn.on('data', (d: any) => onGuestMessage(typeof d === 'string' ? d : JSON.stringify(d)));
+            conn.on('close', () => {
+              setStatus('error');
+              setNotice('与房主连接已断开');
+            });
+            resolve({ success: true });
+          });
+
+          conn.on('error', () => {
+            if (settled) return;
+            settled = true;
+            if (connectTimer) clearTimeout(connectTimer);
+            clearTimeout(signalTimer);
+            try { peer.destroy(); } catch {}
+            resolve({ success: false, errorType: 'conn-error', errorMsg: '连接建立失败' });
+          });
+        });
+      } catch (err: any) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(signalTimer);
+        resolve({ success: false, errorType: 'init-error', errorMsg: err?.message || '初始化失败' });
+      }
+    });
+  }
+
+  // ============ 房主：开始对局（支持 AI 补位） ============
   const startGame = useCallback(() => {
-    const connected = connsRef.current.length;
-    if (connected < 3) {
-      setNotice(`还需 ${3 - connected} 名玩家加入才能开局`);
+    const realPlayers = connsRef.current.length + 1; // 房主 + 来宾
+    const needAI = Math.max(0, 4 - realPlayers);
+
+    if (needAI > aiCount) {
+      setNotice(`还需 ${needAI - aiCount} 名玩家或增加 AI 数量才能开局`);
       return;
     }
-    const names = ['房主', ...connsRef.current.map((c) => c._gdName)];
-    const st = gdNewGame(2, names, Math.floor(Math.random() * 4));
+
+    // 分配 AI 座位：先填满空位
+    const aiNames = generateAINames(needAI);
+    const aiDifficulties: GDAIDifficulty[] = [];
+    for (let i = 0; i < needAI; i++) aiDifficulties.push(aiDifficulty);
+
+    // 收集所有玩家信息
+    const playerNames: string[] = ['房主', '', '', ''];
+    const newAiPlayers: AIPlayer[] = [];
+
+    // 已连接的真实玩家
+    for (const c of connsRef.current) {
+      if (c._gdSeat !== undefined) {
+        playerNames[c._gdSeat] = c._gdName || '玩家';
+      }
+    }
+
+    // 分配 AI 到空座位（按座位 2→1→3 顺序：先队友，再对手）
+    const emptySeats = [2, 1, 3].filter(s => !playerNames[s]);
+    for (let i = 0; i < needAI && i < emptySeats.length; i++) {
+      const seat = emptySeats[i];
+      playerNames[seat] = `🤖 ${aiNames[i]}`;
+      newAiPlayers.push({ seat, name: `🤖 ${aiNames[i]}`, difficulty: aiDifficulties[i] });
+    }
+
+    setAiPlayers(newAiPlayers);
+    setPlayers(playerNames);
+
+    const st = gdNewGame(2, playerNames, Math.floor(Math.random() * 4));
     setGame(st);
     broadcastState(st);
     setStatus('playing');
     setNotice('');
-  }, [broadcastState]);
+  }, [aiCount, aiDifficulty, broadcastState]);
 
   // ============ 房主：重新发牌（下一局） ============
   const nextRound = useCallback(() => {
     if (!game) return;
-    const names = ['房主', ...connsRef.current.map((c) => c._gdName)];
+    // 保留 AI 玩家名字
+    const names = [...game.playerNames];
+    // 真实玩家名字同步
+    names[0] = '房主';
+    for (const c of connsRef.current) {
+      if (c._gdSeat !== undefined) names[c._gdSeat] = c._gdName || '玩家';
+    }
     const st = gdNewGame(game.level, names, game.finished[0] ?? 0, game.aStrikes || 0);
     setGame(st);
     broadcastState(st);
@@ -612,6 +803,54 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
     return () => document.body.classList.remove('gd-float-active');
   }, [floating]);
 
+  // ============ AI 自动出牌驱动（仅房主侧） ============
+  useEffect(() => {
+    if (role !== 'host') return;
+    if (!game || game.phase !== 'playing') return;
+    if (status !== 'playing') return;
+    if (aiPlayers.length === 0) return;
+
+    const currentSeat = game.current;
+    const aiPlayer = aiPlayers.find(ai => ai.seat === currentSeat);
+    if (!aiPlayer) return; // 不是 AI 回合
+
+    // 检查 AI 是否已经出完
+    if (game.finished.includes(currentSeat)) return;
+
+    // 延迟出牌，模拟思考
+    const handCounts = game.hands.map(h => h.length);
+    const aiHand = game.hands[currentSeat];
+
+    const decision = aiDecide({
+      hand: aiHand,
+      level: game.level,
+      mySeat: currentSeat,
+      lastPlay: game.lastPlay,
+      lastPlayBy: game.lastPlayBy,
+      handCounts,
+      finished: game.finished,
+      roundPass: game.roundPass,
+      difficulty: aiPlayer.difficulty,
+    });
+
+    // 计算思考延迟
+    const baseDelay = { easy: 1200, medium: 900, hard: 700, master: 500 }[aiPlayer.difficulty];
+    const delay = baseDelay + Math.random() * 300;
+
+    aiTimerRef.current = setTimeout(() => {
+      setGame((prev) => {
+        if (!prev || prev.phase !== 'playing' || prev.current !== currentSeat) return prev;
+        const next = gdApplyTurn(prev, currentSeat, decision.play);
+        broadcastState(next);
+        return next;
+      });
+    }, delay);
+
+    return () => {
+      if (aiTimerRef.current) clearTimeout(aiTimerRef.current);
+    };
+  }, [game?.current, game?.lastPlayBy, game?.hands, game?.finished, game?.level, game?.phase, role, status, aiPlayers, broadcastState]);
+
   // 点击理牌分组名称：整组选中（已全选则取消）
   const selectGroup = (cards: GCard[]) => {
     const ids = cards.map((c) => c.id);
@@ -660,6 +899,41 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
               </button>
             </div>
           )}
+          {/* AI 设置 */}
+          <div className="gd-ai-settings">
+            <div className="gd-ai-setting-row">
+              <label>🤖 AI 数量</label>
+              <div className="gd-ai-count-btns">
+                {[0, 1, 2, 3].map(n => (
+                  <button
+                    key={n}
+                    className={`gd-ai-count-btn ${aiCount === n ? 'active' : ''}`}
+                    onClick={() => setAiCount(n)}
+                    disabled={status === 'connecting'}
+                  >
+                    {n} 个
+                  </button>
+                ))}
+              </div>
+            </div>
+            {aiCount > 0 && (
+              <div className="gd-ai-setting-row">
+                <label>⭐ AI 难度</label>
+                <div className="gd-ai-diff-btns">
+                  {(['easy', 'medium', 'hard', 'master'] as GDAIDifficulty[]).map(d => (
+                    <button
+                      key={d}
+                      className={`gd-ai-diff-btn ${aiDifficulty === d ? 'active' : ''}`}
+                      onClick={() => setAiDifficulty(d)}
+                      disabled={status === 'connecting'}
+                    >
+                      {d === 'easy' ? '简单' : d === 'medium' ? '中等' : d === 'hard' ? '困难' : '大师'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
           <div className="gd-online-btns">
             <button className="gd-btn gd-btn-primary" onClick={createRoom} disabled={status === 'connecting'}>
               {status === 'connecting' ? '创建中…' : '创建房间'}
@@ -669,9 +943,9 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
           <div className="gd-online-join">
             <input
               value={joinInput}
-              onChange={(e) => setJoinInput(e.target.value)}
-              placeholder="输入 6 位房间号"
-              maxLength={6}
+              onChange={(e) => setJoinInput(e.target.value.toUpperCase())}
+              placeholder="输入房间号"
+              maxLength={7}
             />
             <button className="gd-btn gd-btn-primary" onClick={() => joinRoom(joinInput)} disabled={status === 'connecting' || joinInput.length < 4}>
               加入房间
@@ -685,6 +959,29 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
   // ============ 渲染：等待房间（房主） ============
   if (role === 'host' && status === 'waiting') {
     const connected = connsRef.current.length;
+    const totalPlayers = connected + 1; // 房主 + 来宾
+    const needAI = Math.max(0, 4 - totalPlayers);
+    const canStart = needAI <= aiCount; // AI 补位够就能开局
+
+    // 构建完整玩家列表（含 AI 预分配）
+    const playerList: { name: string; type: 'host' | 'guest' | 'ai' | 'empty' }[] = [
+      { name: '房主（你）', type: 'host' },
+    ];
+    // 已连接玩家
+    for (const c of connsRef.current) {
+      playerList.push({ name: c._gdName || '玩家', type: 'guest' });
+    }
+    // AI 补位
+    const aiToShow = Math.min(needAI, aiCount);
+    for (let i = 0; i < aiToShow; i++) {
+      playerList.push({ name: `AI ${aiDifficulty === 'easy' ? '简单' : aiDifficulty === 'medium' ? '中等' : aiDifficulty === 'hard' ? '困难' : '大师'}`, type: 'ai' });
+    }
+    // 空位
+    const emptyCount = 3 - connected - aiToShow;
+    for (let i = 0; i < emptyCount; i++) {
+      playerList.push({ name: '等待加入…', type: 'empty' });
+    }
+
     return (
       <div className="gd-online">
         <div className="gd-online-card">
@@ -695,18 +992,23 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
             <em>{copied ? '✅ 已复制' : '📋 点击复制'}</em>
           </div>
           <div className="gd-room-players">
-            <div className="gd-room-player gd-host">👑 房主（你）</div>
-            {connsRef.current.map((c, i) => (
-              <div className="gd-room-player" key={i}>🎮 {c._gdName || '玩家'}</div>
+            {playerList.map((p, i) => (
+              <div
+                className={`gd-room-player ${p.type === 'host' ? 'gd-host' : ''} ${p.type === 'empty' ? 'gd-empty' : ''} ${p.type === 'ai' ? 'gd-ai' : ''}`}
+                key={i}
+              >
+                {p.type === 'host' ? '👑 ' : p.type === 'guest' ? '🎮 ' : p.type === 'ai' ? '🤖 ' : '⏳ '}
+                {p.name}
+              </div>
             ))}
-            {[0, 1, 2].map((i) => (
-              <div className="gd-room-player gd-empty" key={`e${i}`}>⏳ 等待加入…</div>
-            )).slice(connsRef.current.length)}
           </div>
-          <p className="gd-online-tip">已加入 {connected}/3 名玩家</p>
+          <p className="gd-online-tip">
+            玩家 {connected} 人 · AI {aiToShow} 人
+            {!canStart && ` · 还需 ${needAI - aiCount} 人或增加 AI`}
+          </p>
           <div className="gd-online-btns">
-            <button className="gd-btn gd-btn-primary" onClick={startGame} disabled={connected < 3}>
-              {connected >= 3 ? '开始对局 →' : '等 3 人加入后开局'}
+            <button className="gd-btn gd-btn-primary" onClick={startGame} disabled={!canStart}>
+              {canStart ? '开始对局 →' : '人数不足'}
             </button>
           </div>
         </div>

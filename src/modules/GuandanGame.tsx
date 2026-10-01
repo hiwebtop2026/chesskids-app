@@ -1,5 +1,11 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { enterFullscreen, exitFullscreen } from '../utils/fullscreen';
+import {
+  getLearningProfile, saveLearningProfile, recordGameResult,
+  resolveAutoAiDifficulty, getLearningSummary,
+  type GDAIDifficulty, GD_AI_DIFFICULTIES, GD_DIFFICULTY_RANK,
+  type GuandanLearningProfile,
+} from '../engine/guandanLearning';
 
 /**
  * 掼蛋 · 人机对战（经典规则，四人两两组队）
@@ -493,7 +499,7 @@ export function shuffle<T>(arr: T[]): T[] {
 // ================================================================
 // AI 策略
 // ================================================================
-function findSmallestBeat(hand: GCard[], prev: PlayInfo, level: number): GCard[] | null {
+export function findSmallestBeat(hand: GCard[], prev: PlayInfo, level: number): GCard[] | null {
   const groups = groupByR(hand);
   // 同型找最小能大
   if (prev.type === 'SINGLE') {
@@ -598,7 +604,7 @@ function findBombBeat(hand: GCard[], prev: PlayInfo, level: number): GCard[] | n
 }
 
 // 找 5 张同花色连续（纯牌，不含变牌；变牌补同花顺由出牌校验/理牌负责）
-function findStraightFlush(hand: GCard[]): GCard[] | null {
+export function findStraightFlush(hand: GCard[]): GCard[] | null {
   for (const s of ['S', 'H', 'C', 'D']) {
     const sc = hand.filter((c) => c.s === s && c.k === undefined);
     const ranks = [...new Set(sc.map((c) => c.r))].filter((r) => r >= 3 && r <= 14).sort((a, b) => b - a);
@@ -615,7 +621,7 @@ function findStraightFlush(hand: GCard[]): GCard[] | null {
 }
 
 // 所有炸弹候选（4炸→5炸→同花顺→王炸 升序；供"连续点提示循环切换"枚举）
-function bombCandidates(hand: GCard[], level: number): { cards: GCard[]; kind: number; n: number; key: number }[] {
+export function bombCandidates(hand: GCard[], level: number): { cards: GCard[]; kind: number; n: number; key: number }[] {
   const groups = groupByR(hand);
   const kings = hand.filter((c) => c.k !== undefined);
   const out: { cards: GCard[]; kind: number; n: number; key: number }[] = [];
@@ -710,34 +716,44 @@ export function findSeq(hand: GCard[], len: number, minKey: number, isPair: bool
 // - 炸弹：对手剩牌少必炸，队友冲刺不炸
 // ================================================================
 
-/** 手牌强度评估：0-100 分 */
-function evaluateHandStrength(hand: GCard[], level: number): number {
+/** 手牌强度评估：0-100 分（支持学习参数调优） */
+function evaluateHandStrength(hand: GCard[], level: number, params?: Partial<{
+  bombWeight: number; rocketWeight: number; straightFlushWeight: number;
+  kingWeight: number; bigCardWeight: number; straightWeight: number;
+  singlePenalty: number; wildValue: number;
+}>): number {
+  const p = {
+    bombWeight: 10, rocketWeight: 30, straightFlushWeight: 22,
+    kingWeight: 5, bigCardWeight: 2, straightWeight: 3,
+    singlePenalty: 2, wildValue: 6,
+    ...params,
+  };
   let score = 0;
 
   // 1. 炸弹数量与质量（权重最高）
   const bombs = bombCandidates(hand, level);
   for (const b of bombs) {
-    if (b.kind === 2) score += 30;      // 天王炸
-    else if (b.kind === 1) score += 22; // 同花顺
-    else score += 10 + (b.n - 4) * 5;  // 4炸=10, 5炸=15, 6炸=20
+    if (b.kind === 2) score += p.rocketWeight;       // 天王炸
+    else if (b.kind === 1) score += p.straightFlushWeight; // 同花顺
+    else score += p.bombWeight + (b.n - 4) * 5;     // 4炸基准 + 每多1张+5
   }
 
   // 2. 大牌数量（王、级牌、A、K）
   const kings = hand.filter(c => c.k !== undefined).length;
-  score += kings * 5;
+  score += kings * p.kingWeight;
 
   const groups = groupByR(hand);
   const lr = levelRank(level);
   for (const [r, g] of groups) {
     if (r === 20 || r === 19) continue; // 王已算
     const v = r === lr ? 16 : r === 15 ? 2 : r;
-    if (v >= 13) score += g.length * 2;  // A/K
-    else if (v >= 11) score += g.length * 1; // Q/J
+    if (v >= 13) score += g.length * p.bigCardWeight;  // A/K
+    else if (v >= 11) score += g.length * (p.bigCardWeight / 2); // Q/J
   }
 
   // 3. 牌型完整度（顺子、连对、飞机）
   const sf = findStraightFlush(hand);
-  if (sf) score += 8;
+  if (sf) score += p.straightFlushWeight * 0.4;
 
   // 顺子数量
   let straightCount = 0;
@@ -752,18 +768,18 @@ function evaluateHandStrength(hand: GCard[], level: number): number {
       runLen = 1;
     }
   }
-  score += straightCount * 3;
+  score += straightCount * p.straightWeight;
 
   // 4. 单张数量（单张越多越弱）
   let singleCount = 0;
   for (const g of groups.values()) {
     if (g.length === 1 && g[0].k === undefined) singleCount++;
   }
-  score -= singleCount * 2;
+  score -= singleCount * p.singlePenalty;
 
   // 5. 变牌加分
   const wilds = hand.filter(c => isWild(c, level)).length;
-  score += wilds * 6;
+  score += wilds * p.wildValue;
 
   return Math.max(0, Math.min(100, Math.round(score)));
 }
@@ -842,7 +858,10 @@ function shouldBomb(
   opponentHandCount: number,
   partnerHandCount: number,
   isMyTeamLast: boolean,
+  params?: Partial<{ mustBombThreshold: number; partnerSaveThreshold: number }>,
 ): GCard[] | null {
+  const mustBomb = params?.mustBombThreshold ?? 5;
+  const partnerSave = params?.partnerSaveThreshold ?? 5;
   const bombs = bombCandidates(hand, level);
   if (bombs.length === 0) return null;
 
@@ -850,7 +869,7 @@ function shouldBomb(
   if (isMyTeamLast) return null;
 
   // 对手剩牌很少 → 必须炸（阻止对方头游）
-  if (opponentHandCount <= 5) {
+  if (opponentHandCount <= mustBomb) {
     // 找最小的能压住的炸弹
     for (const b of bombs) {
       const info = { type: 'BOMB' as PlayType, key: b.key, size: b.n, cards: b.cards };
@@ -859,7 +878,7 @@ function shouldBomb(
   }
 
   // 对手剩 6-10 张 → 有较大概率头游，考虑炸
-  if (opponentHandCount <= 10) {
+  if (opponentHandCount <= mustBomb + 5) {
     // 手牌也不多了（自己也有冲头游潜力）→ 炸
     if (hand.length <= 12) {
       for (const b of bombs) {
@@ -869,11 +888,11 @@ function shouldBomb(
     }
   }
 
-  // 队友牌也很少（<5）→ 不浪费炸弹，让队友冲
-  if (partnerHandCount <= 5) return null;
+  // 队友牌也很少 → 不浪费炸弹，让队友冲
+  if (partnerHandCount <= partnerSave) return null;
 
   // 对手牌很多 → 不用炸，等后面
-  if (opponentHandCount > 15) return null;
+  if (opponentHandCount > mustBomb + 10) return null;
 
   return null;
 }
@@ -885,13 +904,22 @@ export function aiPlay(
   isMyTeamLast: boolean,
   opponentHandCount: number = 27,
   partnerHandCount: number = 27,
+  evalParams?: Partial<{
+    bombWeight: number; rocketWeight: number; straightFlushWeight: number;
+    kingWeight: number; bigCardWeight: number; straightWeight: number;
+    singlePenalty: number; wildValue: number;
+    aggressiveThreshold: number; supportThreshold: number;
+    mustBombThreshold: number; partnerSaveThreshold: number;
+  }>,
 ): { play: GCard[] | null; pass: boolean } {
-  const handStrength = evaluateHandStrength(hand, level);
+  const handStrength = evaluateHandStrength(hand, level, evalParams);
 
   // 决定策略：根据手牌强度和队友状态
+  const aggThresh = evalParams?.aggressiveThreshold ?? 65;
+  const supThresh = evalParams?.supportThreshold ?? 35;
   let strategy: 'aggressive' | 'normal' | 'support' = 'normal';
-  if (handStrength >= 65) strategy = 'aggressive';
-  else if (handStrength <= 35) strategy = 'support';
+  if (handStrength >= aggThresh) strategy = 'aggressive';
+  else if (handStrength <= supThresh) strategy = 'support';
 
   // 如果队友牌很少，转为辅助策略
   if (partnerHandCount <= 8 && handStrength < 70) {
@@ -919,7 +947,10 @@ export function aiPlay(
       // 手牌多 + 对手牌多 → 王留着关键时候用
       if (hand.length > 8 && opponentHandCount > 10) {
         // 看看有没有炸弹能替代
-        const bomb = shouldBomb(hand, prev, level, opponentHandCount, partnerHandCount, isMyTeamLast);
+        const bomb = shouldBomb(hand, prev, level, opponentHandCount, partnerHandCount, isMyTeamLast, {
+          mustBombThreshold: evalParams?.mustBombThreshold,
+          partnerSaveThreshold: evalParams?.partnerSaveThreshold,
+        });
         if (bomb) return { play: bomb, pass: false };
         return { play: null, pass: true };
       }
@@ -947,7 +978,10 @@ export function aiPlay(
   }
 
   // ===== 没普通牌型可大 → 考虑炸弹 =====
-  const bomb = shouldBomb(hand, prev, level, opponentHandCount, partnerHandCount, isMyTeamLast);
+  const bomb = shouldBomb(hand, prev, level, opponentHandCount, partnerHandCount, isMyTeamLast, {
+    mustBombThreshold: evalParams?.mustBombThreshold,
+    partnerSaveThreshold: evalParams?.partnerSaveThreshold,
+  });
   if (bomb) {
     return { play: bomb, pass: false };
   }
@@ -990,6 +1024,25 @@ export function GuandanGame() {
   const [menuOpen, setMenuOpen] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const enteredFsRef = useRef(false);
+
+  // ===== AI 难度与自适应学习 =====
+  const [aiDifficulty, setAiDifficulty] = useState<GDAIDifficulty | 'auto'>('auto');
+  const [learningProfile, setLearningProfile] = useState<GuandanLearningProfile | null>(null);
+  const [showLearningPanel, setShowLearningPanel] = useState(false);
+  const firstPlayTypeRef = useRef<PlayType | null>(null);
+  const bombsUsedRef = useRef(0);
+
+  // 加载学习档案
+  useEffect(() => {
+    setLearningProfile(getLearningProfile());
+  }, []);
+
+  // 解析当前实际 AI 难度（auto 模式下根据 ELO 动态匹配）
+  const actualDifficulty: GDAIDifficulty = (() => {
+    if (aiDifficulty !== 'auto') return aiDifficulty;
+    if (!learningProfile) return 'medium';
+    return resolveAutoAiDifficulty(learningProfile.playerElo, learningProfile.winStreak);
+  })();
 
   // 挂载即进入浮动全屏容器；首次交互（用户手势）尝试隐藏浏览器窗口（桌面全屏 / iOS 沉浸兜底）
   useEffect(() => {
@@ -1214,6 +1267,42 @@ export function GuandanGame() {
     commitTurn(0, null);
   }, [game, commitTurn]);
 
+  // ===== 游戏结束 → 记录学习 =====
+  const gameOverRecordedRef = useRef(false);
+  useEffect(() => {
+    if (!game || game.phase !== 'over') {
+      gameOverRecordedRef.current = false;
+      return;
+    }
+    if (gameOverRecordedRef.current) return;
+    gameOverRecordedRef.current = true;
+
+    if (!learningProfile) return;
+
+    const myTeamWon = game.winnerTeam === 0;
+    const result = myTeamWon ? 'win' : 'loss';
+
+    // 自己的名次
+    const myRank = game.finished.indexOf(0) + 1;
+    const partnerRank = game.finished.indexOf(2) + 1;
+
+    // 手牌强度（估算：用最终手牌数反推，这里取平均值）
+    const handStrength = 50; // 简化：实际应该记录初始手牌强度
+
+    // 记录首攻牌型
+    const firstPlay = firstPlayTypeRef.current;
+
+    // 更新学习档案
+    const newProfile = recordGameResult(learningProfile, result, actualDifficulty, {
+      handStrength,
+      bombsUsed: bombsUsedRef.current,
+      partnerRank,
+      myRank,
+      firstPlayType: firstPlay || undefined,
+    });
+    setLearningProfile(newProfile);
+  }, [game, learningProfile, actualDifficulty]);
+
   // AI 回合
   useEffect(() => {
     if (!game || game.phase !== 'playing' || game.current === 0) return;
@@ -1235,7 +1324,13 @@ export function GuandanGame() {
         isTeamLast,
         opponentHandCount,
         partnerHandCount,
+        learningProfile?.evalParams,
       );
+      // 统计 AI 使用炸弹次数（用于学习）
+      if (res.play && res.play.length >= 4) {
+        const ranks = new Set(res.play.map(c => c.k !== undefined ? 99 : c.r));
+        if (ranks.size === 1 && res.play.length >= 4) bombsUsedRef.current++;
+      }
       commitTurn(p, res.play);
     }, 900);
   }, [game, commitTurn]);
