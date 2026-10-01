@@ -17,13 +17,16 @@
     <link rel="preconnect" href="https://registry.npmmirror.com" crossorigin />
     <link rel="preconnect" href="https://esm.sh" crossorigin />
     <style>
-      /* 首屏品牌骨架：JS 加载期间显示，避免白屏/闪烁 */
+      /* 首屏品牌骨架：JS 加载期间显示，避免白屏/闪烁
+         注意：pointer-events:none——即使异常残留也不会拦截页面按钮点击 */
       #app-boot {
         position: fixed; inset: 0; z-index: 99999;
         display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
         background: linear-gradient(180deg, #fbf3e4 0%, #f4e8d2 100%);
         font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        pointer-events: none;
       }
+      #app-boot.hide { opacity: 0; transition: opacity .3s; }
       #app-boot .boot-logo {
         width: 74px; height: 74px; border-radius: 22px;
         display: flex; align-items: center; justify-content: center;
@@ -58,6 +61,28 @@
   </head>
   <body>
     <div id="root"><div id="app-boot"><div class="boot-logo">♟</div><div class="boot-title">棋乐园</div><div class="boot-sub">少儿棋类学堂</div><div class="boot-bar"></div></div></div>
+    <script>
+      // 兜底：8 秒后无论 JS 是否加载成功都淡出骨架，防止异常情况下骨架残留遮挡页面
+      (function () {
+        var boot = document.getElementById('app-boot');
+        if (!boot) return;
+        setTimeout(function () {
+          boot.classList.add('hide');
+          setTimeout(function () { boot.remove(); }, 400);
+        }, 8000);
+        // 一旦 DOM 已被 React 接管（root 有内容且非骨架自身），立即移除骨架
+        var ob = new MutationObserver(function () {
+          var root = document.getElementById('root');
+          if (root && root.childNodes.length > 0 && !document.getElementById('app-boot')) { return; }
+          if (root && root.children.length > 0 && root.children[0].id !== 'app-boot') {
+            boot.classList.add('hide');
+            setTimeout(function () { boot.remove(); }, 300);
+            ob.disconnect();
+          }
+        });
+        ob.observe(document.getElementById('root') || document.body, { childList: true, subtree: true });
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
