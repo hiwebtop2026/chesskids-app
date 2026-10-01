@@ -7194,6 +7194,77 @@ ul {
   transition: all .2s;
 }
 .gd-seat.gd-active { border-color: #ffd54f; box-shadow: 0 0 14px rgba(255, 213, 79, 0.35); }
+/* 头游标记（金色徽章，脉冲高亮） */
+.gd-head-tag {
+  font-size: 11px;
+  font-weight: 900;
+  color: #fff;
+  background: linear-gradient(135deg, #ffb300, #f57c00);
+  border-radius: 99px;
+  padding: 2px 9px;
+  box-shadow: 0 0 10px rgba(255, 179, 0, 0.55);
+  animation: gdHeadPulse 1.4s ease-in-out infinite;
+  white-space: nowrap;
+}
+@keyframes gdHeadPulse {
+  50% { transform: scale(1.14); box-shadow: 0 0 18px rgba(255, 179, 0, 0.9); }
+}
+/* 头游后显示对家牌面 */
+.gd-partner-cards {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1.5px solid rgba(255, 213, 79, 0.35);
+  border-radius: 12px;
+  margin: 2px 0;
+  flex-wrap: wrap;
+}
+.gd-partner-label {
+  font-size: 12px;
+  font-weight: 800;
+  color: #ffd54f;
+  white-space: nowrap;
+}
+.gd-partner-cards-row { display: flex; gap: 3px; flex-wrap: wrap; flex: 1; min-width: 0; }
+.gd-mini-card {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 46px;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #fff, #efe9dc);
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.05;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  position: relative;
+  flex-shrink: 0;
+}
+.gd-mini-card.gd-red { color: #d32f2f; }
+.gd-mini-card.gd-black { color: #1b1b1b; }
+.gd-mini-card.gd-mini-joker { background: linear-gradient(135deg, #6a1b9a, #c62828); color: #fff; }
+.gd-mini-rank { font-size: 10px; font-weight: 800; }
+.gd-mini-suit { font-size: 9px; }
+.gd-mini-level {
+  position: absolute;
+  top: 1px; right: 2px;
+  font-size: 7px;
+  color: #b45309;
+  background: #ffd54f;
+  border-radius: 3px;
+  padding: 0 2px;
+}
+.gd-partner-empty { font-size: 12px; color: rgba(255, 255, 255, 0.55); }
+@media (max-width: 640px) {
+  .gd-mini-card { width: 26px; height: 38px; font-size: 8.5px; }
+  .gd-mini-rank { font-size: 8.5px; }
+  .gd-mini-suit { font-size: 8px; }
+}
 /* 方位由桌垫四边大字水印承担（参考比赛专用桌垫），座位条不再单独标注 */
 .gd-seat-top { width: 100%; justify-content: center; }
 .gd-side-row { display: flex; gap: 8px; align-items: stretch; }

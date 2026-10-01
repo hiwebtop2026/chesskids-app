@@ -710,6 +710,11 @@ export function GuandanGame() {
 
   if (!game) return <div className="module-loading">发牌中…</div>;
 
+  // 头游：第一个出完牌的玩家；对家（搭档）= 头游 ^ 2（0↔2、1↔3）；对家是自己则不重复展示
+  const headSeat = game.finished.length > 0 ? game.finished[0] : -1;
+  const partnerSeat = headSeat >= 0 ? headSeat ^ 2 : -1;
+  const showPartnerCards = headSeat >= 0 && partnerSeat >= 0 && partnerSeat !== 0;
+
   return (
     <div className={`gd-table ${floating ? 'gd-floating' : ''}`} onClick={requestFullscreenOnGesture}>
       {/* 桌垫方位水印、分区框线与铭牌（参考比赛专用桌垫） */}
@@ -777,20 +782,58 @@ export function GuandanGame() {
         {/* 队友（上·北） */}
         <div className={`gd-seat gd-seat-top ${game.current === 2 ? 'gd-active' : ''}`}>
           <span className="gd-seat-name">🤝 队友</span>
+          {headSeat === 2 && <span className="gd-head-tag">🏆 头游</span>}
           {counts[2] <= 10 && <span className="gd-seat-count">{counts[2]} 张</span>}
           {game.roundPass.includes(2) && <span className="gd-pass-tag">不出</span>}
           {game.finished.includes(2) && <span className="gd-finished-tag">已出完</span>}
         </div>
+        {showPartnerCards && partnerSeat === 2 && (
+          <div className="gd-partner-cards">
+            <span className="gd-partner-label">🤝 对家牌面</span>
+            <div className="gd-partner-cards-row">
+              {game.hands[2].map((c) => (
+                <span
+                  key={c.id}
+                  className={`gd-mini-card ${c.k !== undefined ? 'gd-mini-joker' : ''} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'}`}
+                >
+                  <span className="gd-mini-rank">{c.k !== undefined ? (c.k === 1 ? '大王' : '小王') : rankName(c.r)}</span>
+                  {c.k === undefined && <span className="gd-mini-suit">{SUIT_SYMBOL[c.s]}</span>}
+                  {c.r === game.level && c.k === undefined && <span className="gd-mini-level">级</span>}
+                </span>
+              ))}
+              {game.hands[2].length === 0 && <span className="gd-partner-empty">已出完</span>}
+            </div>
+          </div>
+        )}
         <div className="gd-play-area gd-play-north">{renderRoundPlays(2)}</div>
         {/* 对手（左·西 / 右·东） + 中央轮状态 */}
         <div className="gd-side-row">
           <div className="gd-side-col">
             <div className={`gd-seat gd-seat-left ${game.current === 3 ? 'gd-active' : ''}`}>
               <span className="gd-seat-name">😈 对手B</span>
+              {headSeat === 3 && <span className="gd-head-tag">🏆 头游</span>}
               {counts[3] <= 10 && <span className="gd-seat-count">{counts[3]} 张</span>}
               {game.roundPass.includes(3) && <span className="gd-pass-tag">不出</span>}
               {game.finished.includes(3) && <span className="gd-finished-tag">已出完</span>}
             </div>
+            {showPartnerCards && partnerSeat === 3 && (
+              <div className="gd-partner-cards">
+                <span className="gd-partner-label">🤝 对家牌面</span>
+                <div className="gd-partner-cards-row">
+                  {game.hands[3].map((c) => (
+                    <span
+                      key={c.id}
+                      className={`gd-mini-card ${c.k !== undefined ? 'gd-mini-joker' : ''} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'}`}
+                    >
+                      <span className="gd-mini-rank">{c.k !== undefined ? (c.k === 1 ? '大王' : '小王') : rankName(c.r)}</span>
+                      {c.k === undefined && <span className="gd-mini-suit">{SUIT_SYMBOL[c.s]}</span>}
+                      {c.r === game.level && c.k === undefined && <span className="gd-mini-level">级</span>}
+                    </span>
+                  ))}
+                  {game.hands[3].length === 0 && <span className="gd-partner-empty">已出完</span>}
+                </div>
+              </div>
+            )}
             <div className="gd-play-area gd-play-west">{renderRoundPlays(3)}</div>
           </div>
           <div className="gd-center-play">
@@ -801,10 +844,29 @@ export function GuandanGame() {
           <div className="gd-side-col">
             <div className={`gd-seat gd-seat-right ${game.current === 1 ? 'gd-active' : ''}`}>
               <span className="gd-seat-name">😈 对手A</span>
+              {headSeat === 1 && <span className="gd-head-tag">🏆 头游</span>}
               {counts[1] <= 10 && <span className="gd-seat-count">{counts[1]} 张</span>}
               {game.roundPass.includes(1) && <span className="gd-pass-tag">不出</span>}
               {game.finished.includes(1) && <span className="gd-finished-tag">已出完</span>}
             </div>
+            {showPartnerCards && partnerSeat === 1 && (
+              <div className="gd-partner-cards">
+                <span className="gd-partner-label">🤝 对家牌面</span>
+                <div className="gd-partner-cards-row">
+                  {game.hands[1].map((c) => (
+                    <span
+                      key={c.id}
+                      className={`gd-mini-card ${c.k !== undefined ? 'gd-mini-joker' : ''} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'}`}
+                    >
+                      <span className="gd-mini-rank">{c.k !== undefined ? (c.k === 1 ? '大王' : '小王') : rankName(c.r)}</span>
+                      {c.k === undefined && <span className="gd-mini-suit">{SUIT_SYMBOL[c.s]}</span>}
+                      {c.r === game.level && c.k === undefined && <span className="gd-mini-level">级</span>}
+                    </span>
+                  ))}
+                  {game.hands[1].length === 0 && <span className="gd-partner-empty">已出完</span>}
+                </div>
+              </div>
+            )}
             <div className="gd-play-area gd-play-east">{renderRoundPlays(1)}</div>
           </div>
         </div>
