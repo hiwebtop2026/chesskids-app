@@ -590,7 +590,7 @@ export function GuandanGame() {
         {/* 队友（上） */}
         <div className={`gd-seat gd-seat-top ${game.current === 2 ? 'gd-active' : ''}`}>
           <span className="gd-seat-name">🤝 队友</span>
-          <span className="gd-seat-count">{counts[2]} 张</span>
+          {counts[2] <= 10 && <span className="gd-seat-count">{counts[2]} 张</span>}
           {showCards(2) && <div className="gd-mini-cards">{showCards(2)!.map((c) => <span key={c.id} className={`gd-mini-card ${c.k !== undefined ? 'gd-joker' : ''}`}>{cardText(c)}</span>)}</div>}
           {game.roundPass.includes(2) && <span className="gd-pass-tag">不出</span>}
           {game.finished.includes(2) && <span className="gd-finished-tag">已出完</span>}
@@ -599,7 +599,7 @@ export function GuandanGame() {
         <div className="gd-side-row">
           <div className={`gd-seat gd-seat-left ${game.current === 3 ? 'gd-active' : ''}`}>
             <span className="gd-seat-name">😈 对手B</span>
-            <span className="gd-seat-count">{counts[3]} 张</span>
+            {counts[3] <= 10 && <span className="gd-seat-count">{counts[3]} 张</span>}
             {showCards(3) && <div className="gd-mini-cards">{showCards(3)!.map((c) => <span key={c.id} className={`gd-mini-card ${c.k !== undefined ? 'gd-joker' : ''}`}>{cardText(c)}</span>)}</div>}
             {game.roundPass.includes(3) && <span className="gd-pass-tag">不出</span>}
             {game.finished.includes(3) && <span className="gd-finished-tag">已出完</span>}
@@ -632,7 +632,7 @@ export function GuandanGame() {
           </div>
           <div className={`gd-seat gd-seat-right ${game.current === 1 ? 'gd-active' : ''}`}>
             <span className="gd-seat-name">😈 对手A</span>
-            <span className="gd-seat-count">{counts[1]} 张</span>
+            {counts[1] <= 10 && <span className="gd-seat-count">{counts[1]} 张</span>}
             {showCards(1) && <div className="gd-mini-cards">{showCards(1)!.map((c) => <span key={c.id} className={`gd-mini-card ${c.k !== undefined ? 'gd-joker' : ''}`}>{cardText(c)}</span>)}</div>}
             {game.roundPass.includes(1) && <span className="gd-pass-tag">不出</span>}
             {game.finished.includes(1) && <span className="gd-finished-tag">已出完</span>}
