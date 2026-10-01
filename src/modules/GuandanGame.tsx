@@ -371,6 +371,8 @@ interface GameState {
   turnStart: number;
   finished: number[]; // 出完顺序（玩家 index）
   roundPass: number[]; // 本轮已 pass 的玩家
+  /** 本轮各方位已出的牌（一轮出完才清理），用于方位展示 */
+  roundPlays: { player: number; cards: GCard[] }[];
   phase: 'idle' | 'playing' | 'over';
   winnerTeam: number | null;
   resultText: string;
@@ -408,6 +410,13 @@ export function GuandanGame() {
     try { enterFullscreen(); } catch { /* 忽略 */ }
   }, []);
 
+  // 浮动全屏时隐藏页面上下红色导航栏（header/nav），只显示棋盘容器
+  useEffect(() => {
+    if (floating) document.body.classList.add('gd-float-active');
+    else document.body.classList.remove('gd-float-active');
+    return () => document.body.classList.remove('gd-float-active');
+  }, [floating]);
+
   const startNew = useCallback((prevLevel?: number) => {
     const deck = shuffle(buildDeck());
     const hands: GCard[][] = [[], [], [], []];
@@ -423,6 +432,7 @@ export function GuandanGame() {
       turnStart: first,
       finished: [],
       roundPass: [],
+      roundPlays: [],
       phase: 'playing',
       winnerTeam: null,
       resultText: '',
@@ -482,6 +492,8 @@ export function GuandanGame() {
       const lastPlay = play ? { player, cards: play, info: analyzePlay(play, prev.level)! } : null;
       const roundPass = [...prev.roundPass];
       const finished = [...prev.finished];
+      // 本轮已出的牌：出牌追加到对应方位；一圈全过（新一轮）时清空
+      const roundPlays = play ? [...prev.roundPlays, { player, cards: play }] : prev.roundPlays;
 
       if (play) {
         hands[player] = hands[player].filter((c) => !play.some((p) => p.id === c.id));
@@ -512,26 +524,26 @@ export function GuandanGame() {
               resultText = win === 0 ? '🚀 打到 A！下一局双上即获胜！' : '对方打到 A';
             }
             return {
-              ...prev, hands, lastPlay, roundPass: [], finished,
+              ...prev, hands, lastPlay, roundPass: [], roundPlays, finished,
               phase: 'over', winnerTeam, resultText,
               level: newLevel,
               current: finished[0],
             };
           }
         }
-        // 出完非全结束：重置本轮
+        // 出完非全结束：本轮继续（出牌追加到方位区，待一圈全过才清理）
         return {
-          ...prev, hands, lastPlay, lastPlayBy: player, roundPass: [], current: (player + 1) % 4, turnStart: (player + 1) % 4,
+          ...prev, hands, lastPlay, lastPlayBy: player, roundPass: [], roundPlays, current: (player + 1) % 4, turnStart: (player + 1) % 4,
         };
       } else {
         // 不出
         roundPass.push(player);
         if (roundPass.length >= 3) {
-          // 一圈全过 → 最后出牌者自由出牌
+          // 一圈全过 → 最后出牌者自由出牌（新一轮开始，清理本轮出牌）
           const freer = prev.lastPlayBy;
-          return { ...prev, hands, roundPass: [], current: freer, lastPlay: null, lastPlayBy: freer };
+          return { ...prev, hands, roundPass: [], roundPlays: [], current: freer, lastPlay: null, lastPlayBy: freer };
         }
-        return { ...prev, hands, roundPass, current: (player + 1) % 4 };
+        return { ...prev, hands, roundPass, roundPlays, current: (player + 1) % 4 };
       }
     });
   }, []);
@@ -581,11 +593,25 @@ export function GuandanGame() {
   const myTeamCount = game ? counts[0] + counts[2] : 0;
   const oppTeamCount = game ? counts[1] + counts[3] : 0;
 
-  // 最近各家出牌（显示用）
-  const showTop = game && game.lastPlay && (game.lastPlay.player === 2 || game.lastPlay.player === 1 || game.lastPlay.player === 3);
-  const showCards = (p: number) => {
-    if (!game || !game.lastPlay || game.lastPlay.player !== p) return null;
-    return game.lastPlay.cards;
+  // 本轮各方位已出的牌（对应出牌区方位展示；一轮出完才清理）
+  const roundPlaysOf = (p: number) => (game ? game.roundPlays.filter((x) => x.player === p) : []);
+  const renderRoundPlays = (p: number) => {
+    const plays = roundPlaysOf(p);
+    if (plays.length === 0) return null;
+    return (
+      <div className="gd-play-area">
+        {plays.map((pl, i) => (
+          <div key={i} className={`gd-play-hand ${i === plays.length - 1 ? 'gd-latest' : ''}`}>
+            <span className="gd-play-hand-name">{NAMES[pl.player]}</span>
+            <div className="gd-play-cards-row">
+              {pl.cards.map((c) => (
+                <span key={c.id} className={`gd-play-card ${c.k !== undefined ? 'gd-joker' : ''}`}>{cardText(c)}</span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
   };
 
   const toggleCard = (id: number) => {
@@ -643,57 +669,40 @@ export function GuandanGame() {
         <span className="gd-info">级牌 <b className="gd-level">{levelName}</b></span>
       </div>
 
-      {/* 玩家信息区 */}
+      {/* 玩家信息区 + 四方位出牌区 */}
       <div className="gd-seats">
-        {/* 队友（上） */}
+        {/* 队友（上·北） */}
         <div className={`gd-seat gd-seat-top ${game.current === 2 ? 'gd-active' : ''}`}>
           <span className="gd-seat-name">🤝 队友</span>
           {counts[2] <= 10 && <span className="gd-seat-count">{counts[2]} 张</span>}
-          {showCards(2) && <div className="gd-mini-cards">{showCards(2)!.map((c) => <span key={c.id} className={`gd-mini-card ${c.k !== undefined ? 'gd-joker' : ''}`}>{cardText(c)}</span>)}</div>}
           {game.roundPass.includes(2) && <span className="gd-pass-tag">不出</span>}
           {game.finished.includes(2) && <span className="gd-finished-tag">已出完</span>}
         </div>
-        {/* 对手（左/右） */}
+        <div className="gd-play-area gd-play-north">{renderRoundPlays(2)}</div>
+        {/* 对手（左·西 / 右·东） + 中央轮状态 */}
         <div className="gd-side-row">
-          <div className={`gd-seat gd-seat-left ${game.current === 3 ? 'gd-active' : ''}`}>
-            <span className="gd-seat-name">😈 对手B</span>
-            {counts[3] <= 10 && <span className="gd-seat-count">{counts[3]} 张</span>}
-            {showCards(3) && <div className="gd-mini-cards">{showCards(3)!.map((c) => <span key={c.id} className={`gd-mini-card ${c.k !== undefined ? 'gd-joker' : ''}`}>{cardText(c)}</span>)}</div>}
-            {game.roundPass.includes(3) && <span className="gd-pass-tag">不出</span>}
-            {game.finished.includes(3) && <span className="gd-finished-tag">已出完</span>}
+          <div className="gd-side-col">
+            <div className={`gd-seat gd-seat-left ${game.current === 3 ? 'gd-active' : ''}`}>
+              <span className="gd-seat-name">😈 对手B</span>
+              {counts[3] <= 10 && <span className="gd-seat-count">{counts[3]} 张</span>}
+              {game.roundPass.includes(3) && <span className="gd-pass-tag">不出</span>}
+              {game.finished.includes(3) && <span className="gd-finished-tag">已出完</span>}
+            </div>
+            <div className="gd-play-area gd-play-west">{renderRoundPlays(3)}</div>
           </div>
-          {/* 中央出牌区（上一手） */}
           <div className="gd-center-play">
-            {showTop && game.lastPlay && (
-              <div className="gd-last-play">
-                <span className="gd-last-name">{NAMES[game.lastPlay.player]}</span>
-                <div className="gd-last-cards">
-                  {game.lastPlay.cards.map((c) => (
-                    <span key={c.id} className={`gd-play-card ${c.k !== undefined ? 'gd-joker' : ''}`}>
-                      {cardText(c)}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-            {game.lastPlay && game.lastPlay.player === 0 && (
-              <div className="gd-last-play">
-                <span className="gd-last-name">你</span>
-                <div className="gd-last-cards">
-                  {game.lastPlay.cards.map((c) => (
-                    <span key={c.id} className={`gd-play-card ${c.k !== undefined ? 'gd-joker' : ''}`}>{cardText(c)}</span>
-                  ))}
-                </div>
-              </div>
-            )}
-            {!game.lastPlay && <span className="gd-freetext">自由出牌</span>}
+            {game.phase === 'over' ? <span className="gd-freetext">{game.resultText}</span> :
+              game.lastPlay ? <span className="gd-freetext">跟牌：{NAMES[game.lastPlay.player]}</span> :
+              <span className="gd-freetext">自由出牌</span>}
           </div>
-          <div className={`gd-seat gd-seat-right ${game.current === 1 ? 'gd-active' : ''}`}>
-            <span className="gd-seat-name">😈 对手A</span>
-            {counts[1] <= 10 && <span className="gd-seat-count">{counts[1]} 张</span>}
-            {showCards(1) && <div className="gd-mini-cards">{showCards(1)!.map((c) => <span key={c.id} className={`gd-mini-card ${c.k !== undefined ? 'gd-joker' : ''}`}>{cardText(c)}</span>)}</div>}
-            {game.roundPass.includes(1) && <span className="gd-pass-tag">不出</span>}
-            {game.finished.includes(1) && <span className="gd-finished-tag">已出完</span>}
+          <div className="gd-side-col">
+            <div className={`gd-seat gd-seat-right ${game.current === 1 ? 'gd-active' : ''}`}>
+              <span className="gd-seat-name">😈 对手A</span>
+              {counts[1] <= 10 && <span className="gd-seat-count">{counts[1]} 张</span>}
+              {game.roundPass.includes(1) && <span className="gd-pass-tag">不出</span>}
+              {game.finished.includes(1) && <span className="gd-finished-tag">已出完</span>}
+            </div>
+            <div className="gd-play-area gd-play-east">{renderRoundPlays(1)}</div>
           </div>
         </div>
       </div>
@@ -713,6 +722,9 @@ export function GuandanGame() {
           {sortMode === 'rank' ? '一键理牌' : '恢复'}
         </button>
       </div>
+
+      {/* 我方（南）出牌区：手牌上方 */}
+      <div className="gd-play-area gd-play-south">{renderRoundPlays(0)}</div>
 
       {/* 手牌区：按类型竖排 / 普通排序 */}
       {sortMode === 'grouped' ? (

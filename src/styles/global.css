@@ -6953,13 +6953,23 @@ ul {
   font-weight: 700;
 }
 /* 浮动窗口全屏：占满视口、脱离浏览器布局，各终端自动适配 */
+/* 隐藏 App 上下红色导航栏（header/nav），全屏只显示棋盘容器 */
+.gd-float-active .app-header { display: none !important; }
+.gd-float-active .app-nav { display: none !important; }
+.gd-float-active .app-main { padding: 0 !important; overflow: hidden; }
+.gd-float-active .app { padding: 0 !important; max-width: 100% !important; }
 .gd-floating {
   position: fixed;
   inset: 0;
   z-index: 45;
+  width: 100vw;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
   min-height: 100dvh;
   border-radius: 0;
   padding: 12px 12px 8px;
+  box-sizing: border-box;
   background:
     radial-gradient(ellipse at 50% 32%, rgba(80, 140, 100, 0.28), transparent 62%),
     repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.025) 0 2px, transparent 2px 7px),
@@ -7147,14 +7157,58 @@ ul {
 .gd-last-name { display: block; font-size: 11.5px; color: #ffd54f; margin-bottom: 4px; }
 .gd-last-cards { display: flex; gap: 4px; justify-content: center; flex-wrap: wrap; }
 .gd-play-card {
-  font-size: 13px; font-weight: 700;
+  font-size: 17px; font-weight: 700;
   background: linear-gradient(180deg, #fff, #e8e2d5);
-  color: #222; border-radius: 6px;
-  padding: 4px 7px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  color: #222; border-radius: 8px;
+  padding: 7px 11px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+  border: 1px solid rgba(120, 90, 40, 0.25);
+  white-space: nowrap;
 }
 .gd-play-card.gd-joker { background: linear-gradient(135deg, #7b1fa2, #c62828); color: #fff; }
 .gd-freetext { font-size: 14px; color: rgba(255, 255, 255, 0.65); }
+
+/* ===== 四方位出牌区：牌面显示在对应出牌区方位，一轮出完才清理 ===== */
+.gd-play-area {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  max-height: 150px;
+  overflow-y: auto;
+  padding: 2px 4px;
+}
+.gd-play-hand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 213, 79, 0.14);
+  border-radius: 10px;
+  padding: 4px 8px;
+}
+.gd-play-hand.gd-latest {
+  border-color: rgba(255, 213, 79, 0.55);
+  background: rgba(255, 213, 79, 0.08);
+  box-shadow: 0 0 10px rgba(255, 213, 79, 0.2);
+}
+.gd-play-hand-name {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #ffd54f;
+  white-space: nowrap;
+  min-width: 40px;
+}
+.gd-play-cards-row { display: flex; gap: 3px; flex-wrap: wrap; }
+.gd-play-area .gd-play-card { font-size: 14.5px; padding: 4px 8px; }
+.gd-play-north { order: -1; }
+.gd-side-col { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.gd-play-west, .gd-play-east { max-height: 120px; align-items: flex-start; }
+.gd-play-south { max-height: 96px; }
+@media (max-width: 640px) {
+  .gd-play-card { font-size: 15px; padding: 5px 8px; }
+  .gd-play-area .gd-play-card { font-size: 13px; padding: 3px 6px; }
+}
 
 .gd-actions {
   display: flex;

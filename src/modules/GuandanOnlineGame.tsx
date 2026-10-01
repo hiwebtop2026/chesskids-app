@@ -28,6 +28,8 @@ export interface GDOnlineState {
   turnStart: number;
   finished: number[];
   roundPass: number[];
+  /** 本轮各方位已出的牌（一轮出完才清理），用于方位展示 */
+  roundPlays: { player: number; cards: GCard[] }[];
   phase: 'playing' | 'over';
   winnerTeam: number | null;
   resultText: string;
@@ -41,6 +43,8 @@ export function gdApplyTurn(prev: GDOnlineState, player: number, play: GCard[] |
   const hands = prev.hands.map((h) => [...h]);
   const roundPass = [...prev.roundPass];
   const finished = [...prev.finished];
+  // 本轮已出的牌：出牌追加到对应方位；一圈全过（新一轮）时清空
+  const roundPlays = play ? [...prev.roundPlays, { player, cards: play }] : prev.roundPlays;
 
   if (play) {
     hands[player] = hands[player].filter((c) => !play.some((p) => p.id === c.id));
@@ -69,14 +73,14 @@ export function gdApplyTurn(prev: GDOnlineState, player: number, play: GCard[] |
           resultText = myTeamWon ? '🚀 打到 A！下一局双上即获胜！' : '对方打到 A';
         }
         return {
-          ...prev, hands, roundPass: [], finished, phase: 'over', winnerTeam, resultText,
+          ...prev, hands, roundPass: [], roundPlays, finished, phase: 'over', winnerTeam, resultText,
           level: newLevel, current: order[0], lastPlay: null, lastPlayBy: -1,
         };
       }
     }
     return {
       ...prev, hands,
-      lastPlay: { player, cards: play }, lastPlayBy: player, roundPass: [],
+      lastPlay: { player, cards: play }, lastPlayBy: player, roundPass: [], roundPlays,
       current: (player + 1) % 4, turnStart: (player + 1) % 4,
     };
   }
@@ -84,9 +88,9 @@ export function gdApplyTurn(prev: GDOnlineState, player: number, play: GCard[] |
   roundPass.push(player);
   if (roundPass.length >= 3) {
     const freer = prev.lastPlayBy;
-    return { ...prev, hands, roundPass: [], current: freer, lastPlay: null, lastPlayBy: freer };
+    return { ...prev, hands, roundPass: [], roundPlays: [], current: freer, lastPlay: null, lastPlayBy: freer };
   }
-  return { ...prev, hands, roundPass, current: (player + 1) % 4 };
+  return { ...prev, hands, roundPass, roundPlays, current: (player + 1) % 4 };
 }
 
 export function gdNewGame(level: number, names: string[], firstSeat: number): GDOnlineState {
@@ -95,7 +99,7 @@ export function gdNewGame(level: number, names: string[], firstSeat: number): GD
   deck.forEach((c, i) => hands[i % 4].push(c));
   return {
     hands, level, current: firstSeat, lastPlay: null, lastPlayBy: -1, turnStart: firstSeat,
-    finished: [], roundPass: [], phase: 'playing', winnerTeam: null, resultText: '', playerNames: names,
+    finished: [], roundPass: [], roundPlays: [], phase: 'playing', winnerTeam: null, resultText: '', playerNames: names,
   };
 }
 
@@ -476,6 +480,13 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 浮动全屏时隐藏页面上下红色导航栏（header/nav），只显示棋盘容器
+  useEffect(() => {
+    if (floating) document.body.classList.add('gd-float-active');
+    else document.body.classList.remove('gd-float-active');
+    return () => document.body.classList.remove('gd-float-active');
+  }, [floating]);
+
   const toggleCard = (id: number) => {
     if (!isMyTurn) return;
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -596,7 +607,28 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
     return a.s < b.s ? -1 : 1;
   });
 
-  const showSeatCards = (s: number) => (game.lastPlay && game.lastPlay.player === s ? game.lastPlay.cards : null);
+  // 本轮各方位已出的牌（对应出牌区方位展示；一轮出完才清理）
+  const roundPlaysOf = (p: number) => (game ? game.roundPlays.filter((x) => x.player === p) : []);
+  const renderRoundPlays = (p: number) => {
+    const plays = roundPlaysOf(p);
+    if (plays.length === 0) return null;
+    return (
+      <div className="gd-play-area">
+        {plays.map((pl, i) => (
+          <div key={i} className={`gd-play-hand ${i === plays.length - 1 ? 'gd-latest' : ''}`}>
+            <span className="gd-play-hand-name">{seatLabel(pl.player)}</span>
+            <div className="gd-play-cards-row">
+              {pl.cards.map((c) => (
+                <span key={c.id} className={`gd-play-card ${c.k !== undefined ? 'gd-joker' : ''}`}>
+                  {c.k !== undefined ? (c.k === 1 ? '大王' : '小王') : `${rankName(c.r)}${SUIT_SYMBOL[c.s]}`}
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <div className={`gd-table ${floating ? 'gd-floating' : ''}`}>
@@ -645,41 +677,39 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
         <div className={`gd-seat gd-seat-top ${game.current === 2 ? 'gd-active' : ''}`}>
           <span className="gd-seat-name">🤝 {seatLabel(2)}</span>
           {counts[2] <= 10 && <span className="gd-seat-count">{counts[2]} 张</span>}
-          {showSeatCards(2) && <div className="gd-mini-cards">{showSeatCards(2)!.map((c) => <span key={c.id} className={`gd-mini-card ${c.k !== undefined ? 'gd-joker' : ''}`}>{c.k !== undefined ? (c.k === 1 ? '大王' : '小王') : `${rankName(c.r)}${SUIT_SYMBOL[c.s]}`}</span>)}</div>}
           {game.roundPass.includes(2) && <span className="gd-pass-tag">不出</span>}
           {game.finished.includes(2) && <span className="gd-finished-tag">已出完</span>}
         </div>
+        <div className="gd-play-area gd-play-north">{renderRoundPlays(2)}</div>
         <div className="gd-side-row">
-          <div className={`gd-seat gd-seat-left ${game.current === 3 ? 'gd-active' : ''}`}>
-            <span className="gd-seat-name">😈 {seatLabel(3)}</span>
-            {counts[3] <= 10 && <span className="gd-seat-count">{counts[3]} 张</span>}
-            {showSeatCards(3) && <div className="gd-mini-cards">{showSeatCards(3)!.map((c) => <span key={c.id} className={`gd-mini-card ${c.k !== undefined ? 'gd-joker' : ''}`}>{c.k !== undefined ? (c.k === 1 ? '大王' : '小王') : `${rankName(c.r)}${SUIT_SYMBOL[c.s]}`}</span>)}</div>}
-            {game.roundPass.includes(3) && <span className="gd-pass-tag">不出</span>}
-            {game.finished.includes(3) && <span className="gd-finished-tag">已出完</span>}
+          <div className="gd-side-col">
+            <div className={`gd-seat gd-seat-left ${game.current === 3 ? 'gd-active' : ''}`}>
+              <span className="gd-seat-name">😈 {seatLabel(3)}</span>
+              {counts[3] <= 10 && <span className="gd-seat-count">{counts[3]} 张</span>}
+              {game.roundPass.includes(3) && <span className="gd-pass-tag">不出</span>}
+              {game.finished.includes(3) && <span className="gd-finished-tag">已出完</span>}
+            </div>
+            <div className="gd-play-area gd-play-west">{renderRoundPlays(3)}</div>
           </div>
           <div className="gd-center-play">
-            {game.lastPlay ? (
-              <div className="gd-last-play">
-                <span className="gd-last-name">{seatLabel(game.lastPlay.player)}</span>
-                <div className="gd-last-cards">
-                  {game.lastPlay.cards.map((c) => (
-                    <span key={c.id} className={`gd-play-card ${c.k !== undefined ? 'gd-joker' : ''}`}>
-                      {c.k !== undefined ? (c.k === 1 ? '大王' : '小王') : `${rankName(c.r)}${SUIT_SYMBOL[c.s]}`}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ) : <span className="gd-freetext">自由出牌</span>}
+            {game.phase === 'over' ? <span className="gd-freetext">{game.resultText}</span> :
+              game.lastPlay ? <span className="gd-freetext">跟牌：{seatLabel(game.lastPlay.player)}</span> :
+              <span className="gd-freetext">自由出牌</span>}
           </div>
-          <div className={`gd-seat gd-seat-right ${game.current === 1 ? 'gd-active' : ''}`}>
-            <span className="gd-seat-name">😈 {seatLabel(1)}</span>
-            {counts[1] <= 10 && <span className="gd-seat-count">{counts[1]} 张</span>}
-            {showSeatCards(1) && <div className="gd-mini-cards">{showSeatCards(1)!.map((c) => <span key={c.id} className={`gd-mini-card ${c.k !== undefined ? 'gd-joker' : ''}`}>{c.k !== undefined ? (c.k === 1 ? '大王' : '小王') : `${rankName(c.r)}${SUIT_SYMBOL[c.s]}`}</span>)}</div>}
-            {game.roundPass.includes(1) && <span className="gd-pass-tag">不出</span>}
-            {game.finished.includes(1) && <span className="gd-finished-tag">已出完</span>}
+          <div className="gd-side-col">
+            <div className={`gd-seat gd-seat-right ${game.current === 1 ? 'gd-active' : ''}`}>
+              <span className="gd-seat-name">😈 {seatLabel(1)}</span>
+              {counts[1] <= 10 && <span className="gd-seat-count">{counts[1]} 张</span>}
+              {game.roundPass.includes(1) && <span className="gd-pass-tag">不出</span>}
+              {game.finished.includes(1) && <span className="gd-finished-tag">已出完</span>}
+            </div>
+            <div className="gd-play-area gd-play-east">{renderRoundPlays(1)}</div>
           </div>
         </div>
       </div>
+
+      {/* 我方（南）出牌区：手牌上方 */}
+      <div className="gd-play-area gd-play-south">{renderRoundPlays(0)}</div>
 
       <div className="gd-actions">
         <span className="gd-turn-hint">
