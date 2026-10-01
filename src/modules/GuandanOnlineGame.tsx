@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { enterFullscreen, exitFullscreen } from '../utils/fullscreen';
 import {
   type GCard, type PlayInfo, analyzePlay, canBeat, cardVal, rankName,
-  buildDeck, shuffle, groupHand, SUIT_SYMBOL, groupByR,
+  buildDeck, shuffle, groupHand, groupByR, GD_ZONES, SUIT_SYMBOL,
 } from './GuandanGame';
 
 // ================================================================
@@ -632,12 +632,23 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
 
   return (
     <div className={`gd-table ${floating ? 'gd-floating' : ''}`}>
-      {/* 桌垫方位水印与铭牌（参考比赛专用桌垫） */}
+      {/* 桌垫方位水印、分区框线与铭牌（参考比赛专用桌垫） */}
       <span className="gd-dir gd-dir-n">北</span>
       <span className="gd-dir gd-dir-s">南</span>
       <span className="gd-dir gd-dir-w">西</span>
       <span className="gd-dir gd-dir-e">东</span>
-      <span className="gd-table-name">♠ 掼蛋比赛专用桌垫 ♠</span>
+      <div className="gd-zones">
+        {GD_ZONES.map((z, i) => (
+          <span
+            key={i}
+            className="gd-zone"
+            style={{ top: `${z.top}%`, left: `${z.left}%`, width: `${z.w}%`, height: `${z.h}%` }}
+          >
+            {z.label}
+          </span>
+        ))}
+      </div>
+      <span className="gd-table-name">掼蛋比赛专用桌垫</span>
       {/* 浮动全屏：左上角 ☰ 折叠菜单 */}
       {floating && (
         <>

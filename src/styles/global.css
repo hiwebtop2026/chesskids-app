@@ -6964,17 +6964,40 @@ ul {
 .gd-dir-e { right: 6px; top: 50%; transform: translateY(-50%); }
 .gd-table-name {
   position: absolute;
-  bottom: 2px;
+  bottom: 10px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 11px;
-  letter-spacing: 3px;
-  color: rgba(255, 255, 255, 0.22);
+  font-size: 12px;
+  letter-spacing: 6px;
+  color: rgba(255, 255, 255, 0.28);
   font-weight: 700;
   pointer-events: none;
   z-index: 0;
   white-space: nowrap;
   font-family: 'STKaiti', 'KaiTi', serif;
+}
+/* 桌垫分区框线层（出牌区/收牌区/报牌区，参考比赛专用桌垫） */
+.gd-zones {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.gd-zone {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1.5px solid rgba(255, 255, 255, 0.26);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: rgba(255, 255, 255, 0.42);
+  font-family: 'STKaiti', 'KaiTi', serif;
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.15);
 }
 @media (max-width: 640px) {
   .gd-dir { font-size: 40px; }
@@ -7189,6 +7212,8 @@ ul {
   max-height: 150px;
   overflow-y: auto;
   padding: 2px 4px;
+  position: relative;
+  z-index: 1;
 }
 .gd-play-hand {
   display: flex;
@@ -7258,6 +7283,8 @@ ul {
   padding: 4px 6px 12px;
   min-height: 108px;
   align-items: flex-end;
+  position: relative;
+  z-index: 1;
   flex-wrap: nowrap;
   overflow-x: auto;
   position: relative;

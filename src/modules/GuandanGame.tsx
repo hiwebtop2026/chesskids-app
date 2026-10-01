@@ -90,6 +90,23 @@ export interface HandGroup {
   cards: GCard[];
 }
 
+// 桌垫分区框线（参考比赛专用桌垫：出牌区/收牌区/报牌区，按图片位置比例布置）
+// 背景装饰层，游戏牌面与出牌区浮于其上，位置已结合对局布局调整
+export const GD_ZONES: { top: number; left: number; w: number; h: number; label: string }[] = [
+  { top: 24, left: 38, w: 24, h: 6, label: '收牌区' },
+  { top: 33, left: 38, w: 24, h: 8, label: '出牌区' },
+  { top: 36, left: 27, w: 9, h: 6, label: '报牌区' },
+  { top: 36, left: 64, w: 9, h: 6, label: '报牌区' },
+  { top: 45, left: 20, w: 13, h: 6, label: '出牌区' },
+  { top: 45, left: 67, w: 13, h: 6, label: '收牌区' },
+  { top: 45, left: 34, w: 8, h: 6, label: '报牌区' },
+  { top: 45, left: 58, w: 8, h: 6, label: '报牌区' },
+  { top: 54, left: 38, w: 24, h: 6, label: '出牌区' },
+  { top: 62, left: 38, w: 24, h: 6, label: '收牌区' },
+  { top: 54, left: 13, w: 10, h: 6, label: '收牌区' },
+  { top: 54, left: 77, w: 10, h: 6, label: '出牌区' },
+];
+
 export function groupHand(hand: GCard[], level: number): HandGroup[] {
   const used = new Set<number>();
   const out: HandGroup[] = [];
@@ -695,12 +712,23 @@ export function GuandanGame() {
 
   return (
     <div className={`gd-table ${floating ? 'gd-floating' : ''}`} onClick={requestFullscreenOnGesture}>
-      {/* 桌垫方位水印与铭牌（参考比赛专用桌垫） */}
+      {/* 桌垫方位水印、分区框线与铭牌（参考比赛专用桌垫） */}
       <span className="gd-dir gd-dir-n">北</span>
       <span className="gd-dir gd-dir-s">南</span>
       <span className="gd-dir gd-dir-w">西</span>
       <span className="gd-dir gd-dir-e">东</span>
-      <span className="gd-table-name">♠ 掼蛋比赛专用桌垫 ♠</span>
+      <div className="gd-zones">
+        {GD_ZONES.map((z, i) => (
+          <span
+            key={i}
+            className="gd-zone"
+            style={{ top: `${z.top}%`, left: `${z.left}%`, width: `${z.w}%`, height: `${z.h}%` }}
+          >
+            {z.label}
+          </span>
+        ))}
+      </div>
+      <span className="gd-table-name">掼蛋比赛专用桌垫</span>
       {/* 浮动全屏：左上角 ☰ 折叠菜单（常用功能，点击展开/收起） */}
       {floating && (
         <>
