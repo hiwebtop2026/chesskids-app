@@ -7416,9 +7416,9 @@ ul {
 }
 .gd-card {
   position: relative;
-  width: 46px;
-  height: 68px;
-  border-radius: 8px;
+  width: 58px;
+  height: 84px;
+  border-radius: 9px;
   border: 1px solid rgba(0, 0, 0, 0.25);
   background: linear-gradient(180deg, #fff, #f0ece2);
   color: #222;
@@ -7428,12 +7428,42 @@ ul {
   cursor: pointer;
   flex-shrink: 0;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.35);
+  display: block;
+  overflow: hidden;
+}
+.gd-card.gd-red { color: #d32f2f; }
+.gd-card.gd-black { color: #1b1b1b; }
+.gd-card.gd-card-joker { background: linear-gradient(135deg, #7b1fa2, #c62828); color: #fff; }
+/* 牌面：左上/右下角 点数+小花色，中间大花色 logo */
+.gd-card-corner {
+  position: absolute;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding-top: 2px;
-  transition: transform .12s, box-shadow .12s;
+  line-height: 1;
+  z-index: 1;
+}
+.gd-corner-tl { top: 4px; left: 5px; }
+.gd-corner-br { bottom: 4px; right: 5px; transform: rotate(180deg); }
+.gd-card-corner .gd-card-rank { font-size: 14px; font-weight: 800; }
+.gd-card-corner .gd-card-suit { font-size: 11px; margin-top: 1px; }
+.gd-card-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 27px;
+  line-height: 1;
+  font-weight: 900;
+  opacity: 0.92;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.08);
+}
+.gd-card-joker .gd-card-center {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  writing-mode: vertical-rl;
 }
 .gd-card:hover { transform: translateY(-6px); }
 .gd-card.gd-selected { transform: translateY(-16px); border-color: #ffb300; box-shadow: 0 4px 12px rgba(255, 179, 0, 0.5); }
@@ -7542,13 +7572,17 @@ ul {
   justify-content: flex-start;
 }
 .gd-hand-group .gd-card {
-  width: 46px;
-  height: 66px;
+  width: 54px;
+  height: 78px;
   font-size: 12px;
-  border-radius: 7px;
+  border-radius: 8px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
 }
-.gd-hand-group .gd-card + .gd-card { margin-top: -28px; }
+.gd-hand-group .gd-card + .gd-card { margin-top: -30px; }
+.gd-hand-group .gd-card-corner .gd-card-rank { font-size: 13px; }
+.gd-hand-group .gd-card-corner .gd-card-suit { font-size: 10px; }
+.gd-hand-group .gd-card-center { font-size: 24px; }
+.gd-hand-group .gd-card-joker .gd-card-center { font-size: 9px; }
 .gd-hand-group .gd-card-rank { font-size: 13px; }
 .gd-hand-group-cards:hover .gd-card, .gd-hand-group-cards .gd-card:hover {
   z-index: 5;
