@@ -7340,9 +7340,9 @@ ul {
   flex-direction: column;
   gap: 4px;
   min-height: 0;
-  max-height: 120px;
+  max-height: 200px;
   overflow-y: auto;
-  padding: 4px 6px;
+  padding: 6px 8px;
   position: relative;
   z-index: 1;
 }
@@ -7353,7 +7353,8 @@ ul {
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 213, 79, 0.14);
   border-radius: 10px;
-  padding: 4px 8px;
+  padding: 6px 10px;
+  flex-wrap: wrap;
 }
 .gd-play-hand.gd-latest {
   border-color: rgba(255, 213, 79, 0.55);
@@ -7371,20 +7372,20 @@ ul {
 /* 出牌区使用 gd-mini-card 牌面，与手牌区风格统一 */
 .gd-play-north, .gd-play-south {
   position: absolute;
-  width: 28%;
-  max-width: 460px;
+  width: 46%;
+  max-width: 620px;
   min-height: 0;
   align-items: center;
   border-radius: 14px;
   background: rgba(0, 0, 0, 0.16);
   border: 1.5px dashed rgba(255, 213, 79, 0.2);
-  padding: 6px 10px;
-  left: 38.5%;
+  padding: 8px 12px;
+  left: 50%;
   transform: translateX(-50%);
 }
 /* 四方位出牌区对齐桌垫分区框线（GD_ZONES 出牌区格）：北 34%/44.5%、西 48%/30%、东 48%/58%、南 62%/44.5% */
-.gd-play-north { top: 28%; }
-.gd-play-south { top: 62%; }
+.gd-play-north { top: 24%; }
+.gd-play-south { top: 60%; }
 /* 其他三方向按"本向视角"摆放：北家(对面)牌倒置 180°、西家(左)右旋 90°、东家(右)左旋 90°，牌面朝向对应玩家，与南向我方视角对称 */
 .gd-play-north .gd-play-hand { transform: rotate(180deg); }
 .gd-play-west .gd-play-hand { transform: rotate(90deg); }
@@ -7392,18 +7393,18 @@ ul {
 .gd-side-col { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .gd-play-west, .gd-play-east {
   position: absolute;
-  top: 48%;
-  width: 14%;
+  top: 46%;
+  width: 22%;
   min-height: 0;
   align-items: center;
   justify-content: center;
 }
-.gd-play-west { left: 25%; }
+.gd-play-west { left: 17%; }
 .gd-play-east { left: 61%; }
 @media (max-width: 640px) {
-  .gd-play-north, .gd-play-south { width: 42%; left: 29%; }
-  .gd-play-west, .gd-play-east { width: 18%; }
-  .gd-play-west { left: 20%; }
+  .gd-play-north, .gd-play-south { width: 60%; max-width: 400px; left: 50%; }
+  .gd-play-west, .gd-play-east { width: 28%; }
+  .gd-play-west { left: 10%; }
   .gd-play-east { left: 62%; }
 }
 @media (max-width: 640px) {
