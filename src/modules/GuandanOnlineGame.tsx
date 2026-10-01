@@ -848,11 +848,12 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
           {groupHand(myHand, game.level).map((g, gi) => (
             <div className="gd-hand-group" key={gi}>
               <div className="gd-hand-group-cards">
-                {g.cards.map((c) => (
+                {g.cards.map((c, ci) => (
                   <button
                     key={c.id}
                     className={`gd-card ${selected.includes(c.id) ? 'gd-selected' : ''} ${c.k !== undefined ? 'gd-card-joker' : (c.r === levelRank(game.level) ? 'gd-card-level' : '')} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
                     onClick={() => toggleCard(c.id)}
+                    style={{ zIndex: 100 - ci }}
                   >
                     <span className="gd-card-corner gd-corner-tl">
                       <span className="gd-card-rank">{c.k !== undefined ? (c.k === 1 ? 'JOKER' : 'joker') : rankName(c.r)}</span>

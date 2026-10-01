@@ -7584,9 +7584,9 @@ ul {
 .gd-hand-group .gd-card-center { font-size: 24px; }
 .gd-hand-group .gd-card-joker .gd-card-center { font-size: 9px; }
 .gd-hand-group .gd-card-rank { font-size: 13px; }
-.gd-hand-group-cards:hover .gd-card, .gd-hand-group-cards .gd-card:hover {
-  z-index: 5;
-}
+/* 组内叠牌层级：上方牌（第一张）层级最高，静态时盖住下方牌顶部（牌面信息被遮挡）；hover/选中某张时整张露出 */
+.gd-hand-group .gd-card:hover { z-index: 199 !important; }
+.gd-hand-group .gd-card.gd-selected { z-index: 198 !important; }
 
 /* 联机大厅 */
 .gd-online {
