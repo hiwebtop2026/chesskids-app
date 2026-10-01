@@ -558,6 +558,12 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
     return () => document.body.classList.remove('gd-float-active');
   }, [floating]);
 
+  // 点击理牌分组名称：整组选中（已全选则取消）
+  const selectGroup = (cards: GCard[]) => {
+    const ids = cards.map((c) => c.id);
+    setSelected((prev) => (ids.every((id) => prev.includes(id)) ? prev.filter((id) => !ids.includes(id)) : ids));
+  };
+
   const toggleCard = (id: number) => {
     if (!isMyTurn) return;
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -906,7 +912,12 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
                   </button>
                 ))}
               </div>
-              <span className="gd-hand-group-label">{g.label}</span>
+              <span
+                className={`gd-hand-group-label ${g.cards.every((c) => selected.includes(c.id)) ? 'gd-group-selected' : ''}`}
+                onClick={() => selectGroup(g.cards)}
+              >
+                {g.label}
+              </span>
             </div>
           ))}
           {myHand.length === 0 && <div className="gd-hand-empty">牌已出完</div>}

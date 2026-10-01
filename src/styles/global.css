@@ -7562,6 +7562,19 @@ ul {
   max-width: 92px;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: pointer;
+  transition: all 0.15s;
+  user-select: none;
+}
+.gd-hand-group-label:hover {
+  background: rgba(255, 213, 79, 0.25);
+  color: #fff;
+  transform: translateY(-1px);
+}
+.gd-hand-group-label.gd-group-selected {
+  background: rgba(255, 213, 79, 0.55);
+  color: #1b2a1d;
+  box-shadow: 0 0 8px rgba(255, 213, 79, 0.6);
 }
 /* 组内竖向叠牌：第 1 张在最上，后续每张上移 30px 盖住上一张底部（露出每张的下半部，左上角被上一张遮挡，避免漏角） */
 .gd-hand-group-cards {
