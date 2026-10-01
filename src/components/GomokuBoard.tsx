@@ -213,7 +213,7 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
             <stop offset="50%" stopColor={dark ? "#62786a" : "#eae3cb"} />
             <stop offset="100%" stopColor={dark ? "#546a5d" : "#dcd2b4"} />
           </linearGradient>
-          {/* 国庆皮肤：喜庆红木渐变（national-skin 时启用） */}
+          {/* 国庆皮肤：喜庆红木渐变（skin-national 时启用） */}
           <linearGradient id="gBoardNational" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#b53a1e" />
             <stop offset="50%" stopColor="#a02f14" />
@@ -223,6 +223,18 @@ export const GomokuBoard: React.FC<GomokuBoardProps> = ({
             <stop offset="0%" stopColor="#7a2614" />
             <stop offset="50%" stopColor="#661f10" />
             <stop offset="100%" stopColor="#54190c" />
+          </linearGradient>
+          {/* 青花瓷皮肤：白底青蓝渐变（skin-porcelain 时启用） */}
+          <linearGradient id="gBoardPorcelain" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#f4f8fd" />
+            <stop offset="50%" stopColor="#e8f0fa" />
+            <stop offset="100%" stopColor="#d7e5f2" />
+          </linearGradient>
+          {/* 古典木皮肤：亮暖木色（skin-wood 时启用） */}
+          <linearGradient id="gBoardWoodLight" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#e8cba2" />
+            <stop offset="50%" stopColor="#dbb98a" />
+            <stop offset="100%" stopColor="#c9a06e" />
           </linearGradient>
           {/* 黑云子：乌黑带温润高光 */}
           <radialGradient id="gStoneBlack" cx="42%" cy="38%" r="80%">

@@ -6483,32 +6483,32 @@ ul {
 .national-toggle:hover { transform: scale(1.05); }
 
 /* —— 全局背景 —— */
-.national-skin {
+.skin-national, .national-skin {
   background:
     radial-gradient(circle at 15% 20%, rgba(255, 214, 90, 0.16) 0%, transparent 45%),
     radial-gradient(circle at 85% 80%, rgba(217, 38, 28, 0.18) 0%, transparent 50%),
     linear-gradient(180deg, #fdf3e0 0%, #f7e3c4 45%, #f3d8b2 100%);
 }
-.national-skin .app-header {
+.skin-national, .national-skin .app-header {
   background: linear-gradient(135deg, #c8102e 0%, #e23a2e 55%, #d9261c 100%);
   color: #fff;
 }
-.national-skin .app-header .app-title { color: #fff3d0; text-shadow: 0 1px 3px rgba(120, 10, 0, 0.5); }
-.national-skin .app-header .app-subtitle { color: #ffe8b0; }
-.national-skin .app-header .home-back-btn,
-.national-skin .app-header .fullscreen-btn {
+.skin-national, .national-skin .app-header .app-title { color: #fff3d0; text-shadow: 0 1px 3px rgba(120, 10, 0, 0.5); }
+.skin-national, .national-skin .app-header .app-subtitle { color: #ffe8b0; }
+.skin-national, .national-skin .app-header .home-back-btn,
+.skin-national, .national-skin .app-header .fullscreen-btn {
   background: rgba(255, 246, 220, 0.16);
   border-color: rgba(255, 230, 160, 0.6);
   color: #fff3d0;
 }
 
 /* —— 首页背景 + 灯笼/烟花装饰 —— */
-.national-skin .app-home {
+.skin-national, .national-skin .app-home {
   background:
     radial-gradient(ellipse at 50% -10%, rgba(255, 220, 120, 0.35) 0%, transparent 55%),
     linear-gradient(180deg, #fdf0da 0%, #f8e2be 55%, #f0cf9e 100%);
 }
-.national-skin .app-home::before {
+.skin-national, .national-skin .app-home::before {
   content: "🏮 🏮";
   position: absolute;
   top: 96px;
@@ -6562,14 +6562,14 @@ ul {
 }
 
 /* —— 首页卡片 —— */
-.national-skin .game-select-header h2 { color: #a03a12; }
-.national-skin .game-select-header p { color: #8a5a30; }
-.national-skin .game-select-card {
+.skin-national, .national-skin .game-select-header h2 { color: #a03a12; }
+.skin-national, .national-skin .game-select-header p { color: #8a5a30; }
+.skin-national, .national-skin .game-select-card {
   background: linear-gradient(180deg, #fffdf4, #f9e9c8);
   border: 2px solid rgba(205, 130, 40, 0.45);
   box-shadow: 0 6px 16px rgba(150, 90, 30, 0.18);
 }
-.national-skin .game-select-card::before {
+.skin-national, .national-skin .game-select-card::before {
   content: "";
   position: absolute;
   top: 0; left: 0; right: 0;
@@ -6577,78 +6577,78 @@ ul {
   background: linear-gradient(90deg, #ffd25e, #d9261c, #ffd25e);
   border-radius: 14px 14px 0 0;
 }
-.national-skin .game-select-card:hover {
+.skin-national, .national-skin .game-select-card:hover {
   border-color: #d9261c;
   box-shadow: 0 10px 24px rgba(190, 40, 20, 0.28);
   transform: translateY(-3px);
 }
-.national-skin .game-card-btn {
+.skin-national, .national-skin .game-card-btn {
   background: linear-gradient(135deg, #d9261c, #b31a12);
   color: #fff3d0;
   box-shadow: 0 2px 8px rgba(180, 30, 10, 0.35);
 }
 
 /* —— 底部导航 —— */
-.national-skin .app-nav {
+.skin-national, .national-skin .app-nav {
   background: linear-gradient(180deg, rgba(200, 16, 46, 0.97), rgba(160, 12, 36, 0.97));
   border-top: 1px solid rgba(255, 210, 94, 0.5);
 }
-.national-skin .app-nav .nav-tab { color: rgba(255, 240, 210, 0.85); }
-.national-skin .app-nav .nav-tab.active { color: #ffd25e; }
-.national-skin .app-nav .nav-tab.active::after { background: #ffd25e; }
+.skin-national, .national-skin .app-nav .nav-tab { color: rgba(255, 240, 210, 0.85); }
+.skin-national, .national-skin .app-nav .nav-tab.active { color: #ffd25e; }
+.skin-national, .national-skin .app-nav .nav-tab.active::after { background: #ffd25e; }
 
 /* —— 棋盘容器金红描边 —— */
-.national-skin .gomoku-board-wrap:not(.gomoku-floating) {
+.skin-national, .national-skin .gomoku-board-wrap:not(.gomoku-floating) {
   border: 1.5px solid rgba(205, 130, 40, 0.5);
   border-radius: 12px;
   box-shadow: 0 8px 28px rgba(150, 60, 20, 0.3);
 }
-.national-skin .gomoku-floating {
+.skin-national, .national-skin .gomoku-floating {
   border: 1.5px solid rgba(255, 210, 94, 0.55);
   border-radius: 16px;
   box-shadow: 0 12px 44px rgba(150, 50, 20, 0.45), 0 0 0 4px rgba(217, 38, 28, 0.12);
 }
 
 /* —— 五子棋棋盘：喜庆红木 + 金线 —— */
-.national-skin .gomoku-board-bg {
+.skin-national, .national-skin .gomoku-board-bg {
   fill: url(#gBoardNational) !important;
 }
-.national-skin .gomoku-grid line {
+.skin-national, .national-skin .gomoku-grid line {
   stroke: rgba(255, 214, 90, 0.75) !important;
 }
-.national-skin .gomoku-stars circle {
+.skin-national, .national-skin .gomoku-stars circle {
   fill: #d9261c !important;
 }
 /* 夜间模式下的国庆棋盘（保持辨识度） */
-.national-skin .gomoku-theme-dark .gomoku-board-bg {
+.skin-national, .national-skin .gomoku-theme-dark .gomoku-board-bg {
   fill: url(#gBoardNationalDark) !important;
 }
 
 /* —— 功能按钮金红 —— */
-.national-skin .gomoku-top-handle {
+.skin-national, .national-skin .gomoku-top-handle {
   background: linear-gradient(180deg, rgba(200, 16, 46, 0.9), rgba(150, 12, 34, 0.92));
   border-color: rgba(255, 210, 94, 0.75);
   color: #fff2c0;
   box-shadow: 0 2px 10px rgba(170, 20, 10, 0.4);
 }
-.national-skin .gomoku-top-handle:hover,
-.national-skin .gomoku-top-handle.active {
+.skin-national, .national-skin .gomoku-top-handle:hover,
+.skin-national, .national-skin .gomoku-top-handle.active {
   background: linear-gradient(180deg, rgba(220, 40, 40, 0.95), rgba(180, 18, 30, 0.95));
   border-color: #ffd25e;
 }
-.national-skin .ctrl-btn,
-.national-skin .gomoku-menu-btn {
+.skin-national, .national-skin .ctrl-btn,
+.skin-national, .national-skin .gomoku-menu-btn {
   border-color: rgba(205, 130, 40, 0.55);
 }
-.national-skin .gomoku-menu-btn.primary { background: linear-gradient(135deg, #d9261c, #b31a12); color: #fff3d0; }
+.skin-national, .national-skin .gomoku-menu-btn.primary { background: linear-gradient(135deg, #d9261c, #b31a12); color: #fff3d0; }
 
 /* —— 面板/弹窗鎏金 —— */
-.national-skin .gomoku-menu-panel {
+.skin-national, .national-skin .gomoku-menu-panel {
   border: 1.5px solid rgba(255, 210, 94, 0.65);
   background: linear-gradient(180deg, rgba(255, 250, 240, 0.98), rgba(250, 235, 205, 0.98));
   box-shadow: 0 12px 40px rgba(150, 50, 20, 0.4);
 }
-.national-skin .gomoku-inboard-modal {
+.skin-national, .national-skin .gomoku-inboard-modal {
   border-color: rgba(255, 210, 94, 0.75);
 }
 
@@ -6656,9 +6656,231 @@ ul {
 @media (max-width: 720px) {
   .national-banner { margin: 8px 10px 0; padding: 7px 10px; }
   .national-banner .nb-text { font-size: 13.5px; letter-spacing: 2px; }
-  .national-skin .app-home::before { top: 88px; font-size: 20px; letter-spacing: 12px; }
-  .national-toggle { padding: 5px 9px; font-size: 12px; }
+  .skin-national, .national-skin .app-home::before { top: 88px; font-size: 20px; letter-spacing: 12px; }
+  .skin-toggle { padding: 5px 9px; font-size: 12px; }
 }
+
+/* ============================================================
+   多皮肤切换系统
+   ============================================================ */
+.skin-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(160, 130, 80, 0.4);
+  background: linear-gradient(180deg, rgba(255, 250, 240, 0.95), rgba(240, 228, 200, 0.95));
+  color: #5a4a2f;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .2s;
+}
+.skin-toggle:hover { transform: scale(1.05); }
+
+.skin-modal-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.skin-modal {
+  width: min(420px, 92vw);
+  max-height: 84vh;
+  overflow-y: auto;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #fffdf4, #f6ecd8);
+  border: 1.5px solid rgba(160, 120, 60, 0.4);
+  box-shadow: 0 16px 48px rgba(60, 40, 10, 0.4);
+  padding: 20px;
+  text-align: center;
+}
+.skin-modal h3 { margin: 0 0 14px; font-size: 17px; color: #5a4a2f; }
+.skin-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.skin-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 10px;
+  border-radius: 14px;
+  border: 1.5px solid rgba(160, 120, 60, 0.3);
+  background: #fffdf7;
+  cursor: pointer;
+  transition: all .18s;
+}
+.skin-option:hover { transform: translateY(-2px); border-color: rgba(190, 130, 50, 0.6); }
+.skin-option.active {
+  border-color: #d9261c;
+  background: linear-gradient(180deg, #fff6e8, #fbe8cc);
+  box-shadow: 0 4px 14px rgba(200, 90, 20, 0.25);
+}
+.skin-option-icon { font-size: 26px; }
+.skin-option-label { font-size: 14px; font-weight: 700; color: #5a4a2f; }
+.skin-option-desc { font-size: 11.5px; color: #9a8a6a; }
+.skin-modal-close {
+  margin-top: 14px;
+  padding: 9px 28px;
+  border-radius: 999px;
+  border: 1px solid rgba(160, 120, 60, 0.4);
+  background: linear-gradient(180deg, #f7ecdc, #ecdcc0);
+  color: #5a4a2f;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* —— 夜间皮肤（页面级） —— */
+.skin-dark {
+  background: linear-gradient(180deg, #161d28 0%, #1c2634 60%, #131a24 100%);
+}
+.skin-dark .app-header {
+  background: linear-gradient(135deg, #232c3a, #2c3a4e);
+  color: #dde6f2;
+}
+.skin-dark .app-header .app-title { color: #e8eef8; }
+.skin-dark .app-header .app-subtitle { color: #9fb2c8; }
+.skin-dark .app-header .home-back-btn,
+.skin-dark .app-header .fullscreen-btn,
+.skin-dark .skin-toggle {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(180, 200, 230, 0.35);
+  color: #d5e0ef;
+}
+.skin-dark .app-nav {
+  background: linear-gradient(180deg, #1f2937, #18212e);
+  border-top: 1px solid rgba(140, 170, 210, 0.25);
+}
+.skin-dark .app-nav .nav-tab { color: rgba(220, 230, 245, 0.8); }
+.skin-dark .app-nav .nav-tab.active { color: #7fb3ff; }
+.skin-dark .app-nav .nav-tab.active::after { background: #7fb3ff; }
+.skin-dark .game-select-header h2 { color: #d5e0ef; }
+.skin-dark .game-select-header p { color: #8fa2ba; }
+.skin-dark .game-select-card {
+  background: linear-gradient(180deg, #26303f, #1d2531);
+  border-color: rgba(120, 150, 190, 0.35);
+  color: #d5e0ef;
+}
+.skin-dark .game-select-card .game-card-title { color: #e8eef8; }
+.skin-dark .game-select-card .game-card-desc { color: #8fa2ba; }
+.skin-dark .game-card-btn {
+  background: linear-gradient(135deg, #33527a, #274064);
+  color: #d5e0ef;
+}
+
+/* —— 青花瓷皮肤 —— */
+.skin-porcelain {
+  background:
+    radial-gradient(circle at 20% 15%, rgba(80, 130, 190, 0.12) 0%, transparent 45%),
+    linear-gradient(180deg, #eef4fb 0%, #e2ebf5 55%, #d8e4f0 100%);
+}
+.skin-porcelain .app-header {
+  background: linear-gradient(135deg, #2b5b8c, #1e4a72);
+  color: #fff;
+}
+.skin-porcelain .app-header .app-title { color: #f0f7ff; }
+.skin-porcelain .app-header .app-subtitle { color: #c8dff4; }
+.skin-porcelain .app-header .home-back-btn,
+.skin-porcelain .app-header .fullscreen-btn,
+.skin-porcelain .skin-toggle {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(220, 235, 250, 0.5);
+  color: #eef6ff;
+}
+.skin-porcelain .app-nav {
+  background: linear-gradient(180deg, #2b5b8c, #1e4a72);
+  border-top: 1px solid rgba(200, 225, 245, 0.4);
+}
+.skin-porcelain .app-nav .nav-tab { color: rgba(240, 247, 255, 0.85); }
+.skin-porcelain .app-nav .nav-tab.active { color: #ffd76e; }
+.skin-porcelain .app-nav .nav-tab.active::after { background: #ffd76e; }
+.skin-porcelain .game-select-header h2 { color: #1e4a72; }
+.skin-porcelain .game-select-header p { color: #5a7a9e; }
+.skin-porcelain .game-select-card {
+  background: linear-gradient(180deg, #f8fbff, #eef4fa);
+  border: 1.5px solid rgba(60, 110, 160, 0.4);
+  box-shadow: 0 6px 16px rgba(40, 90, 140, 0.15);
+}
+.skin-porcelain .game-card-btn {
+  background: linear-gradient(135deg, #2b5b8c, #1e4a72);
+  color: #eef6ff;
+}
+/* 青花棋盘 */
+.skin-porcelain .gomoku-board-bg {
+  fill: url(#gBoardPorcelain) !important;
+}
+.skin-porcelain .gomoku-grid line {
+  stroke: rgba(43, 91, 140, 0.8) !important;
+}
+.skin-porcelain .gomoku-stars circle {
+  fill: #2b5b8c !important;
+}
+
+/* —— 古典木皮肤 —— */
+.skin-wood {
+  background:
+    radial-gradient(circle at 85% 20%, rgba(180, 130, 70, 0.14) 0%, transparent 45%),
+    linear-gradient(180deg, #f6ecd9 0%, #efdfc4 55%, #e6d2b0 100%);
+}
+.skin-wood .app-header {
+  background: linear-gradient(135deg, #6b4226, #4e2f18);
+  color: #fff;
+}
+.skin-wood .app-header .app-title { color: #f6e7c8; }
+.skin-wood .app-header .app-subtitle { color: #c9a87c; }
+.skin-wood .app-header .home-back-btn,
+.skin-wood .app-header .fullscreen-btn,
+.skin-wood .skin-toggle {
+  background: rgba(255, 240, 210, 0.14);
+  border-color: rgba(230, 200, 150, 0.5);
+  color: #f6e7c8;
+}
+.skin-wood .app-nav {
+  background: linear-gradient(180deg, #6b4226, #4e2f18);
+  border-top: 1px solid rgba(230, 200, 150, 0.4);
+}
+.skin-wood .app-nav .nav-tab { color: rgba(246, 231, 200, 0.85); }
+.skin-wood .app-nav .nav-tab.active { color: #ffd25e; }
+.skin-wood .app-nav .nav-tab.active::after { background: #ffd25e; }
+.skin-wood .game-select-header h2 { color: #5a3a1c; }
+.skin-wood .game-select-header p { color: #8a6a40; }
+.skin-wood .game-select-card {
+  background: linear-gradient(180deg, #faf1e0, #f0e2c6);
+  border: 1.5px solid rgba(160, 110, 60, 0.45);
+  box-shadow: 0 6px 16px rgba(130, 80, 35, 0.18);
+}
+.skin-wood .game-card-btn {
+  background: linear-gradient(135deg, #6b4226, #4e2f18);
+  color: #f6e7c8;
+}
+/* 木纹棋盘（亮木色） */
+.skin-wood .gomoku-board-bg {
+  fill: url(#gBoardWoodLight) !important;
+}
+.skin-wood .gomoku-grid line {
+  stroke: rgba(110, 70, 35, 0.75) !important;
+}
+.skin-wood .gomoku-stars circle {
+  fill: #6b4226 !important;
+}
+
+/* 皮肤弹窗在暗色皮肤下适配 */
+.skin-dark .skin-modal { background: linear-gradient(180deg, #26303f, #1d2531); border-color: rgba(120, 150, 190, 0.4); }
+.skin-dark .skin-modal h3 { color: #d5e0ef; }
+.skin-dark .skin-option { background: #26303f; border-color: rgba(120, 150, 190, 0.3); }
+.skin-dark .skin-option-label { color: #d5e0ef; }
+.skin-dark .skin-option-desc { color: #8fa2ba; }
+.skin-dark .skin-option.active { border-color: #7fb3ff; background: #2f3c4e; }
+.skin-dark .skin-modal-close { background: #2a3544; color: #d5e0ef; border-color: rgba(120, 150, 190, 0.4); }
 
 /* 规则学习 */
 .rules-layout { display: flex; gap: 16px; flex-wrap: wrap; max-width: 860px; margin: 0 auto; }

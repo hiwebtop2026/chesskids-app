@@ -33,6 +33,14 @@ import { isWeChatBrowser } from './utils/wechat';
 import { isImmersive, enterImmersive } from './utils/fullscreen';
 
 type GameType = 'chess' | 'xiangqi' | 'go' | 'gomoku';
+type SkinKey = 'default' | 'dark' | 'national' | 'porcelain' | 'wood';
+const SKIN_OPTIONS: { key: SkinKey; label: string; icon: string; desc: string }[] = [
+  { key: 'default', label: '日间', icon: '☀️', desc: '明亮护眼默认皮肤' },
+  { key: 'dark', label: '夜间', icon: '🌙', desc: '暗色调夜间模式' },
+  { key: 'national', label: '国庆', icon: '🇨🇳', desc: '中国红鎏金喜庆皮肤' },
+  { key: 'porcelain', label: '青花瓷', icon: '🏺', desc: '白底青花典雅皮肤' },
+  { key: 'wood', label: '古典木', icon: '🪵', desc: '暖木古典对弈皮肤' },
+];
 type ChessTabKey = 'learn' | 'rules' | 'tactics' | 'game' | 'local' | 'online' | 'progress';
 type XiangqiTabKey = 'xq-rules' | 'xq-tactics' | 'xq-ai' | 'xq-local' | 'xq-online' | 'progress';
 type GoTabKey = 'go-rules' | 'go-ai' | 'go-local' | 'go-online' | 'progress';
@@ -171,25 +179,25 @@ const App: React.FC = () => {
   const [showWeChatGuide, setShowWeChatGuide] = useState(false);
   const [weChatRoom, setWeChatRoom] = useState<string | null>(null);
   const [weChatGame, setWeChatGame] = useState<GameType>('chess');
-  // 国庆主题皮肤：国庆期间（10.1-10.7）自动开启，用户可手动切换
-  const [national, setNational] = useState<boolean>(() => {
+  // 全局皮肤：default(默认) / dark(夜间) / national(国庆) / porcelain(青花瓷) / wood(古典木)
+  const [skin, setSkin] = useState<SkinKey>(() => {
     try {
-      if (typeof localStorage !== 'undefined' && localStorage.getItem('national-skin') !== null) {
-        return localStorage.getItem('national-skin') === '1';
-      }
+      const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('app-skin') : null;
+      if (saved && (saved === 'default' || saved === 'dark' || saved === 'national' || saved === 'porcelain' || saved === 'wood')) return saved as SkinKey;
+      if (typeof localStorage !== 'undefined' && localStorage.getItem('national-skin') === '1') return 'national';
       const now = new Date();
       const m = now.getMonth() + 1;
       const d = now.getDate();
-      return m === 10 && d >= 1 && d <= 7;
-    } catch { return true; }
+      return m === 10 && d >= 1 && d <= 7 ? 'national' : 'default';
+    } catch { return 'default'; }
   });
-  const toggleNational = useCallback(() => {
-    setNational((v) => {
-      const next = !v;
-      try { localStorage.setItem('national-skin', next ? '1' : '0'); } catch { /* 忽略 */ }
-      return next;
-    });
+  const [skinOpen, setSkinOpen] = useState(false);
+  const selectSkin = useCallback((k: SkinKey) => {
+    setSkin(k);
+    try { localStorage.setItem('app-skin', k); } catch { /* 忽略 */ }
+    setSkinOpen(false);
   }, []);
+  const isNational = skin === 'national';
   const { progress } = useProgressStore();
 
   const tabs = gameType === 'chess' ? CHESS_TABS : gameType === 'xiangqi' ? XIANGQI_TABS : gameType === 'go' ? GO_TABS : GOMOKU_TABS;
@@ -328,7 +336,7 @@ const App: React.FC = () => {
   // ================================================================
   if (gameType === null) {
     return (
-      <div className={`app app-home${national ? ' national-skin' : ''}`}>
+      <div className={`app app-home skin-${skin}`}>
         <header className="app-header">
           <div className="header-left">
             <h1 className="app-title">
@@ -339,20 +347,42 @@ const App: React.FC = () => {
           </div>
           <div className="header-right">
             <button
-              className={`national-toggle ${national ? 'on' : ''}`}
-              onClick={toggleNational}
-              title={national ? '关闭国庆皮肤' : '开启国庆皮肤'}
-              aria-label="国庆皮肤"
-            >🇨🇳 国庆</button>
+              className="skin-toggle"
+              onClick={() => setSkinOpen(true)}
+              title="切换皮肤"
+              aria-label="切换皮肤"
+            >🎨 {SKIN_OPTIONS.find((s) => s.key === skin)?.label}</button>
             <UserProfile progress={progress} compact />
           </div>
         </header>
 
-        {national && (
+        {isNational && (
           <div className="national-banner" role="banner">
             <span className="nb-lantern">🏮</span>
             <span className="nb-text">欢度国庆 · 棋乐融融</span>
             <span className="nb-lantern">🏮</span>
+          </div>
+        )}
+
+        {skinOpen && (
+          <div className="skin-modal-mask" onClick={() => setSkinOpen(false)}>
+            <div className="skin-modal" onClick={(e) => e.stopPropagation()}>
+              <h3>🎨 选择皮肤</h3>
+              <div className="skin-grid">
+                {SKIN_OPTIONS.map((s) => (
+                  <button
+                    key={s.key}
+                    className={`skin-option ${skin === s.key ? 'active' : ''}`}
+                    onClick={() => selectSkin(s.key)}
+                  >
+                    <span className="skin-option-icon">{s.icon}</span>
+                    <span className="skin-option-label">{s.label}</span>
+                    <span className="skin-option-desc">{s.desc}</span>
+                  </button>
+                ))}
+              </div>
+              <button className="skin-modal-close" onClick={() => setSkinOpen(false)}>关闭</button>
+            </div>
           </div>
         )}
 
@@ -429,7 +459,7 @@ const App: React.FC = () => {
   // 棋类模块界面
   // ================================================================
   return (
-    <div className={`app ${isFullscreen ? 'app-fullscreen' : ''}${national ? ' national-skin' : ''}`}>
+    <div className={`app ${isFullscreen ? 'app-fullscreen' : ''} skin-${skin}`}>
       {/* 顶部导航栏 */}
       <header className="app-header">
         <div className="header-left">
@@ -452,11 +482,11 @@ const App: React.FC = () => {
             🏠 首页
           </button>
           <button
-            className={`national-toggle ${national ? 'on' : ''}`}
-            onClick={toggleNational}
-            title={national ? '关闭国庆皮肤' : '开启国庆皮肤'}
-            aria-label="国庆皮肤"
-          >🇨🇳 国庆</button>
+            className="skin-toggle"
+            onClick={() => setSkinOpen(true)}
+            title="切换皮肤"
+            aria-label="切换皮肤"
+          >🎨 {SKIN_OPTIONS.find((s) => s.key === skin)?.label}</button>
           <UserProfile progress={progress} compact />
           <button
             className="fullscreen-btn"
@@ -468,6 +498,29 @@ const App: React.FC = () => {
           </button>
         </div>
       </header>
+
+      {/* 皮肤选择弹窗 */}
+      {skinOpen && (
+        <div className="skin-modal-mask" onClick={() => setSkinOpen(false)}>
+          <div className="skin-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>🎨 选择皮肤</h3>
+            <div className="skin-grid">
+              {SKIN_OPTIONS.map((s) => (
+                <button
+                  key={s.key}
+                  className={`skin-option ${skin === s.key ? 'active' : ''}`}
+                  onClick={() => selectSkin(s.key)}
+                >
+                  <span className="skin-option-icon">{s.icon}</span>
+                  <span className="skin-option-label">{s.label}</span>
+                  <span className="skin-option-desc">{s.desc}</span>
+                </button>
+              ))}
+            </div>
+            <button className="skin-modal-close" onClick={() => setSkinOpen(false)}>关闭</button>
+          </div>
+        </div>
+      )}
 
       {/* 主内容区 */}
       <main className="app-main">
