@@ -1,9 +1,9 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { enterFullscreen, exitFullscreen } from '../utils/fullscreen';
 import {
-  getLearningProfile, saveLearningProfile, recordGameResult,
-  resolveAutoAiDifficulty, getLearningSummary,
-  type GDAIDifficulty, GD_AI_DIFFICULTIES, GD_DIFFICULTY_RANK,
+  getLearningProfile, recordGameResult,
+  resolveAutoAiDifficulty,
+  type GDAIDifficulty,
   type GuandanLearningProfile,
 } from '../engine/guandanLearning';
 
@@ -1026,9 +1026,8 @@ export function GuandanGame() {
   const enteredFsRef = useRef(false);
 
   // ===== AI 难度与自适应学习 =====
-  const [aiDifficulty, setAiDifficulty] = useState<GDAIDifficulty | 'auto'>('auto');
+  const [aiDifficulty] = useState<GDAIDifficulty | 'auto'>('auto');
   const [learningProfile, setLearningProfile] = useState<GuandanLearningProfile | null>(null);
-  const [showLearningPanel, setShowLearningPanel] = useState(false);
   const firstPlayTypeRef = useRef<PlayType | null>(null);
   const bombsUsedRef = useRef(0);
 

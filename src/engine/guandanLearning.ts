@@ -10,7 +10,7 @@
  */
 
 import type { GCard, PlayType } from '../modules/GuandanGame';
-import { cardVal, isWild, levelRank } from '../modules/GuandanGame';
+import { cardVal } from '../modules/GuandanGame';
 
 // ================================================================
 // 类型定义
@@ -172,7 +172,6 @@ export function resetLearning() {
 // ================================================================
 
 const ELO_K = 32;
-const INITIAL_ELO = 1000;
 
 const GD_AI_ELO: Record<GDAIDifficulty, number> = {
   easy: 600,
@@ -224,7 +223,6 @@ export function learnFromGame(
 ): GDEvalParams {
   const p = { ...params };
   const rate = 0.02; // 学习率，每次微调 2%
-  const dir = result === 'win' ? 1 : -1;
 
   // 手牌强度高但输了 → 炸弹可能用早了；手牌低但赢了 → 炸弹用得好
   if (handStrength >= 60 && result === 'loss') {
@@ -254,16 +252,8 @@ export function learnFromGame(
     p.singlePenalty = Math.min(4, p.singlePenalty + 0.1);
   }
 
-  // 学习率衰减：参数变化越来越小
-  for (const k of Object.keys(p) as (keyof GDEvalParams)[]) {
-    if (typeof p[k] === 'number') {
-      const val = p[k] as number;
-      // 限制在合理范围内
-      if (k.includes('Threshold') || k.includes('Weight') || k.includes('Value') || k.includes('Penalty')) {
-        // 这些已经在上面的逻辑中限制了范围
-      }
-    }
-  }
+  // 学习率衰减：参数变化越来越小（已在各分支中做了范围限制）
+  void 0;
 
   return p;
 }
@@ -374,7 +364,7 @@ export function recordGameResult(
 export function analyzeOpponentStyle(
   playHistory: Array<{ player: number; cards: GCard[] | null; level: number }>,
   targetPlayer: number,
-  totalHands: number,
+  _totalHands: number,
 ): { aggression: number; conservatism: number } {
   const plays = playHistory.filter(p => p.player === targetPlayer && p.cards !== null);
   if (plays.length === 0) return { aggression: 50, conservatism: 50 };
