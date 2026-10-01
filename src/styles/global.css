@@ -7354,22 +7354,42 @@ ul {
 .gd-play-cards-row { display: flex; gap: 3px; flex-wrap: wrap; }
 .gd-play-area .gd-play-card { font-size: 14.5px; padding: 4px 8px; }
 .gd-play-north, .gd-play-south {
-  width: min(46%, 420px);
-  margin: 0 auto;
+  position: absolute;
+  width: 24%;
+  max-width: 420px;
+  min-height: 0;
   align-items: center;
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.16);
   border: 1.5px dashed rgba(255, 213, 79, 0.2);
   padding: 6px 14px;
+  left: 38.5%;
+  transform: translateX(-50%);
 }
-.gd-play-north { order: -1; }
+/* 四方位出牌区对齐桌垫分区框线（GD_ZONES 出牌区格）：北 34%/44.5%、西 48%/30%、东 48%/58%、南 62%/44.5% */
+.gd-play-north { top: 28%; }
+.gd-play-south { top: 62%; }
 /* 其他三方向按"本向视角"摆放：北家(对面)牌倒置 180°、西家(左)右旋 90°、东家(右)左旋 90°，牌面朝向对应玩家，与南向我方视角对称 */
 .gd-play-north .gd-play-hand { transform: rotate(180deg); }
 .gd-play-west .gd-play-hand { transform: rotate(90deg); }
 .gd-play-east .gd-play-hand { transform: rotate(-90deg); }
 .gd-side-col { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.gd-play-west, .gd-play-east { max-height: none; align-items: center; justify-content: center; }
-.gd-play-south { max-height: 96px; }
+.gd-play-west, .gd-play-east {
+  position: absolute;
+  top: 48%;
+  width: 12%;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+}
+.gd-play-west { left: 26%; }
+.gd-play-east { left: 58%; }
+@media (max-width: 640px) {
+  .gd-play-north, .gd-play-south { width: 38%; left: 31%; }
+  .gd-play-west, .gd-play-east { width: 16%; }
+  .gd-play-west { left: 22%; }
+  .gd-play-east { left: 62%; }
+}
 @media (max-width: 640px) {
   .gd-play-card { font-size: 15px; padding: 5px 8px; }
   .gd-play-area .gd-play-card { font-size: 13px; padding: 3px 6px; }
