@@ -702,57 +702,258 @@ export function findSeq(hand: GCard[], len: number, minKey: number, isPair: bool
   return null;
 }
 
-export function aiPlay(hand: GCard[], prev: PlayInfo | null, level: number, isMyTeamLast: boolean): { play: GCard[] | null; pass: boolean } {
-  if (prev === null) {
-    // 自由出牌：出最小单张/对子（变牌保留，最后才出）
-    const groups = groupByR(hand);
-    let best: GCard[] | null = null;
-    for (const g of groups.values()) {
-      if (isWild(g[0], level)) continue; // 变牌尽量保留
-      const v = cardVal(g[0], level);
-      if (g.length === 1 && (!best || v < cardVal(best[0], level))) best = [g[0]];
-      else if (g.length === 2 && !best && g.every((c) => c.k === undefined)) best = g.slice(0, 2);
-    }
-    if (!best) {
-      // 只剩变牌/王时：出最小变牌单张
-      const ws = hand.filter((c) => isWild(c, level));
-      if (ws.length) best = [ws[0]];
-    }
-    return { play: best || [hand[0]], pass: false };
+// ================================================================
+// 职业级 AI 出牌引擎
+// - 手牌强度评估 + 牌型规划 + 团队配合 + 智能炸弹
+// - 自由出牌：根据手牌强度决定主攻/辅助策略
+// - 跟牌：最小牌型压制，队友领先时让牌
+// - 炸弹：对手剩牌少必炸，队友冲刺不炸
+// ================================================================
+
+/** 手牌强度评估：0-100 分 */
+function evaluateHandStrength(hand: GCard[], level: number): number {
+  let score = 0;
+
+  // 1. 炸弹数量与质量（权重最高）
+  const bombs = bombCandidates(hand, level);
+  for (const b of bombs) {
+    if (b.kind === 2) score += 30;      // 天王炸
+    else if (b.kind === 1) score += 22; // 同花顺
+    else score += 10 + (b.n - 4) * 5;  // 4炸=10, 5炸=15, 6炸=20
   }
 
-  // 队友刚出最大牌 → 不顶
+  // 2. 大牌数量（王、级牌、A、K）
+  const kings = hand.filter(c => c.k !== undefined).length;
+  score += kings * 5;
+
+  const groups = groupByR(hand);
+  const lr = levelRank(level);
+  for (const [r, g] of groups) {
+    if (r === 20 || r === 19) continue; // 王已算
+    const v = r === lr ? 16 : r === 15 ? 2 : r;
+    if (v >= 13) score += g.length * 2;  // A/K
+    else if (v >= 11) score += g.length * 1; // Q/J
+  }
+
+  // 3. 牌型完整度（顺子、连对、飞机）
+  const sf = findStraightFlush(hand);
+  if (sf) score += 8;
+
+  // 顺子数量
+  let straightCount = 0;
+  const ranks = [...new Set(hand.filter(c => c.k === undefined).map(c => c.r))]
+    .filter(r => r >= 3 && r <= 14).sort((a, b) => a - b);
+  let runLen = 1;
+  for (let i = 1; i < ranks.length; i++) {
+    if (ranks[i] === ranks[i - 1] + 1) {
+      runLen++;
+      if (runLen >= 5) straightCount++;
+    } else {
+      runLen = 1;
+    }
+  }
+  score += straightCount * 3;
+
+  // 4. 单张数量（单张越多越弱）
+  let singleCount = 0;
+  for (const g of groups.values()) {
+    if (g.length === 1 && g[0].k === undefined) singleCount++;
+  }
+  score -= singleCount * 2;
+
+  // 5. 变牌加分
+  const wilds = hand.filter(c => isWild(c, level)).length;
+  score += wilds * 6;
+
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+/** 自由出牌：选择最优首攻牌型 */
+function aiLead(hand: GCard[], level: number, strategy: 'aggressive' | 'normal' | 'support'): GCard[] {
+  const groups = groupHand(hand, level);
+  const byRank = groupByR(hand);
+
+  // 策略1：主攻型 — 优先出整组牌型（顺子/连对/飞机/三带二）
+  if (strategy === 'aggressive') {
+    // 找最大的组合牌型优先出（减少手数）
+    const comboGroups = groups.filter(g =>
+      g.label.includes('顺') || g.label.includes('连对') ||
+      g.label.includes('钢板') || g.label.includes('三带')
+    );
+    if (comboGroups.length > 0) {
+      // 出最小的组合牌，保留大牌
+      comboGroups.sort((a, b) => cardVal(a.cards[0], level) - cardVal(b.cards[0], level));
+      return comboGroups[0].cards;
+    }
+  }
+
+  // 策略2：辅助型 — 出最小单张送队友
+  if (strategy === 'support') {
+    const singles: GCard[] = [];
+    for (const g of byRank.values()) {
+      if (g.length === 1 && g[0].k === undefined && !isWild(g[0], level)) {
+        singles.push(g[0]);
+      }
+    }
+    singles.sort((a, b) => cardVal(a, level) - cardVal(b, level));
+    if (singles.length > 0) return [singles[0]];
+  }
+
+  // 策略3：普通型 — 优先出对子/三张，其次最小单张
+  // 先找最小的对子
+  const pairs: GCard[][] = [];
+  for (const g of byRank.values()) {
+    if (g.length >= 2 && g.every(c => c.k === undefined) && !isWild(g[0], level)) {
+      pairs.push(g.slice(0, 2));
+    }
+  }
+  pairs.sort((a, b) => cardVal(a[0], level) - cardVal(b[0], level));
+
+  // 单张
+  const singles: GCard[] = [];
+  for (const g of byRank.values()) {
+    if (g.length === 1 && g[0].k === undefined && !isWild(g[0], level)) {
+      singles.push(g[0]);
+    }
+  }
+  singles.sort((a, b) => cardVal(a, level) - cardVal(b, level));
+
+  // 单张多于对子时出单张，反之出对子
+  if (singles.length >= pairs.length && singles.length > 0) {
+    return [singles[0]];
+  }
+  if (pairs.length > 0) {
+    return pairs[0];
+  }
+  if (singles.length > 0) {
+    return [singles[0]];
+  }
+
+  // 只剩变牌/王，出最小的
+  const remaining = [...hand].sort((a, b) => cardVal(a, level) - cardVal(b, level));
+  return [remaining[0]];
+}
+
+/** 判断是否应该炸 */
+function shouldBomb(
+  hand: GCard[],
+  prev: PlayInfo,
+  level: number,
+  opponentHandCount: number,
+  partnerHandCount: number,
+  isMyTeamLast: boolean,
+): GCard[] | null {
+  const bombs = bombCandidates(hand, level);
+  if (bombs.length === 0) return null;
+
+  // 队友刚出最大牌 → 绝对不炸
+  if (isMyTeamLast) return null;
+
+  // 对手剩牌很少 → 必须炸（阻止对方头游）
+  if (opponentHandCount <= 5) {
+    // 找最小的能压住的炸弹
+    for (const b of bombs) {
+      const info = { type: 'BOMB' as PlayType, key: b.key, size: b.n, cards: b.cards };
+      if (canBeat(prev, info)) return b.cards;
+    }
+  }
+
+  // 对手剩 6-10 张 → 有较大概率头游，考虑炸
+  if (opponentHandCount <= 10) {
+    // 手牌也不多了（自己也有冲头游潜力）→ 炸
+    if (hand.length <= 12) {
+      for (const b of bombs) {
+        const info = { type: 'BOMB' as PlayType, key: b.key, size: b.n, cards: b.cards };
+        if (canBeat(prev, info) && b.kind === 0 && b.n <= 5) return b.cards; // 只用小炸
+      }
+    }
+  }
+
+  // 队友牌也很少（<5）→ 不浪费炸弹，让队友冲
+  if (partnerHandCount <= 5) return null;
+
+  // 对手牌很多 → 不用炸，等后面
+  if (opponentHandCount > 15) return null;
+
+  return null;
+}
+
+export function aiPlay(
+  hand: GCard[],
+  prev: PlayInfo | null,
+  level: number,
+  isMyTeamLast: boolean,
+  opponentHandCount: number = 27,
+  partnerHandCount: number = 27,
+): { play: GCard[] | null; pass: boolean } {
+  const handStrength = evaluateHandStrength(hand, level);
+
+  // 决定策略：根据手牌强度和队友状态
+  let strategy: 'aggressive' | 'normal' | 'support' = 'normal';
+  if (handStrength >= 65) strategy = 'aggressive';
+  else if (handStrength <= 35) strategy = 'support';
+
+  // 如果队友牌很少，转为辅助策略
+  if (partnerHandCount <= 8 && handStrength < 70) {
+    strategy = 'support';
+  }
+
+  // ===== 自由出牌 =====
+  if (prev === null) {
+    const play = aiLead(hand, level, strategy);
+    return { play, pass: false };
+  }
+
+  // ===== 队友刚出了最大的牌 → 让牌 =====
   if (isMyTeamLast) {
     return { play: null, pass: true };
   }
 
+  // ===== 跟牌：找最小能压住的 =====
   const beat = findSmallestBeat(hand, prev, level);
   if (beat) {
-    // 王单出时机：手牌剩 ≤4 时随意
-    if (beat.length === 1 && beat[0].k !== undefined && hand.length > 4) return { play: null, pass: true };
+    const beatInfo = analyzePlay(beat, level);
+
+    // 用王单出的情况：谨慎
+    if (beat.length === 1 && beat[0].k !== undefined) {
+      // 手牌多 + 对手牌多 → 王留着关键时候用
+      if (hand.length > 8 && opponentHandCount > 10) {
+        // 看看有没有炸弹能替代
+        const bomb = shouldBomb(hand, prev, level, opponentHandCount, partnerHandCount, isMyTeamLast);
+        if (bomb) return { play: bomb, pass: false };
+        return { play: null, pass: true };
+      }
+      // 对手快出完了 → 王必须出
+      if (opponentHandCount <= 5) return { play: beat, pass: false };
+    }
+
+    // 用级牌单张压的情况：手牌多时保留
+    if (beat.length === 1 && beatInfo && isWild(beat[0], level)) {
+      if (hand.length > 10 && opponentHandCount > 8) {
+        return { play: null, pass: true };
+      }
+    }
+
+    // 大牌压制：如果用很大的牌压很小的牌，考虑过
+    if (beatInfo) {
+      const valDiff = beatInfo.key - prev.key;
+      // 单张：差超过 5 点且手牌多，考虑过
+      if (prev.type === 'SINGLE' && valDiff > 5 && hand.length > 12 && opponentHandCount > 10) {
+        return { play: null, pass: true };
+      }
+    }
+
     return { play: beat, pass: false };
   }
 
-  // 没普通牌型可大：考虑炸弹（手牌少时炸）
-  const bomb = findBomb(hand, prev, level);
-  if (bomb && hand.length <= 6) {
+  // ===== 没普通牌型可大 → 考虑炸弹 =====
+  const bomb = shouldBomb(hand, prev, level, opponentHandCount, partnerHandCount, isMyTeamLast);
+  if (bomb) {
     return { play: bomb, pass: false };
   }
-  return { play: null, pass: true };
-}
 
-function findBomb(hand: GCard[], prev: PlayInfo, level: number): GCard[] | null {
-  const groups = groupByR(hand);
-  let best: GCard[] | null = null;
-  for (const g of groups.values()) {
-    if (g.length >= 4 && g.every((c) => c.k === undefined)) {
-      const p = { type: 'BOMB' as PlayType, key: cardVal(g[0], level), size: g.length, cards: g.slice(0, 4) };
-      if (canBeat(prev, p)) {
-        if (!best || g.length < best.length) best = g.slice(0, 4);
-      }
-    }
-  }
-  return best;
+  // ===== 实在不行就过 =====
+  return { play: null, pass: true };
 }
 
 // ================================================================
@@ -1021,7 +1222,20 @@ export function GuandanGame() {
     timerRef.current = setTimeout(() => {
       const prev = game.lastPlay;
       const isTeamLast = prev ? (prev.player === (p === 0 ? 2 : p === 2 ? 0 : p === 1 ? 3 : 1)) : false;
-      const res = aiPlay(game.hands[p], prev ? prev.info : null, game.level, isTeamLast);
+      // 队友座位
+      const partnerSeat = p === 0 ? 2 : p === 2 ? 0 : p === 1 ? 3 : 1;
+      // 对手中剩牌最少的（最危险的）
+      const oppSeats = [0, 1, 2, 3].filter(s => s !== p && s !== partnerSeat);
+      const opponentHandCount = Math.min(...oppSeats.map(s => game.hands[s].length));
+      const partnerHandCount = game.hands[partnerSeat].length;
+      const res = aiPlay(
+        game.hands[p],
+        prev ? prev.info : null,
+        game.level,
+        isTeamLast,
+        opponentHandCount,
+        partnerHandCount,
+      );
       commitTurn(p, res.play);
     }, 900);
   }, [game, commitTurn]);

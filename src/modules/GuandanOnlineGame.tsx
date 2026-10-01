@@ -138,7 +138,9 @@ export function gdNewGame(level: number, names: string[], firstSeat: number, kee
 }
 
 // ================================================================
-// PeerJS 封装
+// PeerJS 封装 + ICE 配置
+// 优先级：TURNS(TLS/443) > TURN TCP(443) > TURN UDP(443) > STUN
+// 确保校园网/移动网络下能通过中继建立连接
 // ================================================================
 let peerjsPromise: Promise<any> | null = null;
 function loadPeerJS(): Promise<any> {
@@ -148,11 +150,30 @@ function loadPeerJS(): Promise<any> {
   return peerjsPromise;
 }
 
+const ICE_SERVERS = [
+  { urls: 'turns:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turn:eu-0.turn.peerjs.com:443?transport=tcp', username: 'peerjs', credential: 'peerjsp' },
+  { urls: 'turn:eu-0.turn.peerjs.com:443', username: 'peerjs', credential: 'peerjsp' },
+  { urls: 'turn:eu-0.turn.peerjs.com:3478?transport=tcp', username: 'peerjs', credential: 'peerjsp' },
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:global.stun.twilio.com:3478' },
+];
+
 function generateRoomCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let code = '';
   for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
   return code;
+}
+
+/** 检查 DataChannel 是否真正就绪 */
+function isChannelReady(conn: any): boolean {
+  if (!conn || !conn.open) return false;
+  const ch = conn.dataChannel || conn.channel || conn._dc;
+  if (ch && ch.readyState !== 'open') return false;
+  return true;
 }
 
 // ================================================================
@@ -203,12 +224,20 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
   const sendAll = useCallback((msg: object) => {
     const data = JSON.stringify(msg);
     for (const c of connsRef.current) {
-      try { if (c && c.open) c.send(data); } catch {}
+      try {
+        if (isChannelReady(c)) c.send(data);
+      } catch (e) {
+        console.warn('[gd-online] sendAll error:', e);
+      }
     }
   }, []);
 
   const sendToHost = useCallback((msg: object) => {
-    try { if (connRef.current && connRef.current.open) connRef.current.send(JSON.stringify(msg)); } catch {}
+    try {
+      if (isChannelReady(connRef.current)) connRef.current.send(JSON.stringify(msg));
+    } catch (e) {
+      console.warn('[gd-online] sendToHost error:', e);
+    }
   }, []);
 
   // ============ 广播完整状态 ============
@@ -232,8 +261,12 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
         conn._gdName = name;
         setPlayers((p) => { const np = [...p]; np[seat] = name; return np; });
         try { conn.send(JSON.stringify({ type: 'WELCOME', seat, name })); } catch {}
-        // 同步房间人员到所有 guest
-        sendAll({ type: 'ROOM_STATE', players: ['房主', connsRef.current.map((c) => c._gdName)] });
+        // 同步房间人员到所有 guest（按座位位置构建玩家列表）
+        const playerList: string[] = ['房主', '', '', ''];
+        for (const c of connsRef.current) {
+          if (c._gdSeat !== undefined) playerList[c._gdSeat] = c._gdName || '玩家';
+        }
+        sendAll({ type: 'ROOM_STATE', players: playerList });
       }
     } else if (msg.type === 'PLAY' || msg.type === 'PASS') {
       const seat = conn._gdSeat;
@@ -253,7 +286,11 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
         const seat = conn._gdSeat;
         if (seat !== undefined) {
           setPlayers((p) => { const np = [...p]; np[seat] = ''; return np; });
-          sendAll({ type: 'ROOM_STATE', players: ['房主', connsRef.current.map((c) => c._gdName)] });
+          const playerList: string[] = ['房主', '', '', ''];
+          for (const c of connsRef.current) {
+            if (c._gdSeat !== undefined) playerList[c._gdSeat] = c._gdName || '玩家';
+          }
+          sendAll({ type: 'ROOM_STATE', players: playerList });
           setNotice(`玩家「${conn._gdName || '玩家'}」已离开`);
         }
       }
@@ -297,14 +334,7 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
     setPlayers((p) => { const np = [...p]; np[0] = '房主'; return np; });
     try {
       const Peer = await loadPeerJS();
-      const iceServers = [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:global.stun.twilio.com:3478' },
-        { urls: 'turns:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-        { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
-        { urls: 'turn:eu-0.turn.peerjs.com:443?transport=tcp', username: 'peerjs', credential: 'peerjsp' },
-      ];
-      const peer = new Peer(code, { debug: 0, config: { iceServers } });
+      const peer = new Peer(code, { debug: 0, config: { iceServers: ICE_SERVERS } });
       peerRef.current = peer;
       peer.on('error', (err: any) => {
         if (err?.type === 'unavailable-id') {
@@ -326,6 +356,7 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
         });
         incoming.on('data', (d: any) => onHostMessage(incoming, typeof d === 'string' ? d : JSON.stringify(d)));
         incoming.on('close', () => onHostMessage(incoming, JSON.stringify({ type: 'LEAVE' })));
+        incoming.on('error', () => onHostMessage(incoming, JSON.stringify({ type: 'LEAVE' })));
       });
     } catch {
       setStatus('error');
@@ -338,13 +369,27 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
     setRoomCode(code);
     try {
       const Peer = await loadPeerJS();
-      const peer = new Peer(code, { debug: 0 });
+      const peer = new Peer(code, { debug: 0, config: { iceServers: ICE_SERVERS } });
       peerRef.current = peer;
-      peer.on('open', () => { setStatus('waiting'); });
+      peer.on('open', () => {
+        setStatus('waiting');
+        setNotice('房间已创建，等待其他玩家加入…');
+      });
       peer.on('connection', (incoming: any) => {
-        incoming.on('open', () => {});
+        incoming.on('open', () => { setStatus('waiting'); });
         incoming.on('data', (d: any) => onHostMessage(incoming, typeof d === 'string' ? d : JSON.stringify(d)));
         incoming.on('close', () => onHostMessage(incoming, JSON.stringify({ type: 'LEAVE' })));
+        incoming.on('error', () => onHostMessage(incoming, JSON.stringify({ type: 'LEAVE' })));
+      });
+      peer.on('error', (err: any) => {
+        if (err?.type === 'unavailable-id') {
+          const alt = `${code}${Math.floor(Math.random() * 100)}`;
+          setRoomCode(alt);
+          createRoomAs(alt);
+        } else {
+          setStatus('error');
+          setNotice('房间创建失败：' + (err?.type || '网络错误'));
+        }
       });
     } catch {}
   }
@@ -358,7 +403,7 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
     setStatus('connecting');
     try {
       const Peer = await loadPeerJS();
-      const peer = new Peer(`${c}-${Math.floor(Math.random() * 100000)}`, { debug: 0 });
+      const peer = new Peer(`${c}-${Math.floor(Math.random() * 100000)}`, { debug: 0, config: { iceServers: ICE_SERVERS } });
       peerRef.current = peer;
       peer.on('error', (err: any) => {
         setStatus('error');
