@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { enterFullscreen, exitFullscreen } from '../utils/fullscreen';
 import {
   type GCard, type PlayInfo, analyzePlay, canBeat, cardVal, rankName,
-  buildDeck, shuffle, groupHand, groupByR, GD_ZONES, SUIT_SYMBOL,
+  buildDeck, shuffle, groupHand, groupByR, GD_ZONES, SUIT_SYMBOL, isWild,
 } from './GuandanGame';
 
 // ================================================================
@@ -738,11 +738,12 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
                   {game.hands[3].map((c) => (
                     <span
                       key={c.id}
-                      className={`gd-mini-card ${c.k !== undefined ? 'gd-mini-joker' : ''} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'}`}
+                      className={`gd-mini-card ${c.k !== undefined ? 'gd-mini-joker' : ''} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
                     >
                       <span className="gd-mini-rank">{c.k !== undefined ? (c.k === 1 ? '大王' : '小王') : rankName(c.r)}</span>
                       {c.k === undefined && <span className="gd-mini-suit">{SUIT_SYMBOL[c.s]}</span>}
                       {c.r === game.level && c.k === undefined && <span className="gd-mini-level">级</span>}
+                      {isWild(c, game.level) && <span className="gd-wild-tag">变</span>}
                     </span>
                   ))}
                   {game.hands[3].length === 0 && <span className="gd-partner-empty">已出完</span>}
@@ -771,11 +772,12 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
                   {game.hands[1].map((c) => (
                     <span
                       key={c.id}
-                      className={`gd-mini-card ${c.k !== undefined ? 'gd-mini-joker' : ''} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'}`}
+                      className={`gd-mini-card ${c.k !== undefined ? 'gd-mini-joker' : ''} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
                     >
                       <span className="gd-mini-rank">{c.k !== undefined ? (c.k === 1 ? '大王' : '小王') : rankName(c.r)}</span>
                       {c.k === undefined && <span className="gd-mini-suit">{SUIT_SYMBOL[c.s]}</span>}
                       {c.r === game.level && c.k === undefined && <span className="gd-mini-level">级</span>}
+                      {isWild(c, game.level) && <span className="gd-wild-tag">变</span>}
                     </span>
                   ))}
                   {game.hands[1].length === 0 && <span className="gd-partner-empty">已出完</span>}
@@ -810,12 +812,13 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
                 {g.cards.map((c) => (
                   <button
                     key={c.id}
-                    className={`gd-card ${selected.includes(c.id) ? 'gd-selected' : ''} ${c.k !== undefined ? 'gd-card-joker' : (c.r === game.level ? 'gd-card-level' : '')} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'}`}
+                    className={`gd-card ${selected.includes(c.id) ? 'gd-selected' : ''} ${c.k !== undefined ? 'gd-card-joker' : (c.r === game.level ? 'gd-card-level' : '')} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
                     onClick={() => toggleCard(c.id)}
                   >
                     <span className="gd-card-rank">{c.k !== undefined ? (c.k === 1 ? 'JOKER' : 'joker') : rankName(c.r)}</span>
                     {c.k === undefined && <span className="gd-card-suit">{SUIT_SYMBOL[c.s]}</span>}
                     {c.r === game.level && c.k === undefined && <span className="gd-card-level-tag">级</span>}
+                    {isWild(c, game.level) && <span className="gd-wild-tag">变</span>}
                   </button>
                 ))}
               </div>
@@ -829,13 +832,14 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
           {sortedHand.map((c, i) => (
             <button
               key={c.id}
-              className={`gd-card ${selected.includes(c.id) ? 'gd-selected' : ''} ${c.k !== undefined ? 'gd-card-joker' : (c.r === game.level ? 'gd-card-level' : '')} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'}`}
+              className={`gd-card ${selected.includes(c.id) ? 'gd-selected' : ''} ${c.k !== undefined ? 'gd-card-joker' : (c.r === game.level ? 'gd-card-level' : '')} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
               onClick={() => toggleCard(c.id)}
               style={{ marginLeft: i > 0 ? -Math.min(26, 260 / sortedHand.length) : 0 }}
             >
               <span className="gd-card-rank">{c.k !== undefined ? (c.k === 1 ? 'JOKER' : 'joker') : rankName(c.r)}</span>
               {c.k === undefined && <span className="gd-card-suit">{SUIT_SYMBOL[c.s]}</span>}
               {c.r === game.level && c.k === undefined && <span className="gd-card-level-tag">级</span>}
+              {isWild(c, game.level) && <span className="gd-wild-tag">变</span>}
             </button>
           ))}
           {sortedHand.length === 0 && <div className="gd-hand-empty">牌已出完</div>}

@@ -52,6 +52,16 @@ function pointVal(c: GCard, level: number): number {
   return cardVal(c, level);
 }
 
+// ================================================================
+// 逢人配（变牌）：红桃级牌可当除大小王外任意牌；
+// 作单张时只比王牌小、大于其他所有牌（含普通级牌）
+// ================================================================
+export function isWild(c: GCard, level: number): boolean {
+  return c.k === undefined && c.s === 'H' && c.r === level;
+}
+export const WILD_SINGLE_KEY = 16.5; // 单张牌力：> 级牌(16)、< 小王(17)
+export const WILD_GROUP_KEY = 16.5;  // 双变牌成对/三张时的最大组值
+
 // 顺子/连对用点数：2 不能进顺子，级牌在顺子里按原数
 function seqVal(r: number): number {
   return r; // 3..14 参与顺子；15(2) 不可
@@ -113,12 +123,15 @@ export function groupHand(hand: GCard[], level: number): HandGroup[] {
   };
   const avail = () => hand.filter((c) => !used.has(c.id));
 
-  // 1) 同花顺：同花色最长连续顺（≥5），从最高点数开始找
+  // 变牌（红桃级牌）优先参与组合：补同花顺/炸弹/三连对/三带二/三张/对子
+  const wildsOf = (cs: GCard[]) => cs.filter((c) => isWild(c, level));
+
+  // 1) 同花顺：先用真实同花顺，再用变牌补缺（优先高位 5 连）
   let sf = true;
   while (sf) {
     sf = false;
     for (const s of ['S', 'H', 'C', 'D']) {
-      const sc = avail().filter((c) => c.s === s && c.k === undefined);
+      const sc = avail().filter((c) => c.s === s && c.k === undefined && !isWild(c, level));
       const ranks = [...new Set(sc.map((c) => c.r))].sort((a, b) => b - a);
       for (let i = 0; i + 4 < ranks.length; i++) {
         let len = 1;
@@ -133,50 +146,118 @@ export function groupHand(hand: GCard[], level: number): HandGroup[] {
       }
       if (sf) break;
     }
-  }
-
-  // 2) 炸弹：4 张及以上同点数（不含王）
-  let bomb = true;
-  while (bomb) {
-    bomb = false;
-    for (const [k, arr] of groupByR(avail())) {
-      if (k < 19 && arr.length >= 4) { take(arr.slice(0, 4), `${arr.length}炸`); bomb = true; break; }
+    if (!sf) {
+      // 变牌补缺：对每花色找 5 连区间（含缺口），缺口用变牌补
+      for (const s of ['S', 'H', 'C', 'D']) {
+        const sc = avail().filter((c) => c.s === s && c.k === undefined && !isWild(c, level));
+        const base = new Set(sc.map((c) => c.r));
+        const ws = wildsOf(avail());
+        for (let hi = 14; hi >= 6; hi--) {
+          const lo = hi - 4;
+          let missing = 0;
+          const want: number[] = [];
+          for (let r = lo; r <= hi; r++) {
+            if (base.has(r)) want.push(r);
+            else missing++;
+          }
+          if (missing > 0 && missing <= ws.length) {
+            const pick = want.map((r) => sc.find((c) => c.r === r)!).filter(Boolean);
+            const extra = ws.slice(0, missing);
+            take([...pick, ...extra], '同花顺');
+            sf = true;
+            break;
+          }
+        }
+        if (sf) break;
+      }
     }
   }
 
-  // 3) 三连对：3 组连续点数各取一对
+  // 2) 炸弹：同点数 4 张（变牌补足，优先 3+1 / 2+2）
+  let bomb = true;
+  while (bomb) {
+    bomb = false;
+    const ng = groupByR(avail().filter((c) => !isWild(c, level)));
+    for (const [k, arr] of ng) {
+      if (k < 19) {
+        const ws = wildsOf(avail());
+        if (arr.length >= 4) { take(arr.slice(0, 4), `${arr.length}炸`); bomb = true; break; }
+        if (arr.length === 3 && ws.length >= 1) { take([...arr.slice(0, 3), ws[0]], '4炸'); bomb = true; break; }
+        if (arr.length === 2 && ws.length >= 2) { take([...arr.slice(0, 2), ws[0], ws[1]], '4炸'); bomb = true; break; }
+      }
+    }
+  }
+
+  // 3) 三连对：3 组连续点数各一对（变牌可补对）
   let trio = true;
   while (trio) {
     trio = false;
-    const byR = groupByR(avail());
-    const pairs = [...byR.entries()].filter(([k, arr]) => k < 19 && arr.length >= 2).map(([k]) => k).sort((a, b) => b - a);
-    for (let i = 0; i + 2 < pairs.length; i++) {
-      if (pairs[i + 1] === pairs[i] - 1 && pairs[i + 2] === pairs[i] - 2) {
-        const pick = [pairs[i], pairs[i + 1], pairs[i + 2]].flatMap((k) => byR.get(k)!.slice(0, 2));
-        take(pick, `三连对 ${rankName(pairs[i])}`);
+    const ng = groupByR(avail().filter((c) => !isWild(c, level)));
+    const ws = wildsOf(avail());
+    const pairRanks = [...ng.entries()].filter(([, arr]) => arr.length >= 2).map(([k]) => k).sort((a, b) => b - a);
+    // 可补：一组对缺 1 张可用 1 变牌，缺 2 张用 2 变牌
+    for (let i = 0; i + 2 < pairRanks.length; i++) {
+      if (pairRanks[i + 1] === pairRanks[i] - 1 && pairRanks[i + 2] === pairRanks[i] - 2) {
+        const pick = [pairRanks[i], pairRanks[i + 1], pairRanks[i + 2]].flatMap((k) => ng.get(k)!.slice(0, 2));
+        take(pick, `三连对 ${rankName(pairRanks[i])}`);
         trio = true;
         break;
       }
     }
-  }
-
-  // 4) 三带二：三张 + 一对（从高到低）
-  let full = true;
-  while (full) {
-    full = false;
-    const byR = groupByR(avail());
-    const trips = [...byR.entries()].filter(([k, arr]) => k < 19 && arr.length >= 3).map(([k]) => k).sort((a, b) => b - a);
-    for (const t of trips) {
-      const pair = [...byR.entries()].find(([k, arr]) => k < 19 && k !== t && arr.length >= 2);
-      if (pair) {
-        take([...byR.get(t)!.slice(0, 3), ...pair[1].slice(0, 2)], `三带二 ${rankName(t)}`);
-        full = true;
-        break;
+    if (!trio) {
+      // 缺口补：任选 3 个连续点，组内不足 2 的用变牌补
+      const cand = [...ng.entries()].filter(([, arr]) => arr.length >= 1).map(([k, arr]) => ({ k, have: Math.min(2, arr.length) }));
+      const rankSet = new Set(cand.map((c) => c.k));
+      for (let hi = 14; hi >= 5; hi--) {
+        const seq = [hi, hi - 1, hi - 2];
+        if (!seq.every((r) => rankSet.has(r))) continue;
+        let need = 0;
+        const pick: GCard[] = [];
+        for (const r of seq) {
+          const item = cand.find((c) => c.k === r)!;
+          pick.push(...ng.get(r)!.slice(0, item.have));
+          need += 2 - item.have;
+        }
+        if (need > 0 && need <= ws.length) {
+          take([...pick, ...ws.slice(0, need)], `三连对 ${rankName(hi)}`);
+          trio = true;
+          break;
+        }
       }
     }
   }
 
-  // 5) 剩余：三张 / 对子 / 单张（王最高，按点数降序）
+  // 4) 三带二：三张 + 一对（变牌补）
+  let full = true;
+  while (full) {
+    full = false;
+    const ng = groupByR(avail().filter((c) => !isWild(c, level)));
+    const ws = wildsOf(avail());
+    const trips = [...ng.entries()].filter(([, arr]) => arr.length >= 3).map(([k]) => k).sort((a, b) => b - a);
+    for (const t of trips) {
+      const pair = [...ng.entries()].find(([k, arr]) => k < 19 && k !== t && arr.length >= 2);
+      if (pair) { take([...ng.get(t)!.slice(0, 3), ...pair[1].slice(0, 2)], `三带二 ${rankName(t)}`); full = true; break; }
+    }
+    if (!full) {
+      for (const t of trips) {
+        const pair = [...ng.entries()].find(([k, arr]) => k < 19 && k !== t && arr.length >= 1);
+        if (pair && pair[1].length === 1 && ws.length >= 1) {
+          take([...ng.get(t)!.slice(0, 3), pair[1][0], ws[0]], `三带二 ${rankName(t)}`);
+          full = true; break;
+        }
+      }
+    }
+    if (!full) {
+      for (const t of trips) {
+        if (ws.length >= 2) {
+          take([...ng.get(t)!.slice(0, 3), ws[0], ws[1]], `三带二 ${rankName(t)}`);
+          full = true; break;
+        }
+      }
+    }
+  }
+
+  // 5) 剩余：三张 / 对子 / 单张（变牌补三张/对子；单张变牌为顶级单张）
   const rest = [...groupByR(avail()).entries()].sort((a, b) => {
     const ka = a[0] >= 19 ? 100 : a[0];
     const kb = b[0] >= 19 ? 100 : b[0];
@@ -186,6 +267,13 @@ export function groupHand(hand: GCard[], level: number): HandGroup[] {
     const c0 = arr[0];
     if (c0.k === 1) take(arr, '大王');
     else if (c0.k === 0) take(arr, '小王');
+    else if (isWild(c0, level)) {
+      // 变牌单张：只比王牌小（若有多张变牌则补成三张/对子）
+      const curWs = wildsOf(avail());
+      if (curWs.length >= 3) take(curWs.slice(0, 3), '三张 ·变');
+      else if (curWs.length >= 2) take(curWs.slice(0, 2), '对子 ·变');
+      else take([c0], '变牌 顶级单张');
+    }
     else if (arr.length === 3) take(arr, `三张 ${rankName(c0.r)}${c0.r === level ? '·级' : ''}`);
     else if (arr.length === 2) take(arr, `对子 ${rankName(c0.r)}${c0.r === level ? '·级' : ''}`);
     else take(arr, `单张 ${rankName(c0.r)}${c0.r === level ? '·级' : ''}`);
@@ -193,10 +281,13 @@ export function groupHand(hand: GCard[], level: number): HandGroup[] {
   return out;
 }
 
-// 识别一组牌型；不合法返回 null
+// 识别一组牌型；不合法返回 null（变牌=红桃级牌，可补任意牌，但不可变王）
 export function analyzePlay(cards: GCard[], level: number): PlayInfo | null {
   const n = cards.length;
   if (n === 0) return null;
+  const wilds = cards.filter((c) => isWild(c, level));
+  const normal = cards.filter((c) => !isWild(c, level));
+  const w = wilds.length;
   const norm = cards.map((c) => ({ c, v: pointVal(c, level) }));
   norm.sort((a, b) => a.v - b.v);
 
@@ -205,13 +296,40 @@ export function analyzePlay(cards: GCard[], level: number): PlayInfo | null {
     return { type: 'ROCKET', key: 19, size: 4, cards };
   }
 
+  // 单张：变牌单张只比王牌小
+  if (n === 1) {
+    return { type: 'SINGLE', key: isWild(cards[0], level) ? WILD_SINGLE_KEY : norm[0].v, size: 1, cards };
+  }
+
   const groups = groupByR(cards);
   const sizes = [...groups.values()].map((g) => g.length).sort((a, b) => a - b);
   const ranks = [...groups.keys()].sort((a, b) => a - b);
+  const pureSame = n >= 2 && groups.size === 1;
 
-  // 炸弹：4+ 同点数（不含王）
-  if (n >= 4 && sizes.length === 1 && cards.every((c) => c.k === undefined)) {
-    return { type: 'BOMB', key: cardVal(cards[0], level), size: n, cards };
+  // 对子：变牌可补
+  if (n === 2) {
+    if (w === 2) return { type: 'PAIR', key: WILD_GROUP_KEY, size: 2, cards };
+    if (w === 1 && normal.length === 1 && normal[0].k === undefined) return { type: 'PAIR', key: cardVal(normal[0], level), size: 2, cards };
+    if (w === 0 && pureSame && cards.every((c) => c.k === undefined)) return { type: 'PAIR', key: cardVal(cards[0], level), size: 2, cards };
+    return null;
+  }
+
+  // 三张：变牌可补
+  if (n === 3) {
+    if (w === 3) return { type: 'TRIPLE', key: WILD_GROUP_KEY, size: 3, cards };
+    if (w === 2 && normal.length === 1 && normal[0].k === undefined) return { type: 'TRIPLE', key: cardVal(normal[0], level), size: 3, cards };
+    if (w === 1 && normal.length === 2 && normal[0].k === undefined && normal[0].r === normal[1].r) return { type: 'TRIPLE', key: cardVal(normal[0], level), size: 3, cards };
+    if (w === 0 && pureSame && cards.every((c) => c.k === undefined)) return { type: 'TRIPLE', key: cardVal(cards[0], level), size: 3, cards };
+    return null;
+  }
+
+  // 炸弹：同点数 count + 变牌补足（不含王，变牌不可变王）
+  if (n >= 4) {
+    for (const [k, arr] of groupByR(normal)) {
+      if (k < 19 && arr.length + w === n && w <= 3) {
+        return { type: 'BOMB', key: cardVal(arr[0], level), size: n, cards };
+      }
+    }
   }
 
   const onlySeqOk = (rs: number[]): boolean => {
@@ -219,38 +337,63 @@ export function analyzePlay(cards: GCard[], level: number): PlayInfo | null {
     return rs.every((r) => r >= 3 && r <= 14); // 2 不能进顺
   };
 
-  // 单张 / 对子 / 三张
-  if (n === 1) return { type: 'SINGLE', key: norm[0].v, size: 1, cards };
-  if (n === 2 && sizes.length === 1 && cards.every((c) => c.k === undefined)) return { type: 'PAIR', key: cardVal(cards[0], level), size: 2, cards };
-  if (n === 3 && sizes.length === 1 && cards.every((c) => c.k === undefined)) return { type: 'TRIPLE', key: cardVal(cards[0], level), size: 3, cards };
-
-  // 三带二
-  if (n === 5 && sizes.length === 2) {
-    const three = sizes.includes(3);
-    if (three && cards.every((c) => c.k === undefined)) {
-      const g3 = [...groups.values()].find((g) => g.length === 3)!;
-      return { type: 'TRIPLE_PAIR', key: cardVal(g3[0], level), size: 5, cards };
+  // 三带二：三张 + 对（变牌可补三张或补对）
+  if (n === 5) {
+    const ng = groupByR(normal);
+    const nArr = [...ng.values()].filter((g) => g.every((c) => c.k === undefined));
+    const g3 = nArr.find((g) => g.length >= 3);
+    if (g3) {
+      const pair = nArr.find((g) => g !== g3 && g.length >= 2);
+      if (pair && pair.length + g3.length + w === 5) {
+        return { type: 'TRIPLE_PAIR', key: cardVal(g3[0], level), size: 5, cards };
+      }
+      if (!pair && g3.length === 3 && w === 2) {
+        return { type: 'TRIPLE_PAIR', key: cardVal(g3[0], level), size: 5, cards };
+      }
+      if (pair && pair.length === 1 && g3.length + 1 + w === 5) {
+        return { type: 'TRIPLE_PAIR', key: cardVal(g3[0], level), size: 5, cards };
+      }
     }
   }
 
   // 钢板（连续三张，无翅膀）
-  if (n >= 6 && n % 3 === 0 && sizes.every((s) => s === 3) && onlySeqOk(ranks)) {
+  if (w === 0 && n >= 6 && n % 3 === 0 && sizes.every((s) => s === 3) && onlySeqOk(ranks)) {
     return { type: 'PLANE', key: cardVal(cards.find((c) => c.r === ranks[ranks.length - 1])!, level), size: n, cards };
   }
 
   // 连对（3+ 对连续）
-  if (n >= 6 && n % 2 === 0 && sizes.every((s) => s === 2) && onlySeqOk(ranks)) {
+  if (w === 0 && n >= 6 && n % 2 === 0 && sizes.every((s) => s === 2) && onlySeqOk(ranks)) {
     return { type: 'PAIR_SEQ', key: cardVal(cards.find((c) => c.r === ranks[ranks.length - 1])!, level), size: n, cards };
   }
 
-  // 顺子（5+ 单张连续）
-  if (n >= 5 && sizes.every((s) => s === 1) && onlySeqOk(ranks)) {
-    // 同花顺
-    const suitSet = new Set(cards.map((c) => c.s));
-    if (suitSet.size === 1) {
-      return { type: 'STRAIGHT_FLUSH', key: seqVal(ranks[ranks.length - 1]), size: n, cards };
+  // 顺子 / 同花顺（变牌补缺口）
+  if (n >= 5 && normal.every((c) => c.k === undefined)) {
+    const base = new Set<number>();
+    let dup = false;
+    for (const c of normal) {
+      if (base.has(c.r)) { dup = true; break; }
+      base.add(c.r);
     }
-    return { type: 'STRAIGHT', key: seqVal(ranks[ranks.length - 1]), size: n, cards };
+    if (!dup) {
+      const rs = [...base].sort((a, b) => a - b);
+      if (rs[rs.length - 1] <= 14) {
+        for (let hi = Math.min(14, Math.max(...rs)); hi >= 3; hi--) {
+          const lo = hi - n + 1;
+          if (lo < 3) break;
+          let missing = 0;
+          let bad = false;
+          for (let r = lo; r <= hi; r++) if (!base.has(r)) missing++;
+          for (const r of rs) if (r < lo || r > hi) { bad = true; break; }
+          if (!bad && missing === w) {
+            // 同花顺：normal 同花色（变牌随花色）
+            if (new Set(normal.map((c) => c.s)).size === 1) {
+              return { type: 'STRAIGHT_FLUSH', key: seqVal(hi), size: n, cards };
+            }
+            return { type: 'STRAIGHT', key: seqVal(hi), size: n, cards };
+          }
+        }
+      }
+    }
   }
 
   return null;
@@ -396,13 +539,19 @@ function findSeq(hand: GCard[], len: number, minKey: number, isPair: boolean, is
 
 export function aiPlay(hand: GCard[], prev: PlayInfo | null, level: number, isMyTeamLast: boolean): { play: GCard[] | null; pass: boolean } {
   if (prev === null) {
-    // 自由出牌：出最小单张/对子
+    // 自由出牌：出最小单张/对子（变牌保留，最后才出）
     const groups = groupByR(hand);
     let best: GCard[] | null = null;
     for (const g of groups.values()) {
+      if (isWild(g[0], level)) continue; // 变牌尽量保留
       const v = cardVal(g[0], level);
       if (g.length === 1 && (!best || v < cardVal(best[0], level))) best = [g[0]];
       else if (g.length === 2 && !best && g.every((c) => c.k === undefined)) best = g.slice(0, 2);
+    }
+    if (!best) {
+      // 只剩变牌/王时：出最小变牌单张
+      const ws = hand.filter((c) => isWild(c, level));
+      if (ws.length) best = [ws[0]];
     }
     return { play: best || [hand[0]], pass: false };
   }
@@ -790,11 +939,12 @@ export function GuandanGame() {
               {game.hands[2].map((c) => (
                 <span
                   key={c.id}
-                  className={`gd-mini-card ${c.k !== undefined ? 'gd-mini-joker' : ''} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'}`}
+                  className={`gd-mini-card ${c.k !== undefined ? 'gd-mini-joker' : ''} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
                 >
                   <span className="gd-mini-rank">{c.k !== undefined ? (c.k === 1 ? '大王' : '小王') : rankName(c.r)}</span>
                   {c.k === undefined && <span className="gd-mini-suit">{SUIT_SYMBOL[c.s]}</span>}
                   {c.r === game.level && c.k === undefined && <span className="gd-mini-level">级</span>}
+                  {isWild(c, game.level) && <span className="gd-wild-tag">变</span>}
                 </span>
               ))}
               {game.hands[2].length === 0 && <span className="gd-partner-empty">已出完</span>}
@@ -819,11 +969,12 @@ export function GuandanGame() {
                   {game.hands[3].map((c) => (
                     <span
                       key={c.id}
-                      className={`gd-mini-card ${c.k !== undefined ? 'gd-mini-joker' : ''} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'}`}
+                      className={`gd-mini-card ${c.k !== undefined ? 'gd-mini-joker' : ''} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
                     >
                       <span className="gd-mini-rank">{c.k !== undefined ? (c.k === 1 ? '大王' : '小王') : rankName(c.r)}</span>
                       {c.k === undefined && <span className="gd-mini-suit">{SUIT_SYMBOL[c.s]}</span>}
                       {c.r === game.level && c.k === undefined && <span className="gd-mini-level">级</span>}
+                  {isWild(c, game.level) && <span className="gd-wild-tag">变</span>}
                     </span>
                   ))}
                   {game.hands[3].length === 0 && <span className="gd-partner-empty">已出完</span>}
@@ -852,11 +1003,12 @@ export function GuandanGame() {
                   {game.hands[1].map((c) => (
                     <span
                       key={c.id}
-                      className={`gd-mini-card ${c.k !== undefined ? 'gd-mini-joker' : ''} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'}`}
+                      className={`gd-mini-card ${c.k !== undefined ? 'gd-mini-joker' : ''} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
                     >
                       <span className="gd-mini-rank">{c.k !== undefined ? (c.k === 1 ? '大王' : '小王') : rankName(c.r)}</span>
                       {c.k === undefined && <span className="gd-mini-suit">{SUIT_SYMBOL[c.s]}</span>}
                       {c.r === game.level && c.k === undefined && <span className="gd-mini-level">级</span>}
+                  {isWild(c, game.level) && <span className="gd-wild-tag">变</span>}
                     </span>
                   ))}
                   {game.hands[1].length === 0 && <span className="gd-partner-empty">已出完</span>}
@@ -896,12 +1048,13 @@ export function GuandanGame() {
                 {g.cards.map((c) => (
                   <button
                     key={c.id}
-                    className={`gd-card ${selected.includes(c.id) ? 'gd-selected' : ''} ${c.k !== undefined ? 'gd-card-joker' : (c.r === game.level ? 'gd-card-level' : '')} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'}`}
+                    className={`gd-card ${selected.includes(c.id) ? 'gd-selected' : ''} ${c.k !== undefined ? 'gd-card-joker' : (c.r === game.level ? 'gd-card-level' : '')} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
                     onClick={() => toggleCard(c.id)}
                   >
                     <span className="gd-card-rank">{c.k !== undefined ? (c.k === 1 ? 'JOKER' : 'joker') : rankName(c.r)}</span>
                     {c.k === undefined && <span className="gd-card-suit">{SUIT_SYMBOL[c.s]}</span>}
                     {c.r === game.level && c.k === undefined && <span className="gd-card-level-tag">级</span>}
+                    {isWild(c, game.level) && <span className="gd-wild-tag">变</span>}
                   </button>
                 ))}
               </div>
@@ -915,13 +1068,14 @@ export function GuandanGame() {
           {sortedHand.map((c, i) => (
             <button
               key={c.id}
-              className={`gd-card ${selected.includes(c.id) ? 'gd-selected' : ''} ${c.k !== undefined ? 'gd-card-joker' : (c.r === game.level ? 'gd-card-level' : '')} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'}`}
+              className={`gd-card ${selected.includes(c.id) ? 'gd-selected' : ''} ${c.k !== undefined ? 'gd-card-joker' : (c.r === game.level ? 'gd-card-level' : '')} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
               onClick={() => toggleCard(c.id)}
               style={{ marginLeft: i > 0 ? -Math.min(26, 260 / sortedHand.length) : 0 }}
             >
               <span className="gd-card-rank">{c.k !== undefined ? (c.k === 1 ? 'JOKER' : 'joker') : rankName(c.r)}</span>
               {c.k === undefined && <span className="gd-card-suit">{SUIT_SYMBOL[c.s]}</span>}
               {c.r === game.level && c.k === undefined && <span className="gd-card-level-tag">级</span>}
+              {isWild(c, game.level) && <span className="gd-wild-tag">变</span>}
             </button>
           ))}
           {sortedHand.length === 0 && <div className="gd-hand-empty">牌已出完</div>}
