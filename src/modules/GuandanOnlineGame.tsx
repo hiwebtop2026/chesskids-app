@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { enterFullscreen, exitFullscreen } from '../utils/fullscreen';
 import {
   type GCard, type PlayInfo, analyzePlay, canBeat, cardVal, rankName,
-  buildDeck, shuffle, groupHand, groupByR, GD_ZONES, SUIT_SYMBOL, isWild,
+  buildDeck, shuffle, groupHand, groupByR, GD_ZONES, SUIT_SYMBOL, isWild, levelRank,
 } from './GuandanGame';
 
 // ================================================================
@@ -34,6 +34,8 @@ export interface GDOnlineState {
   winnerTeam: number | null;
   resultText: string;
   playerNames: string[];
+  /** 打 A 连续未过局数（连续 3 把不过退回 2 重新打） */
+  aStrikes: number;
 }
 
 // ================================================================
@@ -66,15 +68,35 @@ export function gdApplyTurn(prev: GDOnlineState, player: number, play: GCard[] |
         let newLevel = prev.level + up;
         let resultText = txt;
         let winnerTeam: number | null = null;
-        if (newLevel > 14) {
-          if (myTeamWon) { winnerTeam = 0; resultText = '🏆 打过 A！我方（房主队）获胜！'; }
+        let aStrikes = prev.aStrikes || 0;
+        if (prev.level === 14) {
+          // 打 A 中：必须双上（己方 1、2 名）才算过 A 获胜
+          if (myTeamWon && up >= 3) {
+            winnerTeam = 0; newLevel = 14; aStrikes = 0;
+            resultText = '🏆 双上打过 A！房主队获胜！';
+          } else if (!myTeamWon && up >= 3) {
+            // 对方双上打过 A：退回 2 重新打
+            newLevel = 2; aStrikes = 0;
+            resultText = '对方双上打过 A，退回 2 重新打';
+          } else {
+            aStrikes += 1;
+            if (aStrikes >= 3) {
+              newLevel = 2; aStrikes = 0;
+              resultText = '连续 3 把未过 A，退回 2 重新打';
+            } else {
+              newLevel = 14;
+              resultText = `打 A 未过（第 ${aStrikes} 把，连 3 把不过退回 2）`;
+            }
+          }
+        } else if (newLevel > 14) {
+          if (myTeamWon) { winnerTeam = 0; resultText = '🏆 打过 A！房主队获胜！'; }
           else { winnerTeam = 1; resultText = '对方打过 A，重新打 A'; newLevel = 14; }
         } else if (newLevel === 14) {
           resultText = myTeamWon ? '🚀 打到 A！下一局双上即获胜！' : '对方打到 A';
         }
         return {
           ...prev, hands, roundPass: [], roundPlays, finished, phase: 'over', winnerTeam, resultText,
-          level: newLevel, current: order[0], lastPlay: null, lastPlayBy: -1,
+          level: newLevel, aStrikes, current: order[0], lastPlay: null, lastPlayBy: -1,
         };
       }
     }
@@ -93,13 +115,14 @@ export function gdApplyTurn(prev: GDOnlineState, player: number, play: GCard[] |
   return { ...prev, hands, roundPass, roundPlays, current: (player + 1) % 4 };
 }
 
-export function gdNewGame(level: number, names: string[], firstSeat: number): GDOnlineState {
+export function gdNewGame(level: number, names: string[], firstSeat: number, keepStrikes = 0): GDOnlineState {
   const deck = shuffle(buildDeck());
   const hands: GCard[][] = [[], [], [], []];
   deck.forEach((c, i) => hands[i % 4].push(c));
   return {
     hands, level, current: firstSeat, lastPlay: null, lastPlayBy: -1, turnStart: firstSeat,
     finished: [], roundPass: [], roundPlays: [], phase: 'playing', winnerTeam: null, resultText: '', playerNames: names,
+    aStrikes: keepStrikes,
   };
 }
 
@@ -373,7 +396,7 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
   const nextRound = useCallback(() => {
     if (!game) return;
     const names = ['房主', ...connsRef.current.map((c) => c._gdName)];
-    const st = gdNewGame(game.level, names, game.finished[0] ?? 0);
+    const st = gdNewGame(game.level, names, game.finished[0] ?? 0, game.aStrikes || 0);
     setGame(st);
     broadcastState(st);
   }, [game, broadcastState]);
@@ -714,7 +737,7 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
                 >
                   <span className="gd-mini-rank">{c.k !== undefined ? (c.k === 1 ? '大王' : '小王') : rankName(c.r)}</span>
                   {c.k === undefined && <span className="gd-mini-suit">{SUIT_SYMBOL[c.s]}</span>}
-                  {c.r === game.level && c.k === undefined && <span className="gd-mini-level">级</span>}
+                  {c.r === levelRank(game.level) && c.k === undefined && <span className="gd-mini-level">级</span>}
                 </span>
               ))}
               {game.hands[2].length === 0 && <span className="gd-partner-empty">已出完</span>}
@@ -742,7 +765,7 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
                     >
                       <span className="gd-mini-rank">{c.k !== undefined ? (c.k === 1 ? '大王' : '小王') : rankName(c.r)}</span>
                       {c.k === undefined && <span className="gd-mini-suit">{SUIT_SYMBOL[c.s]}</span>}
-                      {c.r === game.level && c.k === undefined && <span className="gd-mini-level">级</span>}
+                      {c.r === levelRank(game.level) && c.k === undefined && <span className="gd-mini-level">级</span>}
                       {isWild(c, game.level) && <span className="gd-wild-tag">变</span>}
                     </span>
                   ))}
@@ -776,7 +799,7 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
                     >
                       <span className="gd-mini-rank">{c.k !== undefined ? (c.k === 1 ? '大王' : '小王') : rankName(c.r)}</span>
                       {c.k === undefined && <span className="gd-mini-suit">{SUIT_SYMBOL[c.s]}</span>}
-                      {c.r === game.level && c.k === undefined && <span className="gd-mini-level">级</span>}
+                      {c.r === levelRank(game.level) && c.k === undefined && <span className="gd-mini-level">级</span>}
                       {isWild(c, game.level) && <span className="gd-wild-tag">变</span>}
                     </span>
                   ))}
@@ -812,12 +835,12 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
                 {g.cards.map((c) => (
                   <button
                     key={c.id}
-                    className={`gd-card ${selected.includes(c.id) ? 'gd-selected' : ''} ${c.k !== undefined ? 'gd-card-joker' : (c.r === game.level ? 'gd-card-level' : '')} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
+                    className={`gd-card ${selected.includes(c.id) ? 'gd-selected' : ''} ${c.k !== undefined ? 'gd-card-joker' : (c.r === levelRank(game.level) ? 'gd-card-level' : '')} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
                     onClick={() => toggleCard(c.id)}
                   >
                     <span className="gd-card-rank">{c.k !== undefined ? (c.k === 1 ? 'JOKER' : 'joker') : rankName(c.r)}</span>
                     {c.k === undefined && <span className="gd-card-suit">{SUIT_SYMBOL[c.s]}</span>}
-                    {c.r === game.level && c.k === undefined && <span className="gd-card-level-tag">级</span>}
+                    {c.r === levelRank(game.level) && c.k === undefined && <span className="gd-card-level-tag">级</span>}
                     {isWild(c, game.level) && <span className="gd-wild-tag">变</span>}
                   </button>
                 ))}
@@ -832,13 +855,13 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
           {sortedHand.map((c, i) => (
             <button
               key={c.id}
-              className={`gd-card ${selected.includes(c.id) ? 'gd-selected' : ''} ${c.k !== undefined ? 'gd-card-joker' : (c.r === game.level ? 'gd-card-level' : '')} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
+              className={`gd-card ${selected.includes(c.id) ? 'gd-selected' : ''} ${c.k !== undefined ? 'gd-card-joker' : (c.r === levelRank(game.level) ? 'gd-card-level' : '')} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
               onClick={() => toggleCard(c.id)}
               style={{ marginLeft: i > 0 ? -Math.min(26, 260 / sortedHand.length) : 0 }}
             >
               <span className="gd-card-rank">{c.k !== undefined ? (c.k === 1 ? 'JOKER' : 'joker') : rankName(c.r)}</span>
               {c.k === undefined && <span className="gd-card-suit">{SUIT_SYMBOL[c.s]}</span>}
-              {c.r === game.level && c.k === undefined && <span className="gd-card-level-tag">级</span>}
+              {c.r === levelRank(game.level) && c.k === undefined && <span className="gd-card-level-tag">级</span>}
               {isWild(c, game.level) && <span className="gd-wild-tag">变</span>}
             </button>
           ))}

@@ -38,11 +38,16 @@ function cardText(c: GCard): string {
   return `${rankName(c.r)}${SUIT_SYMBOL[c.s] || ''}`;
 }
 
+// 级牌点数 → 牌面点数 r 的映射：级牌 2 在牌面中用 r=15 表示，A 用 r=14
+export function levelRank(level: number): number {
+  return level === 2 || level === 15 ? 15 : level;
+}
+
 // 牌值：用于牌型比较。王最大，级牌次之
 export function cardVal(c: GCard, level: number): number {
   if (c.k === 1) return 18;
   if (c.k === 0) return 17;
-  if (c.r === level) return 16;
+  if (c.r === levelRank(level)) return 16;
   if (c.r === 15) return 2; // 非级牌 2 最小
   return c.r;
 }
@@ -57,7 +62,7 @@ function pointVal(c: GCard, level: number): number {
 // 作单张时只比王牌小、大于其他所有牌（含普通级牌）
 // ================================================================
 export function isWild(c: GCard, level: number): boolean {
-  return c.k === undefined && c.s === 'H' && c.r === level;
+  return c.k === undefined && c.s === 'H' && c.r === levelRank(level);
 }
 export const WILD_SINGLE_KEY = 16.5; // 单张牌力：> 级牌(16)、< 小王(17)
 export const WILD_GROUP_KEY = 16.5;  // 双变牌成对/三张时的最大组值
@@ -116,6 +121,7 @@ export const GD_ZONES: { top: number; left: number; w: number; h: number; label:
 export function groupHand(hand: GCard[], level: number): HandGroup[] {
   const used = new Set<number>();
   const out: HandGroup[] = [];
+  const lr = levelRank(level);
   const take = (cards: GCard[], label: string) => {
     if (!cards || cards.length === 0) return;
     cards.forEach((c) => used.add(c.id));
@@ -274,9 +280,9 @@ export function groupHand(hand: GCard[], level: number): HandGroup[] {
       else if (curWs.length >= 2) take(curWs.slice(0, 2), '对子 ·变');
       else take([c0], '变牌 顶级单张');
     }
-    else if (arr.length === 3) take(arr, `三张 ${rankName(c0.r)}${c0.r === level ? '·级' : ''}`);
-    else if (arr.length === 2) take(arr, `对子 ${rankName(c0.r)}${c0.r === level ? '·级' : ''}`);
-    else take(arr, `单张 ${rankName(c0.r)}${c0.r === level ? '·级' : ''}`);
+    else if (arr.length === 3) take(arr, `三张 ${rankName(c0.r)}${c0.r === lr ? '·级' : ''}`);
+    else if (arr.length === 2) take(arr, `对子 ${rankName(c0.r)}${c0.r === lr ? '·级' : ''}`);
+    else take(arr, `单张 ${rankName(c0.r)}${c0.r === lr ? '·级' : ''}`);
   }
   return out;
 }
@@ -608,6 +614,8 @@ interface GameState {
   winnerTeam: number | null;
   resultText: string;
   gongMessage: string;
+  /** 打 A 连续未过局数（连续 3 把不过退回 2 重新打） */
+  aStrikes: number;
 }
 
 const NAMES = ['你', '队友', '对手A', '对手B'];
@@ -648,7 +656,7 @@ export function GuandanGame() {
     return () => document.body.classList.remove('gd-float-active');
   }, [floating]);
 
-  const startNew = useCallback((prevLevel?: number) => {
+  const startNew = useCallback((prevLevel?: number, keepStrikes = 0) => {
     const deck = shuffle(buildDeck());
     const hands: GCard[][] = [[], [], [], []];
     deck.forEach((c, i) => hands[i % 4].push(c));
@@ -668,6 +676,7 @@ export function GuandanGame() {
       winnerTeam: null,
       resultText: '',
       gongMessage: '',
+      aStrikes: keepStrikes,
     });
     setSelected([]);
   }, []);
@@ -747,17 +756,38 @@ export function GuandanGame() {
             let newLevel = prev.level + up;
             let resultText = txt;
             let winnerTeam: number | null = null;
-            if (newLevel > 14) {
+            let aStrikes = prev.aStrikes || 0;
+            if (prev.level === 14) {
+              // 打 A 中：必须双上（己方 1、2 名）才算过 A 获胜
+              if (win === 0 && up >= 3) {
+                winnerTeam = 0; newLevel = 14; aStrikes = 0;
+                resultText = '🏆 双上打过 A！我方获胜！';
+              } else if (win === 1 && up >= 3) {
+                // 对方双上打过 A：我方退回 2 重新打
+                newLevel = 2; aStrikes = 0;
+                resultText = '对方双上打过 A，我方退回 2 重新打';
+              } else {
+                aStrikes += 1;
+                if (aStrikes >= 3) {
+                  newLevel = 2; aStrikes = 0;
+                  resultText = `连续 3 把未过 A，退回 2 重新打`;
+                } else {
+                  newLevel = 14;
+                  resultText = `打 A 未过（第 ${aStrikes} 把，连 3 把不过退回 2）`;
+                }
+              }
+            } else if (newLevel > 14) {
               if (win === 0) { winnerTeam = 0; resultText = '🏆 打过 A！我方获胜！'; }
               else { winnerTeam = 1; resultText = '对方打过 A，重新打 A'; newLevel = 14; }
             } else if (newLevel === 14 && up >= 3) {
-              // 到 A 即双上时才算胜——此处简化：到 A 后需要下一次双上，本局只升级到 A
+              // 首次双上到 A：下一局双上即获胜
               resultText = win === 0 ? '🚀 打到 A！下一局双上即获胜！' : '对方打到 A';
             }
             return {
               ...prev, hands, lastPlay, roundPass: [], roundPlays, finished,
               phase: 'over', winnerTeam, resultText,
               level: newLevel,
+              aStrikes,
               current: finished[0],
             };
           }
@@ -903,7 +933,7 @@ export function GuandanGame() {
               <button className="gd-menu-btn" onClick={() => { applyHint(); setMenuOpen(false); }} disabled={!isMyTurn}>
                 💡 提示
               </button>
-              <button className="gd-menu-btn" onClick={() => { startNew(game.level); setMenuOpen(false); }}>
+              <button className="gd-menu-btn" onClick={() => { startNew(game.level, game.aStrikes || 0); setMenuOpen(false); }}>
                 🔄 重新发牌
               </button>
               <button className="gd-menu-btn danger" onClick={() => { setFloating(false); try { exitFullscreen(); } catch { /* 忽略 */ } setMenuOpen(false); }}>
@@ -943,7 +973,7 @@ export function GuandanGame() {
                 >
                   <span className="gd-mini-rank">{c.k !== undefined ? (c.k === 1 ? '大王' : '小王') : rankName(c.r)}</span>
                   {c.k === undefined && <span className="gd-mini-suit">{SUIT_SYMBOL[c.s]}</span>}
-                  {c.r === game.level && c.k === undefined && <span className="gd-mini-level">级</span>}
+                  {c.r === levelRank(game.level) && c.k === undefined && <span className="gd-mini-level">级</span>}
                   {isWild(c, game.level) && <span className="gd-wild-tag">变</span>}
                 </span>
               ))}
@@ -973,7 +1003,7 @@ export function GuandanGame() {
                     >
                       <span className="gd-mini-rank">{c.k !== undefined ? (c.k === 1 ? '大王' : '小王') : rankName(c.r)}</span>
                       {c.k === undefined && <span className="gd-mini-suit">{SUIT_SYMBOL[c.s]}</span>}
-                      {c.r === game.level && c.k === undefined && <span className="gd-mini-level">级</span>}
+                      {c.r === levelRank(game.level) && c.k === undefined && <span className="gd-mini-level">级</span>}
                   {isWild(c, game.level) && <span className="gd-wild-tag">变</span>}
                     </span>
                   ))}
@@ -1007,7 +1037,7 @@ export function GuandanGame() {
                     >
                       <span className="gd-mini-rank">{c.k !== undefined ? (c.k === 1 ? '大王' : '小王') : rankName(c.r)}</span>
                       {c.k === undefined && <span className="gd-mini-suit">{SUIT_SYMBOL[c.s]}</span>}
-                      {c.r === game.level && c.k === undefined && <span className="gd-mini-level">级</span>}
+                      {c.r === levelRank(game.level) && c.k === undefined && <span className="gd-mini-level">级</span>}
                   {isWild(c, game.level) && <span className="gd-wild-tag">变</span>}
                     </span>
                   ))}
@@ -1048,12 +1078,12 @@ export function GuandanGame() {
                 {g.cards.map((c) => (
                   <button
                     key={c.id}
-                    className={`gd-card ${selected.includes(c.id) ? 'gd-selected' : ''} ${c.k !== undefined ? 'gd-card-joker' : (c.r === game.level ? 'gd-card-level' : '')} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
+                    className={`gd-card ${selected.includes(c.id) ? 'gd-selected' : ''} ${c.k !== undefined ? 'gd-card-joker' : (c.r === levelRank(game.level) ? 'gd-card-level' : '')} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
                     onClick={() => toggleCard(c.id)}
                   >
                     <span className="gd-card-rank">{c.k !== undefined ? (c.k === 1 ? 'JOKER' : 'joker') : rankName(c.r)}</span>
                     {c.k === undefined && <span className="gd-card-suit">{SUIT_SYMBOL[c.s]}</span>}
-                    {c.r === game.level && c.k === undefined && <span className="gd-card-level-tag">级</span>}
+                    {c.r === levelRank(game.level) && c.k === undefined && <span className="gd-card-level-tag">级</span>}
                     {isWild(c, game.level) && <span className="gd-wild-tag">变</span>}
                   </button>
                 ))}
@@ -1068,13 +1098,13 @@ export function GuandanGame() {
           {sortedHand.map((c, i) => (
             <button
               key={c.id}
-              className={`gd-card ${selected.includes(c.id) ? 'gd-selected' : ''} ${c.k !== undefined ? 'gd-card-joker' : (c.r === game.level ? 'gd-card-level' : '')} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
+              className={`gd-card ${selected.includes(c.id) ? 'gd-selected' : ''} ${c.k !== undefined ? 'gd-card-joker' : (c.r === levelRank(game.level) ? 'gd-card-level' : '')} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
               onClick={() => toggleCard(c.id)}
               style={{ marginLeft: i > 0 ? -Math.min(26, 260 / sortedHand.length) : 0 }}
             >
               <span className="gd-card-rank">{c.k !== undefined ? (c.k === 1 ? 'JOKER' : 'joker') : rankName(c.r)}</span>
               {c.k === undefined && <span className="gd-card-suit">{SUIT_SYMBOL[c.s]}</span>}
-              {c.r === game.level && c.k === undefined && <span className="gd-card-level-tag">级</span>}
+              {c.r === levelRank(game.level) && c.k === undefined && <span className="gd-card-level-tag">级</span>}
               {isWild(c, game.level) && <span className="gd-wild-tag">变</span>}
             </button>
           ))}
