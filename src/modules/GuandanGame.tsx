@@ -1153,7 +1153,7 @@ export function GuandanGame() {
     return () => document.body.classList.remove('gd-float-active');
   }, [floating]);
 
-  const startNew = useCallback((prevLevel?: number, keepStrikes = 0, tributePlan: { from: number; to: number }[] | null = null) => {
+  const startNew = useCallback((prevLevel?: number, keepStrikes = 0, tributePlan: { from: number; to: number }[] | null = null, firstSeat?: number) => {
     const deck = shuffle(buildDeck());
     const hands: GCard[][] = [[], [], [], []];
     deck.forEach((c, i) => hands[i % 4].push(c));
@@ -1188,8 +1188,8 @@ export function GuandanGame() {
       }
       gong = `🔄 ${gong}`;
     }
-    // 简化：0 号玩家先手（首局随机）
-    const first = prevLevel === undefined ? Math.floor(Math.random() * 4) : 0;
+    // 先手：首局随机；重开时默认头游先出（可传 firstSeat 覆盖）
+    const first = firstSeat !== undefined ? firstSeat : (prevLevel === undefined ? Math.floor(Math.random() * 4) : 0);
     setGame({
       hands,
       level: lv,
@@ -1586,7 +1586,7 @@ export function GuandanGame() {
                   ↩️ 恢复排序
                 </button>
               )}
-              <button className="gd-menu-btn" onClick={() => { startNew(game.level, game.aStrikes || 0, game.tributePlan); setMenuOpen(false); }}>
+              <button className="gd-menu-btn" onClick={() => { startNew(game.level, game.aStrikes || 0, game.tributePlan, game.phase === 'over' ? game.finished[0] : undefined); setMenuOpen(false); }}>
                 🔄 重新发牌
               </button>
               <button className="gd-menu-btn danger" onClick={() => { setFloating(false); try { exitFullscreen(); } catch { /* 忽略 */ } setMenuOpen(false); }}>
