@@ -1384,13 +1384,16 @@ export function GuandanGame() {
       } else {
         // 不出
         roundPass.push(player);
-        if (roundPass.length >= 3) {
+        // 一圈结束：除最后出牌者外，所有未出完玩家都已 pass
+        // （有玩家头游后活人数减少，pass 满 3 可能永远不满足 → 按"活人-1"判定，避免上一轮牌面残留）
+        const aliveNotBy = [0, 1, 2, 3].filter((p) => !finished.includes(p) && p !== prev.lastPlayBy);
+        if (roundPass.length >= Math.max(1, aliveNotBy.length)) {
           // 一圈全过 → 立即清空四家出牌信息，下一轮出牌从零开始
           // 接风规则：最后出牌者已出完（头游）时，由其对家（队友）接风自由出牌；否则最后出牌者自由出牌
           const freer = finished.includes(prev.lastPlayBy)
             ? (finished.includes(prev.lastPlayBy ^ 2) ? nextAlive(prev.lastPlayBy + 1, finished) : prev.lastPlayBy ^ 2)
             : prev.lastPlayBy;
-          return { ...prev, hands, roundPass: [], roundPlays: [], roundEnded: false, current: freer, lastPlay: null, lastPlayBy: freer };
+          return { ...prev, hands, roundPass: [], roundPlays: [], roundEnded: true, current: freer, lastPlay: null, lastPlayBy: freer };
         }
         return { ...prev, hands, roundPass, roundPlays, current: nextAlive(player + 1, finished) };
       }
