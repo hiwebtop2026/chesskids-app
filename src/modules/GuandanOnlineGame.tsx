@@ -1377,7 +1377,10 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
 
       <div className="gd-actions">
         <span className="gd-turn-hint">
-          {game.phase === 'over' ? game.resultText : isMyTurn ? `🖐 轮到你（${myName}）出牌` : `等待 ${seatLabel(game.current)} 出牌…`}
+          {game.phase === 'over' ? game.resultText
+            : headSeat === 0 ? '🏆 你已头游！' + (game.finished.length < 4 ? ' 明牌查看对家剩余牌' : '')
+            : isMyTurn ? `🖐 轮到你（${myName}）出牌`
+            : `等待 ${seatLabel(game.current)} 出牌…`}
         </span>
         <button className="gd-btn gd-btn-pass" onClick={doPass} disabled={!canPass}>不出</button>
         <button className="gd-btn gd-btn-hint" onClick={applyHint} disabled={!isMyTurn}>提示</button>
