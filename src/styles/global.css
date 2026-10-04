@@ -7408,18 +7408,20 @@ ul {
 /* 四方位出牌区对齐桌垫分区框线（GD_ZONES 出牌区格）：北 34%/44.5%、西 48%/30%、东 48%/58%、南 62%/44.5% */
 .gd-play-north { top: 20%; }
 .gd-play-south { top: 48%; } /* 上移至中央偏上，与底部操作区按钮完全分离，避免遮挡 */
-/* 其他三方向按"本向视角"摆放：北家(对面)牌倒置 180°、西家(左)右旋 90°、东家(右)左旋 90°，牌面朝向对应玩家，与南向我方视角对称 */
+/* 其他三方向按"本向视角"摆放：北家(对面)牌倒置 180°；西/东改为正立显示（旋转后牌面在窄容器内显示不完整，正立更清晰可读），位置仍按各自方位布局 */
 .gd-play-north .gd-play-hand { transform: rotate(180deg); }
-.gd-play-west .gd-play-hand { transform: rotate(90deg); }
-.gd-play-east .gd-play-hand { transform: rotate(-90deg); }
+.gd-play-west .gd-play-hand { transform: none; }
+.gd-play-east .gd-play-hand { transform: none; }
 .gd-side-col { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .gd-play-west, .gd-play-east {
   position: absolute;
   top: 38%;
-  width: 30%;
-  height: 32%;
-  max-height: 260px;
-  min-height: 0;
+  width: 34%;
+  height: 36%;
+  max-height: 300px;
+  min-height: 180px;
+  min-width: 0;
+  overflow: visible; /* 覆盖 .gd-play-area 的 overflow 裁剪，牌面完整显示 */
   align-items: center;
   justify-content: center;
   border-radius: 14px;
@@ -7427,12 +7429,12 @@ ul {
   border: 1.5px dashed rgba(255, 213, 79, 0.2);
   padding: 12px 8px;
 }
-.gd-play-west { left: 8%; }
-.gd-play-east { left: 62%; }
+.gd-play-west { left: 5%; }
+.gd-play-east { left: 61%; }
 @media (max-width: 640px) {
   .gd-play-north, .gd-play-south { width: 60%; max-width: 400px; left: 50%; max-height: 160px; }
-  .gd-play-west, .gd-play-east { width: 28%; height: 28%; top: 40%; }
-  .gd-play-west { left: 6%; }
+  .gd-play-west, .gd-play-east { width: 30%; height: 30%; min-height: 140px; top: 40%; overflow: visible; }
+  .gd-play-west { left: 4%; }
   .gd-play-east { left: 66%; }
 }
 @media (max-width: 640px) {
