@@ -1455,6 +1455,18 @@ export function GuandanGame() {
     if (!game || game.phase !== 'playing' || game.current === 0) return;
     if (timerRef.current) clearTimeout(timerRef.current);
     const p = game.current;
+    // 防御：若 current 指向已出完（finished）的座位，直接推进到下一活人，避免死锁
+    if (game.finished.includes(p)) {
+      const next = nextAlive(p + 1, game.finished);
+      if (next !== p) {
+        setGame((prev) => {
+          if (!prev) return prev;
+          if (prev.current !== p || prev.finished.includes(prev.current)) return prev;
+          return { ...prev, current: next, turnStart: next };
+        });
+      }
+      return;
+    }
     timerRef.current = setTimeout(() => {
       const prev = game.lastPlay;
       const isTeamLast = prev ? (prev.player === (p === 0 ? 2 : p === 2 ? 0 : p === 1 ? 3 : 1)) : false;

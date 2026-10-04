@@ -7395,6 +7395,7 @@ ul {
   width: 46%;
   max-width: 620px;
   min-height: 0;
+  height: auto; /* 覆盖 .gd-play-area 的 height:100%：盒子仅包内容，不占满下半屏挡住操作区按钮 */
   max-height: 220px;
   align-items: center;
   border-radius: 14px;
@@ -7406,7 +7407,7 @@ ul {
 }
 /* 四方位出牌区对齐桌垫分区框线（GD_ZONES 出牌区格）：北 34%/44.5%、西 48%/30%、东 48%/58%、南 62%/44.5% */
 .gd-play-north { top: 20%; }
-.gd-play-south { top: 58%; }
+.gd-play-south { top: 48%; } /* 上移至中央偏上，与底部操作区按钮完全分离，避免遮挡 */
 /* 其他三方向按"本向视角"摆放：北家(对面)牌倒置 180°、西家(左)右旋 90°、东家(右)左旋 90°，牌面朝向对应玩家，与南向我方视角对称 */
 .gd-play-north .gd-play-hand { transform: rotate(180deg); }
 .gd-play-west .gd-play-hand { transform: rotate(90deg); }
@@ -7449,7 +7450,7 @@ ul {
   flex-wrap: wrap;
   justify-content: center;
   position: relative;
-  z-index: 1;
+  z-index: 5; /* 保证操作区按钮始终可点，不被出牌区/手牌区覆盖 */
 }
 .gd-turn-hint { flex-basis: 100%; text-align: center; font-size: 12.5px; color: #e8f5e9; }
 .gd-btn {
