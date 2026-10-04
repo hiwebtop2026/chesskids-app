@@ -179,11 +179,12 @@ function aiLead(
   const groups = groupHand(hand, level);
   const byRank = groupByR(hand);
 
-  // 队友已头游，自己冲刺：优先出整组牌型，尽快跑
+  // 队友已头游，自己冲刺：优先出整组牌型，尽快跑（同花顺除外——保留用于跟牌压制，首攻不出）
   if (partnerHeadStart) {
     const comboGroups = groups.filter(g =>
-      g.label.includes('顺') || g.label.includes('连对') ||
-      g.label.includes('钢板') || g.label.includes('三带')
+      !g.label.includes('同花顺') &&
+      (g.label.includes('顺') || g.label.includes('连对') ||
+      g.label.includes('钢板') || g.label.includes('三带'))
     );
     if (comboGroups.length > 0) {
       comboGroups.sort((a, b) => cardVal(a.cards[0], level) - cardVal(b.cards[0], level));
@@ -214,11 +215,12 @@ function aiLead(
     if (pairs.length > 0) return pairs[0];
   }
 
-  // 主攻型：出最大的组合牌
+  // 主攻型：出最大的组合牌（同花顺除外——保留用于跟牌压制，首攻不出）
   if (role === 'aggressive') {
     const comboGroups = groups.filter(g =>
-      g.label.includes('顺') || g.label.includes('连对') ||
-      g.label.includes('钢板') || g.label.includes('三带')
+      !g.label.includes('同花顺') &&
+      (g.label.includes('顺') || g.label.includes('连对') ||
+      g.label.includes('钢板') || g.label.includes('三带'))
     );
     if (comboGroups.length > 0) {
       comboGroups.sort((a, b) => cardVal(a.cards[0], level) - cardVal(b.cards[0], level));
