@@ -1117,7 +1117,7 @@ interface GameState {
   tributePlan: { from: number; to: number }[] | null;
 }
 
-const NAMES = ['你', '队友', '对手A', '对手B'];
+const NAMES = ['你', '对手A', '队友', '对手B'];
 // 座位：0=玩家(南) 2=队友(北) 1=右对手 3=左对手（对家组队 0-2 / 1-3）
 
 export function GuandanGame() {
