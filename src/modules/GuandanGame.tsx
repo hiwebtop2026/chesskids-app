@@ -1553,7 +1553,7 @@ export function GuandanGame() {
   const showPartnerCards = headSeat >= 0 && (headSeat === 0 || headSeat === 2) && partnerSeat !== 0;
 
   return (
-    <div className={`gd-table ${floating ? 'gd-floating' : ''}`} onClick={requestFullscreenOnGesture}>
+    <div className={`gd-table ${floating ? 'gd-floating' : ''} ${!isMyTurn ? 'gd-watching' : ''}`} onClick={requestFullscreenOnGesture}>
       {/* 桌垫方位水印、分区框线与铭牌（参考比赛专用桌垫） */}
       <span className="gd-dir gd-dir-n">北</span>
       <span className="gd-dir gd-dir-s">南</span>
@@ -1820,7 +1820,7 @@ export function GuandanGame() {
             {game.winnerTeam === 0 && <p className="gd-overlay-win">🎉 恭喜！我方获胜！</p>}
             {game.winnerTeam === 1 && <p className="gd-overlay-lose">再接再厉，加油！</p>}
             <div className="gd-overlay-btns">
-              <button className="gd-btn gd-btn-primary" onClick={() => startNew(game.level)}>开始下一局</button>
+              <button className="gd-btn gd-btn-primary" onClick={() => startNew(game.level, game.aStrikes || 0, game.tributePlan, game.finished[0])}>开始下一局</button>
             </div>
           </div>
         </div>
