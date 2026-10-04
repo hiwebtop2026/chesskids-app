@@ -79,8 +79,16 @@ export function gdApplyTurn(prev: GDOnlineState, player: number, play: GCard[] |
     hands[player] = hands[player].filter((c) => !play.some((p) => p.id === c.id));
     if (hands[player].length === 0) {
       finished.push(player);
-      if (finished.length === 4) {
-        const order = finished;
+      // 双下判定：前两名同队（0↔2、1↔3）→ 对方必为 3、4 名，胜负已定，立即结算
+      const duo = finished.length >= 2 && ((finished[0] ^ 2) === finished[1]);
+      if (finished.length === 4 || duo) {
+        const order = [...finished];
+        // 双下且对方未打完：按剩余手牌数推定 3、4 游（多者末游进贡、少者三游）
+        if (duo && finished.length < 4) {
+          const opps = [0, 1, 2, 3].filter((s) => !finished.includes(s));
+          const ranked = [...opps].sort((a, b) => hands[b].length - hands[a].length);
+          order.push(ranked[1], ranked[0]); // 少者=三游(order[2])、多者=末游(order[3])
+        }
         const myTeamWon = teamOf(order[0]) === 0;
         let up: number; let txt: string;
         let tributePlan: { from: number; to: number }[] | null = null;
