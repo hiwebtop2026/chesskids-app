@@ -7181,6 +7181,22 @@ ul {
 .gd-info b { font-size: 14px; }
 .gd-level { color: #ffd54f; }
 
+.gd-gong-bar {
+  margin: 4px auto 0;
+  max-width: 92%;
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffe082;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 213, 79, 0.35);
+  border-radius: 99px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .gd-seats { flex: 1; display: flex; flex-direction: column; gap: 8px; padding: 10px 4px 4px; position: relative; z-index: 1; }
 .gd-seat {
   position: relative;

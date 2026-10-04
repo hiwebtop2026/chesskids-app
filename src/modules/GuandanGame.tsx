@@ -444,7 +444,49 @@ export function analyzePlay(cards: GCard[], level: number): PlayInfo | null {
     return { type: 'PLANE', key: cardVal(cards.find((c) => c.r === ranks[ranks.length - 1])!, level), size: n, cards };
   }
 
-  // 连对（3+ 对连续）
+  // 连对（3+ 对连续）/ 钢板（连续三张）：变牌可补缺口
+  if (w > 0 && n >= 6) {
+    const ng = groupByR(normal);
+    const nArr = [...ng.entries()].filter(([, g]) => g.every((c) => c.k === undefined));
+    // 连对：每组 ≤2 张，变牌补齐成对
+    if (n % 2 === 0 && n / 2 >= 3) {
+      let ok = true;
+      const rs: number[] = [];
+      let need = 0;
+      for (const [r, g] of nArr) {
+        if (r < 3 || r > 14) { ok = false; break; }
+        if (g.length > 2) { ok = false; break; }
+        rs.push(r);
+        need += 2 - g.length;
+      }
+      if (ok && need <= w && need + nArr.length === n / 2) {
+        rs.sort((a, b) => a - b);
+        if (onlySeqOk(rs)) {
+          return { type: 'PAIR_SEQ', key: cardVal(cards.find((c) => c.r === rs[rs.length - 1])!, level), size: n, cards };
+        }
+      }
+    }
+    // 钢板：每组 ≤3 张，变牌补齐成三张
+    if (n % 3 === 0 && n / 3 >= 2) {
+      let ok = true;
+      const rs: number[] = [];
+      let need = 0;
+      for (const [r, g] of nArr) {
+        if (r < 3 || r > 14) { ok = false; break; }
+        if (g.length > 3) { ok = false; break; }
+        rs.push(r);
+        need += 3 - g.length;
+      }
+      if (ok && need <= w && need + nArr.length === n / 3) {
+        rs.sort((a, b) => a - b);
+        if (onlySeqOk(rs)) {
+          return { type: 'PLANE', key: cardVal(cards.find((c) => c.r === rs[rs.length - 1])!, level), size: n, cards };
+        }
+      }
+    }
+  }
+
+  // 连对（纯牌，3+ 对连续）
   if (w === 0 && n >= 6 && n % 2 === 0 && sizes.every((s) => s === 2) && onlySeqOk(ranks)) {
     return { type: 'PAIR_SEQ', key: cardVal(cards.find((c) => c.r === ranks[ranks.length - 1])!, level), size: n, cards };
   }
@@ -975,6 +1017,11 @@ export function aiPlay(
   if (beat) {
     const beatInfo = analyzePlay(beat, level);
 
+    // 对手即将出完（≤2 张）→ 能压必压，阻止对手抢先（除非队友出的牌）
+    if (opponentHandCount <= 2 && !isMyTeamLast) {
+      return { play: beat, pass: false };
+    }
+
     // 用王单出的情况：谨慎
     if (beat.length === 1 && beat[0].k !== undefined) {
       // 手牌多 + 对手牌多 → 王留着关键时候用
@@ -1045,6 +1092,8 @@ interface GameState {
   gongMessage: string;
   /** 打 A 连续未过局数（连续 3 把不过退回 2 重新打） */
   aStrikes: number;
+  /** 双下进贡计划（结算时设置，下一局发牌后自动进贡/还贡） */
+  tributePlan: { from: number; to: number }[] | null;
 }
 
 const NAMES = ['你', '队友', '对手A', '对手B'];
@@ -1104,15 +1153,46 @@ export function GuandanGame() {
     return () => document.body.classList.remove('gd-float-active');
   }, [floating]);
 
-  const startNew = useCallback((prevLevel?: number, keepStrikes = 0) => {
+  const startNew = useCallback((prevLevel?: number, keepStrikes = 0, tributePlan: { from: number; to: number }[] | null = null) => {
     const deck = shuffle(buildDeck());
     const hands: GCard[][] = [[], [], [], []];
     deck.forEach((c, i) => hands[i % 4].push(c));
+    const lv = prevLevel ?? 2;
+    // 双下进贡/还贡：末游/三游进贡给头游/二游最大牌，头游/二游还一张 ≤10 的牌
+    let gong = '';
+    if (tributePlan && tributePlan.length > 0) {
+      for (const t of tributePlan) {
+        const from = hands[t.from];
+        const to = hands[t.to];
+        if (from.length === 0 || to.length === 0) continue;
+        let maxIdx = 0;
+        for (let i = 1; i < from.length; i++) {
+          if (cardVal(from[i], lv) > cardVal(from[maxIdx], lv)) maxIdx = i;
+        }
+        const given = from.splice(maxIdx, 1)[0];
+        let backIdx = -1;
+        for (let i = 0; i < to.length; i++) {
+          const c = to[i];
+          if (c.k === undefined && cardVal(c, lv) <= 10 && !isWild(c, lv)) {
+            if (backIdx < 0 || cardVal(c, lv) < cardVal(to[backIdx], lv)) backIdx = i;
+          }
+        }
+        if (backIdx >= 0) {
+          const back = to.splice(backIdx, 1)[0];
+          from.push(back);
+          gong += `${NAMES[t.from]} 进贡 ${rankName(given.r)}${given.k === undefined ? SUIT_SYMBOL[given.s] : (given.k === 1 ? '大王' : '小王')}，${NAMES[t.to]} 还贡 ${rankName(back.r)}${SUIT_SYMBOL[back.s]}；`;
+        } else {
+          to.push(given);
+          gong += `${NAMES[t.from]} 进贡 ${rankName(given.r)}${given.k === undefined ? SUIT_SYMBOL[given.s] : (given.k === 1 ? '大王' : '小王')}；`;
+        }
+      }
+      gong = `🔄 ${gong}`;
+    }
     // 简化：0 号玩家先手（首局随机）
     const first = prevLevel === undefined ? Math.floor(Math.random() * 4) : 0;
     setGame({
       hands,
-      level: prevLevel ?? 2,
+      level: lv,
       current: first,
       lastPlay: null,
       lastPlayBy: -1,
@@ -1124,8 +1204,9 @@ export function GuandanGame() {
       phase: 'playing',
       winnerTeam: null,
       resultText: '',
-      gongMessage: '',
+      gongMessage: gong,
       aStrikes: keepStrikes,
+      tributePlan: null,
     });
     setSelected([]);
   }, []);
@@ -1223,12 +1304,13 @@ export function GuandanGame() {
             const order = finished;
             const myTeam = order[0] === 0 || order[0] === 2;
             let win: number; let up: number; let txt: string;
+            let tributePlan: { from: number; to: number }[] | null = null;
             if (myTeam) {
-              if (order[1] === 0 || order[1] === 2) { win = 0; up = 3; txt = '双下！升 3 级'; }
+              if (order[1] === 0 || order[1] === 2) { win = 0; up = 3; txt = '双下！升 3 级'; tributePlan = [{ from: order[3], to: order[0] }, { from: order[2], to: order[1] }]; }
               else if (order[2] === 0 || order[2] === 2) { win = 0; up = 2; txt = '升 2 级'; }
               else { win = 0; up = 1; txt = '升 1 级'; }
             } else {
-              if (order[1] === 1 || order[1] === 3) { win = 1; up = 3; txt = '对方双下，升 3 级'; }
+              if (order[1] === 1 || order[1] === 3) { win = 1; up = 3; txt = '对方双下，升 3 级'; tributePlan = [{ from: order[3], to: order[0] }, { from: order[2], to: order[1] }]; }
               else if (order[2] === 1 || order[2] === 3) { win = 1; up = 2; txt = '对方升 2 级'; }
               else { win = 1; up = 1; txt = '对方升 1 级'; }
             }
@@ -1256,17 +1338,19 @@ export function GuandanGame() {
                 }
               }
             } else if (newLevel > 14) {
-              if (win === 0) { winnerTeam = 0; resultText = '🏆 打过 A！我方获胜！'; }
-              else { winnerTeam = 1; resultText = '对方打过 A，重新打 A'; newLevel = 14; }
-            } else if (newLevel === 14 && up >= 3) {
-              // 首次双上到 A：下一局双上即获胜
-              resultText = win === 0 ? '🚀 打到 A！下一局双上即获胜！' : '对方打到 A';
+              // 升超 A：一律停在 14（A）继续打 A 局，不直接判胜（打 A 须双上才赢）
+              newLevel = 14;
+              resultText = win === 0 ? '🚀 打到 A！下一局双上即获胜！' : '对方打到 A，我方须双上才赢';
+            } else if (newLevel === 14) {
+              // 首次升到 A：下一局双上即获胜
+              resultText = win === 0 ? '🚀 打到 A！下一局双上即获胜！' : '对方打到 A，我方须双上才赢';
             }
             return {
               ...prev, hands, lastPlay, roundPass: [], roundPlays, roundEnded: false, finished,
               phase: 'over', winnerTeam, resultText,
               level: newLevel,
               aStrikes,
+              tributePlan,
               current: finished[0],
             };
           }
@@ -1279,10 +1363,12 @@ export function GuandanGame() {
         // 不出
         roundPass.push(player);
         if (roundPass.length >= 3) {
-          // 一圈全过 → 保留出牌信息显示（roundPlays 不清空），标记 roundEnded
-          // 最后出牌者自由出牌（lastPlay=null），下一次出牌时才清除旧 roundPlays
-          const freer = finished.includes(prev.lastPlayBy) ? nextAlive(prev.lastPlayBy + 1, finished) : prev.lastPlayBy;
-          return { ...prev, hands, roundPass: [], roundPlays, roundEnded: true, current: freer, lastPlay: null, lastPlayBy: freer };
+          // 一圈全过 → 立即清空四家出牌信息，下一轮出牌从零开始
+          // 接风规则：最后出牌者已出完（头游）时，由其对家（队友）接风自由出牌；否则最后出牌者自由出牌
+          const freer = finished.includes(prev.lastPlayBy)
+            ? (finished.includes(prev.lastPlayBy ^ 2) ? nextAlive(prev.lastPlayBy + 1, finished) : prev.lastPlayBy ^ 2)
+            : prev.lastPlayBy;
+          return { ...prev, hands, roundPass: [], roundPlays: [], roundEnded: false, current: freer, lastPlay: null, lastPlayBy: freer };
         }
         return { ...prev, hands, roundPass, roundPlays, current: nextAlive(player + 1, finished) };
       }
@@ -1500,7 +1586,7 @@ export function GuandanGame() {
                   ↩️ 恢复排序
                 </button>
               )}
-              <button className="gd-menu-btn" onClick={() => { startNew(game.level, game.aStrikes || 0); setMenuOpen(false); }}>
+              <button className="gd-menu-btn" onClick={() => { startNew(game.level, game.aStrikes || 0, game.tributePlan); setMenuOpen(false); }}>
                 🔄 重新发牌
               </button>
               <button className="gd-menu-btn danger" onClick={() => { setFloating(false); try { exitFullscreen(); } catch { /* 忽略 */ } setMenuOpen(false); }}>
@@ -1518,6 +1604,7 @@ export function GuandanGame() {
         <span className="gd-info">目标 <b className="gd-level">过 {levelName}</b></span>
         <span className="gd-info">级牌 <b className="gd-level">{levelName}</b></span>
       </div>
+      {game.gongMessage && <div className="gd-gong-bar">{game.gongMessage}</div>}
 
       {/* 玩家信息区 + 四方位出牌区 */}
       <div className="gd-seats">

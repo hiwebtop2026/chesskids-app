@@ -44,6 +44,10 @@ export interface GDOnlineState {
   playerNames: string[];
   /** 打 A 连续未过局数（连续 3 把不过退回 2 重新打） */
   aStrikes: number;
+  /** 双下进贡计划（结算时设置，下一局发牌后自动进贡/还贡） */
+  tributePlan: { from: number; to: number }[] | null;
+  /** 进贡/还贡提示（新一局开始时展示一次） */
+  gongMessage: string;
 }
 
 // ================================================================
@@ -76,12 +80,13 @@ export function gdApplyTurn(prev: GDOnlineState, player: number, play: GCard[] |
         const order = finished;
         const myTeamWon = teamOf(order[0]) === 0;
         let up: number; let txt: string;
+        let tributePlan: { from: number; to: number }[] | null = null;
         if (myTeamWon) {
-          if (teamOf(order[1]) === 0) { up = 3; txt = '双下！升 3 级'; }
+          if (teamOf(order[1]) === 0) { up = 3; txt = '双下！升 3 级'; tributePlan = [{ from: order[3], to: order[0] }, { from: order[2], to: order[1] }]; }
           else if (teamOf(order[2]) === 0) { up = 2; txt = '升 2 级'; }
           else { up = 1; txt = '升 1 级'; }
         } else {
-          if (teamOf(order[1]) === 1) { up = 3; txt = '对方双下，升 3 级'; }
+          if (teamOf(order[1]) === 1) { up = 3; txt = '对方双下，升 3 级'; tributePlan = [{ from: order[3], to: order[0] }, { from: order[2], to: order[1] }]; }
           else if (teamOf(order[2]) === 1) { up = 2; txt = '对方升 2 级'; }
           else { up = 1; txt = '对方升 1 级'; }
         }
@@ -109,14 +114,15 @@ export function gdApplyTurn(prev: GDOnlineState, player: number, play: GCard[] |
             }
           }
         } else if (newLevel > 14) {
-          if (myTeamWon) { winnerTeam = 0; resultText = '🏆 打过 A！房主队获胜！'; }
-          else { winnerTeam = 1; resultText = '对方打过 A，重新打 A'; newLevel = 14; }
+          // 升超 A：一律停在 14（A）继续打 A 局，不直接判胜（打 A 须双上才赢）
+          newLevel = 14;
+          resultText = myTeamWon ? '🚀 打到 A！下一局双上即获胜！' : '对方打到 A，我方须双上才赢';
         } else if (newLevel === 14) {
-          resultText = myTeamWon ? '🚀 打到 A！下一局双上即获胜！' : '对方打到 A';
+          resultText = myTeamWon ? '🚀 打到 A！下一局双上即获胜！' : '对方打到 A，我方须双上才赢';
         }
         return {
           ...prev, hands, roundPass: [], roundPlays, roundEnded: false, finished, phase: 'over', winnerTeam, resultText,
-          level: newLevel, aStrikes, current: order[0], lastPlay: null, lastPlayBy: -1,
+          level: newLevel, aStrikes, tributePlan, current: order[0], lastPlay: null, lastPlayBy: -1,
         };
       }
     }
@@ -129,22 +135,54 @@ export function gdApplyTurn(prev: GDOnlineState, player: number, play: GCard[] |
   // 不出
   roundPass.push(player);
   if (roundPass.length >= 3) {
-    // 一圈全过 → 保留出牌信息显示（roundPlays 不清空），标记 roundEnded
-    // 最后出牌者自由出牌（lastPlay=null），下一次出牌时才清除旧 roundPlays
-    const freer = finished.includes(prev.lastPlayBy) ? nextAliveSeat(prev.lastPlayBy + 1, finished) : prev.lastPlayBy;
-    return { ...prev, hands, roundPass: [], roundPlays, roundEnded: true, current: freer, lastPlay: null, lastPlayBy: freer };
+    // 一圈全过 → 立即清空四家出牌信息，下一轮出牌从零开始
+    // 接风规则：最后出牌者已出完（头游）时，由其对家（队友）接风自由出牌；否则最后出牌者自由出牌
+    const freer = finished.includes(prev.lastPlayBy)
+      ? (finished.includes(prev.lastPlayBy ^ 2) ? nextAliveSeat(prev.lastPlayBy + 1, finished) : prev.lastPlayBy ^ 2)
+      : prev.lastPlayBy;
+    return { ...prev, hands, roundPass: [], roundPlays: [], roundEnded: false, current: freer, lastPlay: null, lastPlayBy: freer };
   }
   return { ...prev, hands, roundPass, roundPlays, current: nextAliveSeat(player + 1, finished) };
 }
 
-export function gdNewGame(level: number, names: string[], firstSeat: number, keepStrikes = 0): GDOnlineState {
+export function gdNewGame(level: number, names: string[], firstSeat: number, keepStrikes = 0, tributePlan: { from: number; to: number }[] | null = null): GDOnlineState {
   const deck = shuffle(buildDeck());
   const hands: GCard[][] = [[], [], [], []];
   deck.forEach((c, i) => hands[i % 4].push(c));
+  // 双下进贡/还贡：末游/三游进贡给头游/二游最大牌，头游/二游还一张 ≤10 的牌
+  let gong = '';
+  if (tributePlan && tributePlan.length > 0) {
+    for (const t of tributePlan) {
+      const from = hands[t.from];
+      const to = hands[t.to];
+      if (from.length === 0 || to.length === 0) continue;
+      let maxIdx = 0;
+      for (let i = 1; i < from.length; i++) {
+        if (cardVal(from[i], level) > cardVal(from[maxIdx], level)) maxIdx = i;
+      }
+      const given = from.splice(maxIdx, 1)[0];
+      let backIdx = -1;
+      for (let i = 0; i < to.length; i++) {
+        const c = to[i];
+        if (c.k === undefined && cardVal(c, level) <= 10 && !isWild(c, level)) {
+          if (backIdx < 0 || cardVal(c, level) < cardVal(to[backIdx], level)) backIdx = i;
+        }
+      }
+      if (backIdx >= 0) {
+        const back = to.splice(backIdx, 1)[0];
+        from.push(back);
+        gong += `${names[t.from] || SEAT_NAMES[t.from]} 进贡 ${rankName(given.r)}${given.k === undefined ? SUIT_SYMBOL[given.s] : (given.k === 1 ? '大王' : '小王')}，${names[t.to] || SEAT_NAMES[t.to]} 还贡 ${rankName(back.r)}${SUIT_SYMBOL[back.s]}；`;
+      } else {
+        to.push(given);
+        gong += `${names[t.from] || SEAT_NAMES[t.from]} 进贡 ${rankName(given.r)}${given.k === undefined ? SUIT_SYMBOL[given.s] : (given.k === 1 ? '大王' : '小王')}；`;
+      }
+    }
+    gong = `🔄 ${gong}`;
+  }
   return {
     hands, level, current: firstSeat, lastPlay: null, lastPlayBy: -1, turnStart: firstSeat,
     finished: [], roundPass: [], roundPlays: [], roundEnded: false, phase: 'playing', winnerTeam: null, resultText: '', playerNames: names,
-    aStrikes: keepStrikes,
+    aStrikes: keepStrikes, tributePlan: null, gongMessage: gong,
   };
 }
 
@@ -158,6 +196,8 @@ export function gdNewGame(level: number, names: string[], firstSeat: number, kee
 // 支持 jsdelivr / unpkg / cdnjs / npmmirror / esm.sh 多源自动降级
 
 const PEER_SERVERS = [
+  // Cloudflare 默认节点（与五子棋联机一致，国内可达性更稳）：不传 host/port/path/secure，走 PeerJS 默认
+  { host: '', port: 443, secure: true, path: '/', cloudflare: true },
   { host: '0.peerjs.com', port: 443, secure: true, path: '/' },
   { host: '1.peerjs.com', port: 443, secure: true, path: '/' },
   { host: '2.peerjs.com', port: 443, secure: true, path: '/' },
@@ -168,6 +208,7 @@ const ICE_SERVERS = [
   { urls: 'turns:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
   { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
   { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turn:relay.metered.ca:80?transport=tcp' },
   { urls: 'turn:eu-0.turn.peerjs.com:443?transport=tcp', username: 'peerjs', credential: 'peerjsp' },
   { urls: 'turn:eu-0.turn.peerjs.com:443', username: 'peerjs', credential: 'peerjsp' },
   { urls: 'turn:eu-0.turn.peerjs.com:3478?transport=tcp', username: 'peerjs', credential: 'peerjsp' },
@@ -328,7 +369,18 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
       setGame((prev) => {
         if (!prev || prev.phase !== 'playing' || prev.current !== seat) return prev;
         const cards = msg.type === 'PLAY' ? (msg.cards || []) : null;
-        if (cards && cards.length === 0) return prev;
+        if (cards) {
+          // 服务端校验：牌必须属于该玩家手牌、牌型合法、且能压过上一手（防异常客户端/越权出牌）
+          if (cards.length === 0) return prev;
+          const handIds = new Set(prev.hands[seat].map((c) => c.id));
+          if (!cards.every((c: any) => c && typeof c.id === 'number' && handIds.has(c.id))) return prev;
+          const info = analyzePlay(cards, prev.level);
+          if (!info) return prev;
+          if (prev.lastPlay) {
+            const prevInfo = analyzePlay(prev.lastPlay.cards, prev.level);
+            if (!prevInfo || !canBeat(prevInfo, info)) return prev;
+          }
+        }
         const next = gdApplyTurn(prev, seat, cards);
         broadcastState(next);
         return next;
@@ -448,14 +500,17 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
 
       try {
         const Peer = await loadPeerJS();
-        const peer = new Peer(parseRoomCode(code).peerId, {
-          debug: 0,
-          host: server.host,
-          port: server.port,
-          path: server.path,
-          secure: server.secure,
-          config: { iceServers: ICE_SERVERS },
-        });
+        const opts: any = server.cloudflare
+          ? { debug: 0, config: { iceServers: ICE_SERVERS } }
+          : {
+              debug: 0,
+              host: server.host,
+              port: server.port,
+              path: server.path,
+              secure: server.secure,
+              config: { iceServers: ICE_SERVERS },
+            };
+        const peer = new Peer(parseRoomCode(code).peerId, opts);
         peerRef.current = peer;
 
         peer.on('error', (err: any) => {
@@ -543,19 +598,22 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
           try { peerRef.current?.destroy(); } catch {}
           resolve({ success: false, errorType: 'signal-timeout', errorMsg: '信令服务器连接超时' });
         }
-      }, 6000);
+      }, 8000);
 
       try {
         const Peer = await loadPeerJS();
         const guestId = `${hostPeerId}-g${Math.floor(Math.random() * 100000)}`;
-        const peer = new Peer(guestId, {
-          debug: 0,
-          host: server.host,
-          port: server.port,
-          path: server.path,
-          secure: server.secure,
-          config: { iceServers: ICE_SERVERS },
-        });
+        const opts: any = server.cloudflare
+          ? { debug: 0, config: { iceServers: ICE_SERVERS } }
+          : {
+              debug: 0,
+              host: server.host,
+              port: server.port,
+              path: server.path,
+              secure: server.secure,
+              config: { iceServers: ICE_SERVERS },
+            };
+        const peer = new Peer(guestId, opts);
         peerRef.current = peer;
 
         let connectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -580,7 +638,7 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
             clearTimeout(signalTimer);
             try { conn.close(); peer.destroy(); } catch {}
             resolve({ success: false, errorType: 'connect-timeout', errorMsg: '对方无响应' });
-          }, 10000);
+          }, 15000);
 
           conn.on('open', () => {
             if (settled) return;
@@ -676,7 +734,7 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
     for (const c of connsRef.current) {
       if (c._gdSeat !== undefined) names[c._gdSeat] = c._gdName || '玩家';
     }
-    const st = gdNewGame(game.level, names, game.finished[0] ?? 0, game.aStrikes || 0);
+    const st = gdNewGame(game.level, names, game.finished[0] ?? 0, game.aStrikes || 0, game.tributePlan);
     setGame(st);
     broadcastState(st);
   }, [game, broadcastState]);
@@ -1207,6 +1265,7 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
         <span className="gd-info">目标 <b className="gd-level">过 {levelName}</b></span>
         <span className="gd-info">房间 <b className="gd-level">{roomCode}</b></span>
       </div>
+      {game.gongMessage && <div className="gd-gong-bar">{game.gongMessage}</div>}
 
       <div className="gd-seats">
         <div className={`gd-seat gd-seat-top gd-team-mine ${game.current === 2 ? 'gd-active' : ''}`}>

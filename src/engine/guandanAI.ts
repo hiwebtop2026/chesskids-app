@@ -302,7 +302,7 @@ function decideBomb(
   // 上家（对手）剩牌不多且出较大牌 → 考虑炸
   const upperOppSeat = (mySeat + 3) % 4; // 上家是左手边
   const upperOppCount = handCounts[upperOppSeat];
-  if (upperOppCount <= config.mustBombThreshold + 3 && upperOppCount === lastPlayBy) {
+  if (upperOppSeat === lastPlayBy && upperOppCount <= config.mustBombThreshold + 3) {
     for (const b of bombs) {
       const info = { type: 'BOMB' as PlayType, key: b.key, size: b.n, cards: b.cards };
       if (canBeat(prev, info) && b.kind === 0 && b.n <= 5) return b.cards;
@@ -341,6 +341,8 @@ function aiFollow(
   role: AIRole,
   config: ReturnType<typeof getAIConfig>,
   headSeat: number,
+  finished: number[] = [],
+  roundPass: number[] = [],
 ): GCard[] | null {
   const isMyTeamLast = (lastPlayBy === (mySeat ^ 2));
 
@@ -359,6 +361,25 @@ function aiFollow(
 
   const opponentSeats = [(mySeat + 1) % 4, (mySeat + 3) % 4];
   const minOppCount = Math.min(...opponentSeats.map(s => handCounts[s]));
+  const partnerSeat = mySeat ^ 2;
+  const partnerCount = handCounts[partnerSeat];
+
+  // 队友快出完（≤2 张）且我让牌后正好轮到队友 → 让牌给队友压（团队配合）
+  const nextAfterAI = ((mySeat + 1) % 4 + 4) % 4;
+  if (
+    partnerCount <= 2 &&
+    nextAfterAI === partnerSeat &&
+    !finished.includes(partnerSeat) &&
+    !roundPass.includes(partnerSeat) &&
+    minOppCount > 2
+  ) {
+    return null;
+  }
+
+  // 对手即将出完（≤2 张）→ 能压必压，阻止对手抢先
+  if (minOppCount <= 2) {
+    return beat;
+  }
 
   // 辅助型策略：尽量不压牌，保留大牌给队友
   if (role === 'support') {
@@ -490,7 +511,7 @@ export function aiDecide(ctx: AIDecisionContext): AIDecisionResult {
     return { play: null, pass: true, reason: '无法识别上家牌型' };
   }
 
-  const play = aiFollow(hand, prevInfo, level, mySeat, lastPlayBy, handCounts, role, config, headSeat);
+  const play = aiFollow(hand, prevInfo, level, mySeat, lastPlayBy, handCounts, role, config, headSeat, finished, ctx.roundPass);
 
   if (play) {
     const info = analyzePlay(play, level);
