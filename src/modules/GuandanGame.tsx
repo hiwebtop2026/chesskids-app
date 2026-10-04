@@ -1512,10 +1512,11 @@ export function GuandanGame() {
   const myTeamCount = game ? counts[0] + counts[2] : 0;
   const oppTeamCount = game ? counts[1] + counts[3] : 0;
 
-  // 出牌区显示每位玩家本轮所有出牌，下一轮出牌时才清空更新
+  // 出牌区只显示每位玩家本轮最近一手（不叠加显示同一玩家的多手牌面），一圈结束整体清空
   const roundPlaysOf = (p: number) => {
     if (!game || game.roundPlays.length === 0) return [];
-    return game.roundPlays.filter((pl) => pl.player === p);
+    const mine = game.roundPlays.filter((pl) => pl.player === p);
+    return mine.length > 0 ? [mine[mine.length - 1]] : [];
   };
   const renderRoundPlays = (p: number) => {
     if (!game) return null;

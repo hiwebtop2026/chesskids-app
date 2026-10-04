@@ -1178,7 +1178,8 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
   // 出牌区显示每位玩家本轮所有出牌，下一轮出牌时才清空更新
   const roundPlaysOf = (p: number) => {
     if (!game || game.roundPlays.length === 0) return [];
-    return game.roundPlays.filter((pl) => pl.player === p);
+    const mine = game.roundPlays.filter((pl) => pl.player === p);
+    return mine.length > 0 ? [mine[mine.length - 1]] : [];
   };
   const renderRoundPlays = (p: number) => {
     const plays = roundPlaysOf(p);
