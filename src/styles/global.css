@@ -7415,11 +7415,11 @@ ul {
 .gd-side-col { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .gd-play-west, .gd-play-east {
   position: absolute;
-  top: 38%;
-  width: 34%;
-  height: 36%;
-  max-height: 300px;
-  min-height: 180px;
+  top: 48%;
+  width: 15%;
+  height: 12%;
+  max-height: 160px;
+  min-height: 110px;
   min-width: 0;
   overflow: visible; /* 覆盖 .gd-play-area 的 overflow 裁剪，牌面完整显示 */
   align-items: center;
@@ -7427,15 +7427,15 @@ ul {
   border-radius: 14px;
   background: rgba(0, 0, 0, 0.16);
   border: 1.5px dashed rgba(255, 213, 79, 0.2);
-  padding: 12px 8px;
+  padding: 10px 6px;
 }
-.gd-play-west { left: 5%; }
-.gd-play-east { left: 61%; }
+.gd-play-west { left: 28%; } /* 出牌内容中心对齐左侧椭圆（34%-37%） */
+.gd-play-east { left: 57%; } /* 出牌内容中心对齐右侧椭圆（61%-64%） */
 @media (max-width: 640px) {
   .gd-play-north, .gd-play-south { width: 60%; max-width: 400px; left: 50%; max-height: 160px; }
-  .gd-play-west, .gd-play-east { width: 30%; height: 30%; min-height: 140px; top: 40%; overflow: visible; }
-  .gd-play-west { left: 4%; }
-  .gd-play-east { left: 66%; }
+  .gd-play-west, .gd-play-east { width: 24%; height: 14%; min-height: 100px; top: 44%; overflow: visible; }
+  .gd-play-west { left: 22%; }
+  .gd-play-east { left: 54%; }
 }
 @media (max-width: 640px) {
   .gd-play-card { font-size: 15px; padding: 5px 8px; }
