@@ -491,8 +491,8 @@ export function analyzePlay(cards: GCard[], level: number): PlayInfo | null {
     return { type: 'PAIR_SEQ', key: cardVal(cards.find((c) => c.r === ranks[ranks.length - 1])!, level), size: n, cards };
   }
 
-  // 顺子 / 同花顺（变牌补缺口）
-  if (n >= 5 && normal.every((c) => c.k === undefined)) {
+  // 顺子 / 同花顺（固定 5 张；变牌补缺口）
+  if (n === 5 && normal.every((c) => c.k === undefined)) {
     const base = new Set<number>();
     let dup = false;
     for (const c of normal) {
@@ -541,8 +541,9 @@ export function canBeat(prev: PlayInfo, cur: PlayInfo): boolean {
     return cur.key > prev.key;
   }
   if (prev.type === 'ROCKET') return false;
-  // 普通牌型：必须同型且点数更大
+  // 普通牌型：必须同型且点数更大（顺子/连对/钢板等还需同长度）
   if (cur.type !== prev.type) return false;
+  if (cur.size !== prev.size) return false;
   return cur.key > prev.key;
 }
 
@@ -622,18 +623,35 @@ export function findSmallestBeat(hand: GCard[], prev: PlayInfo, level: number): 
     return null;
   }
   // 顺子/连对/钢板：搜索组合
-  if (prev.type === 'STRAIGHT' || prev.type === 'STRAIGHT_FLUSH') {
-    const len = prev.size;
-    const seq = findSeq(hand, len, prev.key + 1, false);
-    return seq;
+  if (prev.type === 'STRAIGHT') {
+    const seq = findSeq(hand, prev.size, prev.key, false);
+    if (seq) return seq;
+  }
+  if (prev.type === 'STRAIGHT_FLUSH') {
+    // 只能被更大的同花顺压（同长）；找不到再考虑炸弹
+    for (const s of ['S', 'H', 'C', 'D']) {
+      const sc = hand.filter((c) => c.s === s && c.k === undefined);
+      const ranks = [...new Set(sc.map((c) => c.r))].filter((r) => r >= 3 && r <= 14).sort((a, b) => b - a);
+      for (let i = 0; i + 4 < ranks.length; i++) {
+        let len = 1;
+        while (i + len < ranks.length && ranks[i + len] === ranks[i] - len) len++;
+        if (len >= 5) {
+          const want = ranks.slice(i, i + 5);
+          if (want[0] > prev.key) return want.map((r) => sc.find((c) => c.r === r)!);
+        }
+      }
+    }
+    const bombBeat = findBombBeat(hand, prev, level);
+    if (bombBeat) return bombBeat;
+    return null;
   }
   if (prev.type === 'PAIR_SEQ') {
     const len = prev.size / 2;
-    return findSeq(hand, len * 2, prev.key + 1, true);
+    return findSeq(hand, len * 2, prev.key, true);
   }
   if (prev.type === 'PLANE') {
     const len = prev.size / 3;
-    return findSeq(hand, len * 3, prev.key + 1, false, true);
+    return findSeq(hand, len * 3, prev.key, false, true);
   }
   // 同型找不到时：尝试用炸弹/同花顺/王炸压（如对方出对子，提示可用炸弹压）
   const bombBeat = findBombBeat(hand, prev, level);
@@ -748,11 +766,14 @@ function allBeats(hand: GCard[], prev: PlayInfo, level: number): GCard[][] {
       if (p) push([...t.slice(0, 3), ...p.slice(0, 2)]);
     }
   } else if (prev.type === 'STRAIGHT') {
-    for (let min = prev.key + 1; min <= 10; min++) { const seq = findSeq(hand, 5, min - 1, false); if (seq) push(seq); }
+    const pushed = new Set<string>();
+    for (let min = prev.key + 1; min <= 14; min++) { const seq = findSeq(hand, 5, min - 1, false); if (seq) { const k = seq.map((c) => c.id).sort((a, b) => a - b).join(','); if (!pushed.has(k)) { pushed.add(k); push(seq); } } }
   } else if (prev.type === 'PAIR_SEQ') {
-    for (let min = prev.key + 2; min <= 14; min += 2) { const seq = findSeq(hand, prev.size, min - 1, true); if (seq) push(seq); }
+    const pushed = new Set<string>();
+    for (let min = prev.key + 1; min <= 14; min++) { const seq = findSeq(hand, prev.size, min - 1, true); if (seq) { const k = seq.map((c) => c.id).sort((a, b) => a - b).join(','); if (!pushed.has(k)) { pushed.add(k); push(seq); } } }
   } else if (prev.type === 'PLANE') {
-    for (let min = prev.key + 3; min <= 14; min += 3) { const seq = findSeq(hand, prev.size, min - 1, false, true); if (seq) push(seq); }
+    const pushed = new Set<string>();
+    for (let min = prev.key + 1; min <= 14; min++) { const seq = findSeq(hand, prev.size, min - 1, false, true); if (seq) { const k = seq.map((c) => c.id).sort((a, b) => a - b).join(','); if (!pushed.has(k)) { pushed.add(k); push(seq); } } }
   }
   // 炸弹/同花顺/王炸（不限同类）
   for (const b of bombCandidates(hand, level)) push(b.cards);
