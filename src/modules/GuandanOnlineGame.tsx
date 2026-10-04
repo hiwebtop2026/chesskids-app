@@ -170,6 +170,7 @@ export function gdNewGame(level: number, names: string[], firstSeat: number, kee
       }
       if (backIdx >= 0) {
         const back = to.splice(backIdx, 1)[0];
+        to.push(given);
         from.push(back);
         gong += `${names[t.from] || SEAT_NAMES[t.from]} 进贡 ${rankName(given.r)}${given.k === undefined ? SUIT_SYMBOL[given.s] : (given.k === 1 ? '大王' : '小王')}，${names[t.to] || SEAT_NAMES[t.to]} 还贡 ${rankName(back.r)}${SUIT_SYMBOL[back.s]}；`;
       } else {

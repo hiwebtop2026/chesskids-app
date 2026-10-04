@@ -459,7 +459,7 @@ export function analyzePlay(cards: GCard[], level: number): PlayInfo | null {
         rs.push(r);
         need += 2 - g.length;
       }
-      if (ok && need <= w && need + nArr.length === n / 2) {
+      if (ok && need <= w && nArr.length === n / 2) {
         rs.sort((a, b) => a - b);
         if (onlySeqOk(rs)) {
           return { type: 'PAIR_SEQ', key: cardVal(cards.find((c) => c.r === rs[rs.length - 1])!, level), size: n, cards };
@@ -477,7 +477,7 @@ export function analyzePlay(cards: GCard[], level: number): PlayInfo | null {
         rs.push(r);
         need += 3 - g.length;
       }
-      if (ok && need <= w && need + nArr.length === n / 3) {
+      if (ok && need <= w && nArr.length === n / 3) {
         rs.sort((a, b) => a - b);
         if (onlySeqOk(rs)) {
           return { type: 'PLANE', key: cardVal(cards.find((c) => c.r === rs[rs.length - 1])!, level), size: n, cards };
@@ -1179,6 +1179,7 @@ export function GuandanGame() {
         }
         if (backIdx >= 0) {
           const back = to.splice(backIdx, 1)[0];
+          to.push(given);
           from.push(back);
           gong += `${NAMES[t.from]} 进贡 ${rankName(given.r)}${given.k === undefined ? SUIT_SYMBOL[given.s] : (given.k === 1 ? '大王' : '小王')}，${NAMES[t.to]} 还贡 ${rankName(back.r)}${SUIT_SYMBOL[back.s]}；`;
         } else {
