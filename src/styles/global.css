@@ -7429,8 +7429,8 @@ ul {
   border: 1.5px dashed rgba(255, 213, 79, 0.2);
   padding: 10px 6px;
 }
-.gd-play-west { left: 28%; } /* 出牌内容中心对齐左侧椭圆（34%-37%） */
-.gd-play-east { left: 57%; } /* 出牌内容中心对齐右侧椭圆（61%-64%） */
+.gd-play-west { left: 14%; } /* 出牌内容中心对齐左侧红框位置（19.8%-22.6%） */
+.gd-play-east { left: 71%; } /* 出牌内容中心对齐右侧红框位置（77.2%-80%） */
 @media (max-width: 640px) {
   .gd-play-north, .gd-play-south { width: 60%; max-width: 400px; left: 50%; max-height: 160px; }
   .gd-play-west, .gd-play-east { width: 24%; height: 14%; min-height: 100px; top: 44%; overflow: visible; }
@@ -7487,6 +7487,8 @@ ul {
   position: relative;
   z-index: 1;
 }
+/* 手牌横排紧凑：相邻牌轻微重叠，兼顾辨识度与两侧空间 */
+.gd-hand .gd-card + .gd-card { margin-left: -10px; }
 .gd-card {
   position: relative;
   width: 58px;
