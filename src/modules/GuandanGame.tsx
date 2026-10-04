@@ -1104,9 +1104,11 @@ interface GameState {
   finished: number[]; // 出完顺序（玩家 index）
   roundPass: number[]; // 本轮已 pass 的玩家
   /** 本轮各方位已出的牌（一轮出完才清理），用于方位展示 */
-  roundPlays: { player: number; cards: GCard[] }[];
+  roundPlays: { player: number; cards: GCard[]; roundId: number }[];
   /** 一圈全过后标记为 true：保留出牌信息显示，直到下一次出牌才清除 */
   roundEnded: boolean;
+  /** 当前轮次号：出牌区显示层只认当前轮，上一轮记录即使残留也不显示 */
+  roundId: number;
   phase: 'idle' | 'playing' | 'over';
   winnerTeam: number | null;
   resultText: string;
@@ -1223,6 +1225,7 @@ export function GuandanGame() {
       roundPass: [],
       roundPlays: [],
       roundEnded: false,
+      roundId: 0,
       phase: 'playing',
       winnerTeam: null,
       resultText: '',
@@ -1313,8 +1316,9 @@ export function GuandanGame() {
       const roundPass = [...prev.roundPass];
       const finished = [...prev.finished];
       // 出牌时：若上一轮已结束（roundEnded），清除旧 roundPlays 重新开始；否则追加
+      // 记录一律带 roundId：显示层只显示当前轮，双保险杜绝上轮残留
       const roundPlays = play
-        ? (prev.roundEnded ? [{ player, cards: play }] : [...prev.roundPlays, { player, cards: play }])
+        ? (prev.roundEnded ? [{ player, cards: play, roundId: prev.roundId }] : [...prev.roundPlays, { player, cards: play, roundId: prev.roundId }])
         : prev.roundPlays;
 
       if (play) {
@@ -1393,7 +1397,7 @@ export function GuandanGame() {
           const freer = finished.includes(prev.lastPlayBy)
             ? (finished.includes(prev.lastPlayBy ^ 2) ? nextAlive(prev.lastPlayBy + 1, finished) : prev.lastPlayBy ^ 2)
             : prev.lastPlayBy;
-          return { ...prev, hands, roundPass: [], roundPlays: [], roundEnded: true, current: freer, lastPlay: null, lastPlayBy: freer };
+          return { ...prev, hands, roundPass: [], roundPlays: [], roundEnded: true, roundId: prev.roundId + 1, current: freer, lastPlay: null, lastPlayBy: freer };
         }
         return { ...prev, hands, roundPass, roundPlays, current: nextAlive(player + 1, finished) };
       }
@@ -1512,10 +1516,10 @@ export function GuandanGame() {
   const myTeamCount = game ? counts[0] + counts[2] : 0;
   const oppTeamCount = game ? counts[1] + counts[3] : 0;
 
-  // 出牌区只显示每位玩家本轮最近一手（不叠加显示同一玩家的多手牌面），一圈结束整体清空
+  // 出牌区只显示每位玩家当前轮（roundId 匹配）最近一手；上一轮记录即使残留也不显示，一圈结束整体清空
   const roundPlaysOf = (p: number) => {
     if (!game || game.roundPlays.length === 0) return [];
-    const mine = game.roundPlays.filter((pl) => pl.player === p);
+    const mine = game.roundPlays.filter((pl) => pl.player === p && pl.roundId === game.roundId);
     return mine.length > 0 ? [mine[mine.length - 1]] : [];
   };
   const renderRoundPlays = (p: number) => {

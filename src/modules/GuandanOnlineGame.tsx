@@ -35,9 +35,11 @@ export interface GDOnlineState {
   finished: number[];
   roundPass: number[];
   /** 本轮各方位已出的牌（一轮出完才清理），用于方位展示 */
-  roundPlays: { player: number; cards: GCard[] }[];
+  roundPlays: { player: number; cards: GCard[]; roundId: number }[];
   /** 一圈全过后标记为 true：保留出牌信息显示，直到下一次出牌才清除 */
   roundEnded: boolean;
+  /** 当前轮次号：出牌区显示层只认当前轮，上一轮记录即使残留也不显示 */
+  roundId: number;
   phase: 'playing' | 'over';
   winnerTeam: number | null;
   resultText: string;
@@ -68,8 +70,9 @@ export function gdApplyTurn(prev: GDOnlineState, player: number, play: GCard[] |
   const roundPass = [...prev.roundPass];
   const finished = [...prev.finished];
   // 出牌时：若上一轮已结束（roundEnded），清除旧 roundPlays 重新开始；否则追加
+  // 记录一律带 roundId：显示层只显示当前轮，双保险杜绝上轮残留
   const roundPlays = play
-    ? (prev.roundEnded ? [{ player, cards: play }] : [...prev.roundPlays, { player, cards: play }])
+    ? (prev.roundEnded ? [{ player, cards: play, roundId: prev.roundId }] : [...prev.roundPlays, { player, cards: play, roundId: prev.roundId }])
     : prev.roundPlays;
 
   if (play) {
@@ -143,7 +146,7 @@ export function gdApplyTurn(prev: GDOnlineState, player: number, play: GCard[] |
     const freer = finished.includes(prev.lastPlayBy)
       ? (finished.includes(prev.lastPlayBy ^ 2) ? nextAliveSeat(prev.lastPlayBy + 1, finished) : prev.lastPlayBy ^ 2)
       : prev.lastPlayBy;
-    return { ...prev, hands, roundPass: [], roundPlays: [], roundEnded: true, current: freer, lastPlay: null, lastPlayBy: freer };
+    return { ...prev, hands, roundPass: [], roundPlays: [], roundEnded: true, roundId: prev.roundId + 1, current: freer, lastPlay: null, lastPlayBy: freer };
   }
   return { ...prev, hands, roundPass, roundPlays, current: nextAliveSeat(player + 1, finished) };
 }
@@ -185,7 +188,7 @@ export function gdNewGame(level: number, names: string[], firstSeat: number, kee
   }
   return {
     hands, level, current: firstSeat, lastPlay: null, lastPlayBy: -1, turnStart: firstSeat,
-    finished: [], roundPass: [], roundPlays: [], roundEnded: false, phase: 'playing', winnerTeam: null, resultText: '', playerNames: names,
+    finished: [], roundPass: [], roundPlays: [], roundEnded: false, roundId: 0, phase: 'playing', winnerTeam: null, resultText: '', playerNames: names,
     aStrikes: keepStrikes, tributePlan: null, gongMessage: gong,
   };
 }
@@ -1175,10 +1178,10 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
     return a.s < b.s ? -1 : 1;
   });
 
-  // 出牌区显示每位玩家本轮所有出牌，下一轮出牌时才清空更新
+  // 出牌区只显示每位玩家当前轮（roundId 匹配）最近一手；上一轮记录即使残留也不显示，一圈结束整体清空
   const roundPlaysOf = (p: number) => {
     if (!game || game.roundPlays.length === 0) return [];
-    const mine = game.roundPlays.filter((pl) => pl.player === p);
+    const mine = game.roundPlays.filter((pl) => pl.player === p && pl.roundId === game.roundId);
     return mine.length > 0 ? [mine[mine.length - 1]] : [];
   };
   const renderRoundPlays = (p: number) => {
