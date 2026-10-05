@@ -1244,7 +1244,12 @@ export function GuandanGame() {
   const me = game ? game.hands[0] : [];
 
   // 轮到玩家？
-  const isMyTurn = game !== null && game.phase === 'playing' && game.current === 0 && !game.finished.includes(0);
+  // 严格判断是否轮到自己：必须是游戏中、是当前座位、未出完、手牌不为空
+  const isMyTurn = game !== null
+    && game.phase === 'playing'
+    && game.current === 0
+    && !game.finished.includes(0)
+    && game.hands[0].length > 0;
 
   // 提示：给出一个可出的最小合法牌
   const hint = useCallback((): number[] => {
@@ -1321,6 +1326,12 @@ export function GuandanGame() {
         ? (prev.roundEnded ? [{ player, cards: play, roundId: prev.roundId }] : [...prev.roundPlays, { player, cards: play, roundId: prev.roundId }])
         : prev.roundPlays;
 
+      // 安全修正：如果传入的 player 已经出完，直接推进到下一位活人，避免死循环/空转
+      if (finished.includes(player)) {
+        const next = nextAlive(player + 1, finished);
+        return { ...prev, current: next, turnStart: next };
+      }
+
       if (play) {
         hands[player] = hands[player].filter((c) => !play.some((p) => p.id === c.id));
         if (hands[player].length === 0) {
@@ -1389,9 +1400,10 @@ export function GuandanGame() {
             };
           }
         }
-        // 出完非全结束：本轮继续（出牌追加到方位区，待一圈全过才清理）；跳过头游者
+        // 出牌后推进轮次：跳过头游等已出完玩家
+        const nextSeat = nextAlive(player + 1, finished);
         return {
-          ...prev, hands, lastPlay, lastPlayBy: player, roundPass: [], roundPlays, roundEnded: false, current: nextAlive(player + 1, finished), turnStart: nextAlive(player + 1, finished),
+          ...prev, hands, lastPlay, lastPlayBy: player, roundPass: [], roundPlays, roundEnded: false, current: nextSeat, turnStart: nextSeat,
         };
       } else {
         // 不出
@@ -1402,12 +1414,20 @@ export function GuandanGame() {
         if (roundPass.length >= Math.max(1, aliveNotBy.length)) {
           // 一圈全过 → 立即清空四家出牌信息，下一轮出牌从零开始
           // 接风规则：最后出牌者已出完（头游）时，由其对家（队友）接风自由出牌；否则最后出牌者自由出牌
-          const freer = finished.includes(prev.lastPlayBy)
-            ? (finished.includes(prev.lastPlayBy ^ 2) ? nextAlive(prev.lastPlayBy + 1, finished) : prev.lastPlayBy ^ 2)
-            : prev.lastPlayBy;
+          let freer: number;
+          if (finished.includes(prev.lastPlayBy)) {
+            // 最后出牌者已出完：队友接风；若队友也出完，找下一位活人
+            const partner = prev.lastPlayBy ^ 2;
+            freer = finished.includes(partner) ? nextAlive(prev.lastPlayBy + 1, finished) : partner;
+          } else {
+            freer = prev.lastPlayBy;
+          }
+          // 双重保险：freer 必须是活人
+          if (finished.includes(freer)) freer = nextAlive(freer + 1, finished);
           return { ...prev, hands, roundPass: [], roundPlays: [], roundEnded: true, roundId: prev.roundId + 1, current: freer, lastPlay: null, lastPlayBy: freer };
         }
-        return { ...prev, hands, roundPass, roundPlays, current: nextAlive(player + 1, finished) };
+        const nextSeat = nextAlive(player + 1, finished);
+        return { ...prev, hands, roundPass, roundPlays, current: nextSeat };
       }
     });
   }, []);
@@ -1476,7 +1496,8 @@ export function GuandanGame() {
       if (next !== p) {
         setGame((prev) => {
           if (!prev) return prev;
-          if (prev.current !== p || prev.finished.includes(prev.current)) return prev;
+          // 只在 current 仍然指向该已出完玩家时推进，避免竞态
+          if (prev.current !== p) return prev;
           return { ...prev, current: next, turnStart: next };
         });
       }
@@ -1758,9 +1779,12 @@ export function GuandanGame() {
       <div className="gd-actions">
         <span className="gd-turn-hint">
           {game.phase === 'over' ? game.resultText
-            : headSeat === 0 ? '🏆 你已头游！' + (game.finished.length < 4 ? ' 明牌查看对家剩余牌' : '')
-            : isMyTurn ? '🖐 轮到你出牌'
-            : `等待 ${NAMES[game.current]} 出牌…`}
+            : game.finished.includes(0)
+              ? (headSeat === 0
+                ? '🏆 你已头游！' + (game.finished.length < 4 ? ' 明牌查看对家剩余牌' : '')
+                : `✅ 你已${game.finished.indexOf(0) + 1}游，等待其他玩家…`)
+              : isMyTurn ? '🖐 轮到你出牌'
+              : `等待 ${NAMES[game.current]} 出牌…`}
         </span>
         <button className="gd-btn gd-btn-pass" onClick={doPass} disabled={!canPass}>不出</button>
         <button className="gd-btn gd-btn-hint" onClick={applyHint} disabled={!isMyTurn}>提示</button>

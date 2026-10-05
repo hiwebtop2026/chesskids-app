@@ -75,6 +75,12 @@ export function gdApplyTurn(prev: GDOnlineState, player: number, play: GCard[] |
     ? (prev.roundEnded ? [{ player, cards: play, roundId: prev.roundId }] : [...prev.roundPlays, { player, cards: play, roundId: prev.roundId }])
     : prev.roundPlays;
 
+  // 安全修正：如果传入的 player 已经出完，直接推进到下一位活人，避免死循环
+  if (finished.includes(player)) {
+    const next = nextAliveSeat(player + 1, finished);
+    return { ...prev, current: next, turnStart: next };
+  }
+
   if (play) {
     hands[player] = hands[player].filter((c) => !play.some((p) => p.id === c.id));
     if (hands[player].length === 0) {
@@ -137,10 +143,12 @@ export function gdApplyTurn(prev: GDOnlineState, player: number, play: GCard[] |
         };
       }
     }
+    // 出牌后推进轮次：跳过头游等已出完玩家
+    const nextSeat = nextAliveSeat(player + 1, finished);
     return {
       ...prev, hands,
       lastPlay: { player, cards: play }, lastPlayBy: player, roundPass: [], roundPlays, roundEnded: false,
-      current: nextAliveSeat(player + 1, finished), turnStart: nextAliveSeat(player + 1, finished),
+      current: nextSeat, turnStart: nextSeat,
     };
   }
   // 不出
@@ -151,12 +159,20 @@ export function gdApplyTurn(prev: GDOnlineState, player: number, play: GCard[] |
   if (roundPass.length >= Math.max(1, aliveNotBy.length)) {
     // 一圈全过 → 立即清空四家出牌信息，下一轮出牌从零开始
     // 接风规则：最后出牌者已出完（头游）时，由其对家（队友）接风自由出牌；否则最后出牌者自由出牌
-    const freer = finished.includes(prev.lastPlayBy)
-      ? (finished.includes(prev.lastPlayBy ^ 2) ? nextAliveSeat(prev.lastPlayBy + 1, finished) : prev.lastPlayBy ^ 2)
-      : prev.lastPlayBy;
+    let freer: number;
+    if (finished.includes(prev.lastPlayBy)) {
+      // 最后出牌者已出完：队友接风；若队友也出完，找下一位活人
+      const partner = prev.lastPlayBy ^ 2;
+      freer = finished.includes(partner) ? nextAliveSeat(prev.lastPlayBy + 1, finished) : partner;
+    } else {
+      freer = prev.lastPlayBy;
+    }
+    // 双重保险：freer 必须是活人
+    if (finished.includes(freer)) freer = nextAliveSeat(freer + 1, finished);
     return { ...prev, hands, roundPass: [], roundPlays: [], roundEnded: true, roundId: prev.roundId + 1, current: freer, lastPlay: null, lastPlayBy: freer };
   }
-  return { ...prev, hands, roundPass, roundPlays, current: nextAliveSeat(player + 1, finished) };
+  const nextSeat = nextAliveSeat(player + 1, finished);
+  return { ...prev, hands, roundPass, roundPlays, current: nextSeat };
 }
 
 export function gdNewGame(level: number, names: string[], firstSeat: number, keepStrikes = 0, tributePlan: { from: number; to: number }[] | null = null): GDOnlineState {
@@ -755,7 +771,12 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
   }, [game, broadcastState]);
 
   // ============ 我的回合操作 ============
-  const isMyTurn = !!game && game.phase === 'playing' && game.current === mySeat && !game.finished.includes(mySeat);
+  // 严格判断是否轮到自己：必须是游戏中、是当前座位、未出完、手牌不为空
+  const isMyTurn = !!game
+    && game.phase === 'playing'
+    && game.current === mySeat
+    && !game.finished.includes(mySeat)
+    && game.hands[mySeat].length > 0;
   const myHand = game ? game.hands[mySeat] : [];
 
   const doPlay = () => {
@@ -1386,7 +1407,10 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
       <div className="gd-actions">
         <span className="gd-turn-hint">
           {game.phase === 'over' ? game.resultText
-            : headSeat === 0 ? '🏆 你已头游！' + (game.finished.length < 4 ? ' 明牌查看对家剩余牌' : '')
+            : game.finished.includes(mySeat)
+              ? (headSeat === mySeat
+                ? '🏆 你已头游！' + (game.finished.length < 4 ? ' 明牌查看对家剩余牌' : '')
+                : `✅ 你已${game.finished.indexOf(mySeat) + 1}游，等待其他玩家…`)
             : isMyTurn ? `🖐 轮到你（${myName}）出牌`
             : `等待 ${seatLabel(game.current)} 出牌…`}
         </span>
