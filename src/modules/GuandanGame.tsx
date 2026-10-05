@@ -198,9 +198,23 @@ export function groupHand(hand: GCard[], level: number, scheme: number = 0): Han
       for (const [k, arr] of ng) {
         if (k < 19) {
           const ws = wildsOf(avail());
-          if (arr.length >= 4) { take(arr.slice(0, 4), `${arr.length}炸`); bomb = true; break; }
-          if (arr.length === 3 && ws.length >= 1) { take([...arr.slice(0, 3), ws[0]], '4炸'); bomb = true; break; }
-          if (arr.length === 2 && ws.length >= 2) { take([...arr.slice(0, 2), ws[0], ws[1]], '4炸'); bomb = true; break; }
+          // 4张及以上同点数（含变牌）全部归为炸弹，不再只取4张
+          if (arr.length >= 4) {
+            // 纯炸弹：4张以上，全部放入炸弹组
+            take([...arr], `${arr.length}炸`);
+            bomb = true;
+            break;
+          }
+          if (arr.length === 3 && ws.length >= 1) {
+            take([...arr, ws[0]], '4炸');
+            bomb = true;
+            break;
+          }
+          if (arr.length === 2 && ws.length >= 2) {
+            take([...arr, ws[0], ws[1]], '4炸');
+            bomb = true;
+            break;
+          }
         }
       }
     }
