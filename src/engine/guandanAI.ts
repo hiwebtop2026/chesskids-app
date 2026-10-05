@@ -14,8 +14,51 @@
 import {
   type GCard, type PlayInfo, type PlayType,
   cardVal, isWild, levelRank, groupByR, groupHand,
-  analyzePlay, canBeat, bombCandidates, findSmallestBeat,
+  analyzePlay, canBeat, bombCandidates, findSmallestBeat, allBeats,
 } from '../modules/GuandanGame';
+
+// ================================================================
+// 智能跟牌工具：避免浪费关键牌 / 拆散牌型
+// ================================================================
+/** 关键牌：大小王、变牌（红桃级牌）、级牌 */
+function isKeyCard(c: GCard, level: number): boolean {
+  return c.k !== undefined || isWild(c, level) || c.r === levelRank(level);
+}
+
+/**
+ * 智能选择跟牌：在所有可压方案中综合实战取舍
+ * - pressure=true（冲刺/拦截）：直接用最小能压（速度优先，不纠结）
+ * - 普通局面：优先"不拆对/三、不含关键牌"的方案；再退而求其次"不含王/变牌"；最后最小
+ * 炸弹/同花顺/王炸不在本函数范围（由 decideBomb 单独决策）
+ */
+function pickSmartBeat(hand: GCard[], prev: PlayInfo, level: number, pressure: boolean): GCard[] | null {
+  const beats = allBeats(hand, prev, level);
+  if (beats.length === 0) return null;
+  const sameType = beats.filter((cards) => {
+    const info = analyzePlay(cards, level);
+    return info && info.type !== 'BOMB' && info.type !== 'ROCKET' && info.type !== 'STRAIGHT_FLUSH';
+  });
+  if (sameType.length === 0) return null; // 只有炸弹能压 → 交给炸弹决策
+  if (pressure) return sameType[0]; // 冲刺/拦截：最小能压直接出
+
+  const byR = groupByR(hand);
+  // 第一优先：完整牌型（对子/三张/顺子等）且不含关键牌
+  for (const cards of sameType) {
+    if (cards.some((c) => isKeyCard(c, level))) continue;
+    const info = analyzePlay(cards, level);
+    if (!info) continue;
+    if (info.type === 'PAIR' || info.type === 'TRIPLE') return cards; // 完整对/三
+    if (info.type === 'SINGLE' && byR.get(cards[0].r)!.length === 1) return cards; // 不拆对的单张
+    // 顺子/连对/三带二/钢板：完整牌型直接出
+    if (info.type === 'STRAIGHT' || info.type === 'PAIR_SEQ' || info.type === 'PLANE' || info.type === 'TRIPLE_PAIR') return cards;
+  }
+  // 第二优先：不含王/变牌（可含级牌）
+  for (const cards of sameType) {
+    if (!cards.some((c) => c.k !== undefined || isWild(c, level))) return cards;
+  }
+  // 兜底：最小
+  return sameType[0];
+}
 
 // ================================================================
 // 难度配置
@@ -178,6 +221,24 @@ function aiLead(
 ): GCard[] {
   const groups = groupHand(hand, level);
   const byRank = groupByR(hand);
+
+  // 【冲刺】自己快出完（≤3 张）：优先整组跑牌（同花顺除外——保留跟牌压制），无组合则出小留大
+  if (hand.length <= 3) {
+    const combos = groups.filter(g =>
+      !g.label.includes('同花顺') &&
+      (g.label.includes('顺') || g.label.includes('连对') ||
+      g.label.includes('钢板') || g.label.includes('三带'))
+    );
+    if (combos.length > 0) {
+      combos.sort((a, b) => cardVal(b.cards[0], level) - cardVal(a.cards[0], level));
+      return combos[0].cards; // 出最大组合，一次脱手概率高
+    }
+    const sorted = [...hand].sort((a, b) => cardVal(a, level) - cardVal(b, level));
+    if (hand.length === 2 && sorted[0].k === undefined && sorted[1].k === undefined && sorted[0].r === sorted[1].r) {
+      return sorted; // 剩对子直接出对
+    }
+    return [sorted[0]]; // 出小留大
+  }
 
   // 队友已头游，自己冲刺：优先出整组牌型，尽快跑（同花顺除外——保留用于跟牌压制，首攻不出）
   if (partnerHeadStart) {
@@ -351,8 +412,32 @@ function aiFollow(
   // 队友刚出最大牌 → 让
   if (isMyTeamLast) return null;
 
-  // 找最小能压住的牌
-  const beat = findSmallestBeat(hand, prev, level);
+  const partnerSeat = mySeat ^ 2;
+  const partnerCount = handCounts[partnerSeat];
+  const opponentSeats = [(mySeat + 1) % 4, (mySeat + 3) % 4];
+  const minOppCount = Math.min(...opponentSeats.map(s => handCounts[s]));
+
+  // 【接队友】对手压了队友的牌（当前是对手出的）且队友快出完（≤6 张）→ 能压必压，帮队友接回出牌权
+  if (!isMyTeamLast && partnerCount <= 6 && minOppCount <= 10) {
+    const beat = findSmallestBeat(hand, prev, level);
+    if (beat) return beat;
+    // 普通牌压不了 → 队友只剩 ≤3 张、对手也少 → 敢用小炸弹接回
+    if (partnerCount <= 3 && minOppCount <= 4) {
+      for (const b of bombCandidates(hand, level)) {
+        const info = { type: 'BOMB' as PlayType, key: b.key, size: b.n, cards: b.cards };
+        if (canBeat(prev, info) && b.kind === 0 && b.n <= 5) return b.cards;
+      }
+    }
+    return null;
+  }
+
+  // 【智能跟牌】压力大（冲刺/拦截）→ 直接最小能压；否则实战取舍（不拆牌型、不浪费关键牌）
+  const pressure =
+    hand.length <= 3 ||                       // 自己快出完：冲
+    minOppCount <= 3 ||                       // 对手快出完：拦
+    headSeat === partnerSeat ||               // 队友已头游：自己冲刺
+    (partnerCount <= 2 && minOppCount <= 8);  // 队友快出完且局面紧迫
+  const beat = pickSmartBeat(hand, prev, level, pressure);
   if (!beat) {
     // 没普通牌可大 → 考虑炸弹
     return decideBomb(hand, prev, level, mySeat, lastPlayBy, handCounts, role, config, headSeat);
@@ -360,11 +445,6 @@ function aiFollow(
 
   const beatInfo = analyzePlay(beat, level);
   if (!beatInfo) return null;
-
-  const opponentSeats = [(mySeat + 1) % 4, (mySeat + 3) % 4];
-  const minOppCount = Math.min(...opponentSeats.map(s => handCounts[s]));
-  const partnerSeat = mySeat ^ 2;
-  const partnerCount = handCounts[partnerSeat];
 
   // 队友快出完（≤2 张）且我让牌后正好轮到队友 → 让牌给队友压（团队配合）
   const nextAfterAI = ((mySeat + 1) % 4 + 4) % 4;
@@ -382,6 +462,9 @@ function aiFollow(
   if (minOppCount <= 2) {
     return beat;
   }
+
+  // 【冲刺】自己手牌不多（≤8 张）→ 能压就压，抢出牌权尽快跑（压后大概率能快速出完）
+  if (hand.length <= 8) return beat;
 
   // 辅助型策略：尽量不压牌，保留大牌给队友
   if (role === 'support') {
