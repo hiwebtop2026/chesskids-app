@@ -1330,20 +1330,48 @@ export function GuandanGame() {
   const commitTurn = useCallback((player: number, play: GCard[] | null) => {
     setGame((prev) => {
       if (!prev) return prev;
-      const hands = prev.hands.map((h) => [...h]);
-      const lastPlay = play ? { player, cards: play, info: analyzePlay(play, prev.level)! } : null;
-      const roundPass = [...prev.roundPass];
-      const finished = [...prev.finished];
+      // ========== 入口前置校验：确保 prev 状态本身一致 ==========
+      // 防御：如果传入状态已经不一致（如 current 指向已出完玩家），先修正再处理
+      let changed = false;
+      let vFinished = [...prev.finished];
+      // 1. 手牌为空但不在 finished → 强制加入
+      for (let p = 0; p < 4; p++) {
+        if (prev.hands[p].length === 0 && !vFinished.includes(p)) {
+          vFinished.push(p);
+          changed = true;
+        }
+      }
+      // 2. 手牌不为空但在 finished → 移除
+      const vCleaned = vFinished.filter((p) => prev.hands[p].length === 0);
+      if (vCleaned.length !== vFinished.length) changed = true;
+      // 3. current 指向已出完/无牌玩家 → 推进
+      let vCurrent = prev.current;
+      if (vCleaned.includes(vCurrent) || prev.hands[vCurrent]?.length === 0) {
+        let s = ((vCurrent + 1) % 4 + 4) % 4;
+        for (let i = 0; i < 4; i++) {
+          const p = (s + i) % 4;
+          if (!vCleaned.includes(p) && prev.hands[p].length > 0) { vCurrent = p; changed = true; break; }
+        }
+      }
+      // 4. 游戏已结束 → 直接返回
+      if (prev.phase !== 'playing') return prev;
+      // 用校验后的状态继续
+      const st = changed ? { ...prev, finished: vCleaned, current: vCurrent, turnStart: vCurrent } : prev;
+
+      const hands = st.hands.map((h) => [...h]);
+      const lastPlay = play ? { player, cards: play, info: analyzePlay(play, st.level)! } : null;
+      const roundPass = [...st.roundPass];
+      const finished = [...st.finished];
       // 出牌时：若上一轮已结束（roundEnded），清除旧 roundPlays 重新开始；否则追加
       // 记录一律带 roundId：显示层只显示当前轮，双保险杜绝上轮残留
       const roundPlays = play
-        ? (prev.roundEnded ? [{ player, cards: play, roundId: prev.roundId }] : [...prev.roundPlays, { player, cards: play, roundId: prev.roundId }])
-        : prev.roundPlays;
+        ? (st.roundEnded ? [{ player, cards: play, roundId: st.roundId }] : [...st.roundPlays, { player, cards: play, roundId: st.roundId }])
+        : st.roundPlays;
 
       // 安全修正：如果传入的 player 已经出完，直接推进到下一位活人，避免死循环/空转
       if (finished.includes(player)) {
         const next = nextAlive(player + 1, finished);
-        return { ...prev, current: next, turnStart: next };
+        return { ...st, current: next, turnStart: next };
       }
 
       if (play) {
@@ -1373,11 +1401,11 @@ export function GuandanGame() {
               else if (order[2] === 1 || order[2] === 3) { win = 1; up = 2; txt = '对方升 2 级'; }
               else { win = 1; up = 1; txt = '对方升 1 级'; }
             }
-            let newLevel = prev.level + up;
+            let newLevel = st.level + up;
             let resultText = txt;
             let winnerTeam: number | null = null;
-            let aStrikes = prev.aStrikes || 0;
-            if (prev.level === 14) {
+            let aStrikes = st.aStrikes || 0;
+            if (st.level === 14) {
               // 打 A 中：必须双上（己方 1、2 名）才算过 A 获胜
               if (win === 0 && up >= 3) {
                 winnerTeam = 0; newLevel = 14; aStrikes = 0;
@@ -1405,7 +1433,7 @@ export function GuandanGame() {
               resultText = win === 0 ? '🚀 打到 A！下一局双上即获胜！' : '对方打到 A，我方须双上才赢';
             }
             return {
-              ...prev, hands, lastPlay, roundPass: [], roundPlays, roundEnded: false, finished,
+              ...st, hands, lastPlay, roundPass: [], roundPlays, roundEnded: false, finished,
               phase: 'over', winnerTeam, resultText,
               level: newLevel,
               aStrikes,
@@ -1417,51 +1445,51 @@ export function GuandanGame() {
         // 出牌后推进轮次：跳过头游等已出完玩家
         const nextSeat = nextAlive(player + 1, finished);
         return {
-          ...prev, hands, lastPlay, lastPlayBy: player, roundPass: [], roundPlays, roundEnded: false, current: nextSeat, turnStart: nextSeat,
+          ...st, hands, lastPlay, lastPlayBy: player, roundPass: [], roundPlays, roundEnded: false, current: nextSeat, turnStart: nextSeat,
         };
       } else {
         // 不出
         roundPass.push(player);
         // 一圈结束：除最后出牌者外，所有未出完玩家都已 pass
         // （有玩家头游后活人数减少，pass 满 3 可能永远不满足 → 按"活人-1"判定，避免上一轮牌面残留）
-        const aliveNotBy = [0, 1, 2, 3].filter((p) => !finished.includes(p) && p !== prev.lastPlayBy);
+        const aliveNotBy = [0, 1, 2, 3].filter((p) => !finished.includes(p) && p !== st.lastPlayBy);
         if (roundPass.length >= Math.max(1, aliveNotBy.length)) {
           // 一圈全过 → 立即清空四家出牌信息，下一轮出牌从零开始
           // 接风规则：最后出牌者已出完（头游）时，由其对家（队友）接风自由出牌；否则最后出牌者自由出牌
           let freer: number;
-          if (finished.includes(prev.lastPlayBy)) {
+          if (finished.includes(st.lastPlayBy)) {
             // 最后出牌者已出完：队友接风；若队友也出完，找下一位活人
-            const partner = prev.lastPlayBy ^ 2;
-            freer = finished.includes(partner) ? nextAlive(prev.lastPlayBy + 1, finished) : partner;
+            const partner = st.lastPlayBy ^ 2;
+            freer = finished.includes(partner) ? nextAlive(st.lastPlayBy + 1, finished) : partner;
           } else {
-            freer = prev.lastPlayBy;
+            freer = st.lastPlayBy;
           }
           // 双重保险：freer 必须是活人
           if (finished.includes(freer)) freer = nextAlive(freer + 1, finished);
-          return { ...prev, hands, roundPass: [], roundPlays: [], roundEnded: true, roundId: prev.roundId + 1, current: freer, lastPlay: null, lastPlayBy: freer };
+          return { ...st, hands, roundPass: [], roundPlays: [], roundEnded: true, roundId: st.roundId + 1, current: freer, lastPlay: null, lastPlayBy: freer };
         }
         const nextSeat = nextAlive(player + 1, finished);
-        return { ...prev, hands, roundPass, roundPlays, current: nextSeat };
+        return { ...st, hands, roundPass, roundPlays, current: nextSeat };
       }
     });
   }, []);
 
   // 玩家出牌
   const doPlay = useCallback(() => {
-    if (!game || game.current !== 0) return;
+    if (!isMyTurn) return;
     const info = checkSelection();
     if (!info) { return; }
     const cards = game.hands[0].filter((c) => selected.includes(c.id));
+    if (cards.length === 0) return;
     setSelected([]);
     commitTurn(0, cards);
-  }, [game, selected, checkSelection, commitTurn]);
+  }, [game, selected, checkSelection, commitTurn, isMyTurn]);
 
   const doPass = useCallback(() => {
-    if (!game || game.current !== 0) return;
-    if (!game.lastPlay) return; // 自由出牌不能不出
+    if (!isMyTurn || !game?.lastPlay) return;
     setSelected([]);
     commitTurn(0, null);
-  }, [game, commitTurn]);
+  }, [game, commitTurn, isMyTurn]);
 
   // ===== 游戏结束 → 记录学习 =====
   const gameOverRecordedRef = useRef(false);
@@ -1498,6 +1526,41 @@ export function GuandanGame() {
     });
     setLearningProfile(newProfile);
   }, [game, learningProfile, actualDifficulty]);
+
+  // ============ 状态一致性自动校正 ============
+  // 终极防御：任何状态变更后，如果 current 指向已出完/无牌玩家，自动推进到下一位活人
+  useEffect(() => {
+    if (!game || game.phase !== 'playing') return;
+    // 快速校验：current 必须是活人且有牌
+    if (!game.finished.includes(game.current) && game.hands[game.current]?.length > 0) return;
+    // 发现不一致 → 自动修复
+    setGame((prev) => {
+      if (!prev || prev.phase !== 'playing') return prev;
+      let changed = false;
+      const finished = [...prev.finished];
+      // 1. 手牌为空但不在 finished → 强制加入
+      for (let p = 0; p < 4; p++) {
+        if (prev.hands[p].length === 0 && !finished.includes(p)) {
+          finished.push(p);
+          changed = true;
+        }
+      }
+      // 2. 手牌不为空但在 finished → 移除
+      const cleaned = finished.filter((p) => prev.hands[p].length === 0);
+      if (cleaned.length !== finished.length) changed = true;
+      // 3. current 指向已出完/无牌玩家 → 推进
+      let current = prev.current;
+      if (cleaned.includes(current) || prev.hands[current]?.length === 0) {
+        let s = ((current + 1) % 4 + 4) % 4;
+        for (let i = 0; i < 4; i++) {
+          const p = (s + i) % 4;
+          if (!cleaned.includes(p) && prev.hands[p].length > 0) { current = p; changed = true; break; }
+        }
+      }
+      if (!changed) return prev;
+      return { ...prev, finished: cleaned, current, turnStart: current };
+    });
+  }, [game?.current, game?.finished, game?.hands, game?.phase]);
 
   // AI 回合
   useEffect(() => {
@@ -1790,7 +1853,7 @@ export function GuandanGame() {
       </div>
 
       {/* 操作区 */}
-      <div className="gd-actions">
+      <div className={`gd-actions ${game.finished.includes(0) ? 'gd-actions-finished' : ''}`}>
         <span className="gd-turn-hint">
           {game.phase === 'over' ? game.resultText
             : game.finished.includes(0)
@@ -1800,9 +1863,14 @@ export function GuandanGame() {
               : isMyTurn ? '🖐 轮到你出牌'
               : `等待 ${NAMES[game.current]} 出牌…`}
         </span>
-        <button className="gd-btn gd-btn-pass" onClick={doPass} disabled={!canPass}>不出</button>
-        <button className="gd-btn gd-btn-hint" onClick={applyHint} disabled={!isMyTurn}>提示</button>
-        <button className="gd-btn gd-btn-play gd-btn-primary" onClick={doPlay} disabled={!canPlay}>出牌</button>
+        {/* 已出完玩家：完全隐藏出牌操作按钮，避免误触和混淆 */}
+        {!game.finished.includes(0) && game.phase === 'playing' && (
+          <>
+            <button className="gd-btn gd-btn-pass" onClick={doPass} disabled={!canPass}>不出</button>
+            <button className="gd-btn gd-btn-hint" onClick={applyHint} disabled={!isMyTurn}>提示</button>
+            <button className="gd-btn gd-btn-play gd-btn-primary" onClick={doPlay} disabled={!canPlay}>出牌</button>
+          </>
+        )}
         <button
           className="gd-btn gd-btn-sort"
           onClick={() => {

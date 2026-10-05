@@ -65,20 +65,60 @@ export function nextAliveSeat(from: number, finished: number[]): number {
   return s;
 }
 
+/** 状态一致性校验：确保 current 永远指向有牌、未出完的活人；手牌为空者强制加入 finished */
+export function validateGDState(st: GDOnlineState): GDOnlineState {
+  if (st.phase !== 'playing') return st;
+  let changed = false;
+  const finished = [...st.finished];
+  // 1. 手牌为空但不在 finished 中 → 强制加入（防御：极端情况下漏登记）
+  for (let p = 0; p < 4; p++) {
+    if (st.hands[p].length === 0 && !finished.includes(p)) {
+      finished.push(p);
+      changed = true;
+    }
+  }
+  // 2. 手牌不为空但在 finished 中 → 移除（防御：状态回退异常）
+  const cleanedFinished = finished.filter((p) => st.hands[p].length === 0);
+  if (cleanedFinished.length !== finished.length) changed = true;
+  // 3. current 指向已出完玩家 → 推进到下一位活人
+  let current = st.current;
+  if (cleanedFinished.includes(current) || st.hands[current]?.length === 0) {
+    current = nextAliveSeat(current + 1, cleanedFinished);
+    changed = true;
+  }
+  // 4. 只剩一个活人 → 游戏结束（防御：死循环）
+  const alive = [0, 1, 2, 3].filter((p) => !cleanedFinished.includes(p));
+  if (alive.length <= 1 && cleanedFinished.length >= 3) {
+    // 把最后一个活人也加入 finished，按顺序排名
+    if (alive.length === 1 && !cleanedFinished.includes(alive[0])) {
+      const finalFinished = [...cleanedFinished, alive[0]];
+      return { ...st, finished: finalFinished, phase: 'over' as const, current: finalFinished[0], lastPlay: null, lastPlayBy: -1 };
+    }
+  }
+  if (!changed) return st;
+  return { ...st, finished: cleanedFinished, current, turnStart: current };
+}
+
 export function gdApplyTurn(prev: GDOnlineState, player: number, play: GCard[] | null): GDOnlineState {
-  const hands = prev.hands.map((h) => [...h]);
-  const roundPass = [...prev.roundPass];
-  const finished = [...prev.finished];
+  // ========== 入口前置校验：确保 prev 状态本身一致 ==========
+  // 防御：如果传入状态已经不一致（如 current 指向已出完玩家），先修正再处理
+  const st = validateGDState(prev);
+  // 校验后发现游戏已结束 → 直接返回，不再处理任何出牌
+  if (st.phase !== 'playing') return st;
+
+  const hands = st.hands.map((h) => [...h]);
+  const roundPass = [...st.roundPass];
+  const finished = [...st.finished];
   // 出牌时：若上一轮已结束（roundEnded），清除旧 roundPlays 重新开始；否则追加
   // 记录一律带 roundId：显示层只显示当前轮，双保险杜绝上轮残留
   const roundPlays = play
-    ? (prev.roundEnded ? [{ player, cards: play, roundId: prev.roundId }] : [...prev.roundPlays, { player, cards: play, roundId: prev.roundId }])
-    : prev.roundPlays;
+    ? (st.roundEnded ? [{ player, cards: play, roundId: st.roundId }] : [...st.roundPlays, { player, cards: play, roundId: st.roundId }])
+    : st.roundPlays;
 
   // 安全修正：如果传入的 player 已经出完，直接推进到下一位活人，避免死循环
   if (finished.includes(player)) {
     const next = nextAliveSeat(player + 1, finished);
-    return { ...prev, current: next, turnStart: next };
+    return { ...st, current: next, turnStart: next };
   }
 
   if (play) {
@@ -107,11 +147,11 @@ export function gdApplyTurn(prev: GDOnlineState, player: number, play: GCard[] |
           else if (teamOf(order[2]) === 1) { up = 2; txt = '对方升 2 级'; }
           else { up = 1; txt = '对方升 1 级'; }
         }
-        let newLevel = prev.level + up;
+        let newLevel = st.level + up;
         let resultText = txt;
         let winnerTeam: number | null = null;
-        let aStrikes = prev.aStrikes || 0;
-        if (prev.level === 14) {
+        let aStrikes = st.aStrikes || 0;
+        if (st.level === 14) {
           // 打 A 中：必须双上（己方 1、2 名）才算过 A 获胜
           if (myTeamWon && up >= 3) {
             winnerTeam = 0; newLevel = 14; aStrikes = 0;
@@ -138,7 +178,7 @@ export function gdApplyTurn(prev: GDOnlineState, player: number, play: GCard[] |
           resultText = myTeamWon ? '🚀 打到 A！下一局双上即获胜！' : '对方打到 A，我方须双上才赢';
         }
         return {
-          ...prev, hands, roundPass: [], roundPlays, roundEnded: false, finished, phase: 'over', winnerTeam, resultText,
+          ...st, hands, roundPass: [], roundPlays, roundEnded: false, finished, phase: 'over', winnerTeam, resultText,
           level: newLevel, aStrikes, tributePlan, current: order[0], lastPlay: null, lastPlayBy: -1,
         };
       }
@@ -146,7 +186,7 @@ export function gdApplyTurn(prev: GDOnlineState, player: number, play: GCard[] |
     // 出牌后推进轮次：跳过头游等已出完玩家
     const nextSeat = nextAliveSeat(player + 1, finished);
     return {
-      ...prev, hands,
+      ...st, hands,
       lastPlay: { player, cards: play }, lastPlayBy: player, roundPass: [], roundPlays, roundEnded: false,
       current: nextSeat, turnStart: nextSeat,
     };
@@ -155,24 +195,24 @@ export function gdApplyTurn(prev: GDOnlineState, player: number, play: GCard[] |
   roundPass.push(player);
   // 一圈结束：除最后出牌者外，所有未出完玩家都已 pass
   // （有玩家头游后活人数减少，pass 满 3 可能永远不满足 → 按"活人-1"判定，避免上一轮牌面残留）
-  const aliveNotBy = [0, 1, 2, 3].filter((p) => !finished.includes(p) && p !== prev.lastPlayBy);
+  const aliveNotBy = [0, 1, 2, 3].filter((p) => !finished.includes(p) && p !== st.lastPlayBy);
   if (roundPass.length >= Math.max(1, aliveNotBy.length)) {
     // 一圈全过 → 立即清空四家出牌信息，下一轮出牌从零开始
     // 接风规则：最后出牌者已出完（头游）时，由其对家（队友）接风自由出牌；否则最后出牌者自由出牌
     let freer: number;
-    if (finished.includes(prev.lastPlayBy)) {
+    if (finished.includes(st.lastPlayBy)) {
       // 最后出牌者已出完：队友接风；若队友也出完，找下一位活人
-      const partner = prev.lastPlayBy ^ 2;
-      freer = finished.includes(partner) ? nextAliveSeat(prev.lastPlayBy + 1, finished) : partner;
+      const partner = st.lastPlayBy ^ 2;
+      freer = finished.includes(partner) ? nextAliveSeat(st.lastPlayBy + 1, finished) : partner;
     } else {
-      freer = prev.lastPlayBy;
+      freer = st.lastPlayBy;
     }
     // 双重保险：freer 必须是活人
     if (finished.includes(freer)) freer = nextAliveSeat(freer + 1, finished);
-    return { ...prev, hands, roundPass: [], roundPlays: [], roundEnded: true, roundId: prev.roundId + 1, current: freer, lastPlay: null, lastPlayBy: freer };
+    return { ...st, hands, roundPass: [], roundPlays: [], roundEnded: true, roundId: st.roundId + 1, current: freer, lastPlay: null, lastPlayBy: freer };
   }
   const nextSeat = nextAliveSeat(player + 1, finished);
-  return { ...prev, hands, roundPass, roundPlays, current: nextSeat };
+  return { ...st, hands, roundPass, roundPlays, current: nextSeat };
 }
 
 export function gdNewGame(level: number, names: string[], firstSeat: number, keepStrikes = 0, tributePlan: { from: number; to: number }[] | null = null): GDOnlineState {
@@ -399,6 +439,8 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
       if (seat === undefined) return;
       setGame((prev) => {
         if (!prev || prev.phase !== 'playing' || prev.current !== seat) return prev;
+        // 服务端严格校验：已出完玩家禁止出牌（双重防御）
+        if (prev.finished.includes(seat) || prev.hands[seat].length === 0) return prev;
         const cards = msg.type === 'PLAY' ? (msg.cards || []) : null;
         if (cards) {
           // 服务端校验：牌必须属于该玩家手牌、牌型合法、且能压过上一手（防异常客户端/越权出牌）
@@ -448,7 +490,9 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
         return np;
       });
     } else if (msg.type === 'STATE') {
-      setGame(msg.state);
+      // 收到状态后立即校验一致性，避免出现"已出完还提示出牌"的闪烁
+      const validated = validateGDState(msg.state);
+      setGame(validated);
       setStatus('playing');
       setNotice('');
       setSelected([]);
@@ -785,7 +829,9 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
     if (cards.length === 0) return;
     if (role === 'host') {
       setGame((prev) => {
-        if (!prev || prev.current !== 0) return prev;
+        // 严格二次校验：防止竞态条件（状态已更新但UI还未刷新时点击出牌）
+        if (!prev || prev.phase !== 'playing' || prev.current !== 0) return prev;
+        if (prev.finished.includes(0) || prev.hands[0].length === 0) return prev;
         const next = gdApplyTurn(prev, 0, cards);
         broadcastState(next);
         return next;
@@ -802,7 +848,10 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
     if (!isMyTurn || !game?.lastPlay) return;
     if (role === 'host') {
       setGame((prev) => {
-        if (!prev || prev.current !== 0) return prev;
+        // 严格二次校验：防止竞态条件
+        if (!prev || prev.phase !== 'playing' || prev.current !== 0) return prev;
+        if (prev.finished.includes(0) || prev.hands[0].length === 0) return prev;
+        if (!prev.lastPlay) return prev;
         const next = gdApplyTurn(prev, 0, null);
         broadcastState(next);
         return next;
@@ -924,6 +973,23 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
     else document.body.classList.remove('gd-float-active');
     return () => document.body.classList.remove('gd-float-active');
   }, [floating]);
+
+  // ============ 状态一致性自动校正 ============
+  // 终极防御：任何状态变更后，如果 current 指向已出完/无牌玩家，自动推进到下一位活人
+  useEffect(() => {
+    if (!game || game.phase !== 'playing') return;
+    // 快速校验：current 必须是活人且有牌
+    if (!game.finished.includes(game.current) && game.hands[game.current]?.length > 0) return;
+    // 发现不一致 → 调用 validateGDState 修复
+    setGame((prev) => {
+      if (!prev || prev.phase !== 'playing') return prev;
+      const fixed = validateGDState(prev);
+      if (fixed === prev) return prev;
+      // 如果是房主，同步给所有客户端
+      if (role === 'host') broadcastState(fixed);
+      return fixed;
+    });
+  }, [game?.current, game?.finished, game?.hands, game?.phase, role, broadcastState]);
 
   // ============ AI 自动出牌驱动（仅房主侧） ============
   useEffect(() => {
@@ -1308,10 +1374,13 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
         <div className={`gd-seat gd-seat-top gd-team-mine ${game.current === 2 ? 'gd-active' : ''}`}>
           <span className="gd-seat-name">🤝 {seatLabel(2)}</span>
           <span className="gd-team-tag gd-team-mine-tag">我方</span>
-          {headSeat === 2 && <span className="gd-head-tag">🏆 头游</span>}
-          {counts[2] <= 10 && <span className="gd-seat-count">{counts[2]} 张</span>}
-          {game.roundPass.includes(2) && <span className="gd-pass-tag">不出</span>}
-          {game.finished.includes(2) && <span className="gd-finished-tag">已出完</span>}
+          {game.finished.includes(2)
+            ? <span className={`gd-rank-tag ${game.finished[0] === 2 ? 'gd-rank-1' : ''}`}>
+                {game.finished[0] === 2 ? '🏆 头游' : `第${game.finished.indexOf(2) + 1}名`}
+              </span>
+            : null}
+          {!game.finished.includes(2) && counts[2] <= 10 && <span className="gd-seat-count">{counts[2]} 张</span>}
+          {!game.finished.includes(2) && game.roundPass.includes(2) && <span className="gd-pass-tag">不出</span>}
         </div>
         {showPartnerCards && partnerSeat === 2 && (
           <div className="gd-partner-cards">
@@ -1404,19 +1473,24 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
       {/* 我方（南）出牌区：手牌上方 */}
       <div className="gd-play-area gd-play-south">{renderRoundPlays(0)}</div>
 
-      <div className="gd-actions">
+      <div className={`gd-actions ${game.finished.includes(mySeat) ? 'gd-actions-finished' : ''}`}>
         <span className="gd-turn-hint">
           {game.phase === 'over' ? game.resultText
             : game.finished.includes(mySeat)
               ? (headSeat === mySeat
                 ? '🏆 你已头游！' + (game.finished.length < 4 ? ' 明牌查看对家剩余牌' : '')
                 : `✅ 你已${game.finished.indexOf(mySeat) + 1}游，等待其他玩家…`)
-            : isMyTurn ? `🖐 轮到你（${myName}）出牌`
-            : `等待 ${seatLabel(game.current)} 出牌…`}
+              : isMyTurn ? `🖐 轮到你（${myName}）出牌`
+              : `等待 ${seatLabel(game.current)} 出牌…`}
         </span>
-        <button className="gd-btn gd-btn-pass" onClick={doPass} disabled={!canPass}>不出</button>
-        <button className="gd-btn gd-btn-hint" onClick={applyHint} disabled={!isMyTurn}>提示</button>
-        <button className="gd-btn gd-btn-play gd-btn-primary" onClick={doPlay} disabled={!canPlay}>出牌</button>
+        {/* 已出完玩家：完全隐藏出牌操作按钮，避免误触和混淆 */}
+        {!game.finished.includes(mySeat) && game.phase === 'playing' && (
+          <>
+            <button className="gd-btn gd-btn-pass" onClick={doPass} disabled={!canPass}>不出</button>
+            <button className="gd-btn gd-btn-hint" onClick={applyHint} disabled={!isMyTurn}>提示</button>
+            <button className="gd-btn gd-btn-play gd-btn-primary" onClick={doPlay} disabled={!canPlay}>出牌</button>
+          </>
+        )}
         <button
           className="gd-btn gd-btn-sort"
           onClick={() => {

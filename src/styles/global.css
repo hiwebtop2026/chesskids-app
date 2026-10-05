@@ -7455,6 +7455,14 @@ ul {
   z-index: 5; /* 保证操作区按钮始终可点，不被出牌区/手牌区覆盖 */
 }
 .gd-turn-hint { flex-basis: 100%; text-align: center; font-size: 12.5px; color: #e8f5e9; }
+/* 已出完玩家的操作区：提示文字更醒目，背景高亮 */
+.gd-actions-finished .gd-turn-hint {
+  font-size: 15px;
+  font-weight: bold;
+  color: #ffd700;
+  text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+  padding: 6px 0;
+}
 .gd-btn {
   border: 1px solid rgba(255, 255, 255, 0.25);
   background: rgba(255, 255, 255, 0.14);
