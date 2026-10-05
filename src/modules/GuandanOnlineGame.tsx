@@ -1266,10 +1266,10 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
   const seatLabel = (s: number) => players[s] || SEAT_NAMES[s];
 
   const sortedHand = [...myHand].sort((a, b) => {
+    const va = cardVal(a, game ? game.level : 2);
+    const vb = cardVal(b, game ? game.level : 2);
+    if (va !== vb) return vb - va;
     if (a.k !== undefined && b.k !== undefined) return b.k! - a.k!;
-    if (a.k !== undefined) return 1;
-    if (b.k !== undefined) return -1;
-    if (a.r !== b.r) return b.r - a.r;
     return a.s < b.s ? -1 : 1;
   });
 

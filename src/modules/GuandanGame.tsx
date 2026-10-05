@@ -149,7 +149,7 @@ export function groupHand(hand: GCard[], level: number, scheme: number = 0): Han
       sf = false;
       for (const s of ['S', 'H', 'C', 'D']) {
         const sc = avail().filter((c) => c.s === s && c.k === undefined && !isWild(c, level));
-        const ranks = [...new Set(sc.map((c) => c.r))].sort((a, b) => b - a);
+        const ranks = [...new Set(sc.map((c) => c.r))].filter((r) => r >= 3 && r <= 14).sort((a, b) => b - a); // 2 不能进顺/同花顺
         for (let i = 0; i + 4 < ranks.length; i++) {
           let len = 1;
           while (i + len < ranks.length && ranks[i + len] === ranks[i] - len) len++;
@@ -168,8 +168,8 @@ export function groupHand(hand: GCard[], level: number, scheme: number = 0): Han
           const sc = avail().filter((c) => c.s === s && c.k === undefined && !isWild(c, level));
           const base = new Set(sc.map((c) => c.r));
           const ws = wildsOf(avail());
-          for (let hi = 14; hi >= 6; hi--) {
-            const lo = hi - 4;
+          for (let hi = 14; hi >= 7; hi--) {
+            const lo = hi - 4; // 最小顺子 3-4-5-6-7，2 不能进顺
             let missing = 0;
             const want: number[] = [];
             for (let r = lo; r <= hi; r++) {
@@ -226,7 +226,10 @@ export function groupHand(hand: GCard[], level: number, scheme: number = 0): Han
       trio = false;
       const ng = groupByR(avail().filter((c) => !isWild(c, level)));
       const ws = wildsOf(avail());
-      const pairRanks = [...ng.entries()].filter(([, arr]) => arr.length >= 2).map(([k]) => k).sort((a, b) => b - a);
+      // 按牌力排序且过滤 2：级牌优先、2 不能进连对
+      const pairRanks = [...ng.entries()].filter(([, arr]) => arr.length >= 2)
+        .map(([k]) => k).filter((k) => k >= 3 && k <= 14)
+        .sort((a, b) => b - a);
       for (let i = 0; i + 2 < pairRanks.length; i++) {
         if (pairRanks[i + 1] === pairRanks[i] - 1 && pairRanks[i + 2] === pairRanks[i] - 2) {
           const pick = [pairRanks[i], pairRanks[i + 1], pairRanks[i + 2]].flatMap((k) => ng.get(k)!.slice(0, 2));
@@ -302,7 +305,9 @@ export function groupHand(hand: GCard[], level: number, scheme: number = 0): Han
       full = false;
       const ng = groupByR(avail().filter((c) => !isWild(c, level)));
       const ws = wildsOf(avail());
-      const trips = [...ng.entries()].filter(([, arr]) => arr.length >= 3).map(([k]) => k).sort((a, b) => b - a);
+      // 按牌力排序：级牌三张优先组三带二（打 K 时 K 先于 A）
+      const trips = [...ng.entries()].filter(([, arr]) => arr.length >= 3)
+        .sort((a, b) => cardVal(b[1][0], level) - cardVal(a[1][0], level)).map(([k]) => k);
       for (const t of trips) {
         const pair = [...ng.entries()].find(([k, arr]) => k < 19 && k !== t && arr.length >= 2);
         if (pair) { take([...ng.get(t)!.slice(0, 3), ...pair[1].slice(0, 2)], `三带二 ${rankName(t)}`); full = true; break; }
@@ -330,7 +335,8 @@ export function groupHand(hand: GCard[], level: number, scheme: number = 0): Han
   const findPairs = () => {
     const ng = groupByR(avail().filter((c) => !isWild(c, level)));
     const ws = wildsOf(avail());
-    for (const [k, arr] of [...ng.entries()].sort((a, b) => b[0] - a[0])) {
+    // 按牌力排序：级牌优先于普通牌（打 K 时 K 在 A 前）
+    for (const [k, arr] of [...ng.entries()].sort((a, b) => cardVal(b[1][0], level) - cardVal(a[1][0], level))) {
       if (k < 19 && arr.length >= 2) {
         take(arr.slice(0, 2), `对子 ${rankName(k)}`);
       } else if (k < 19 && arr.length === 1 && ws.length >= 1) {
@@ -341,11 +347,10 @@ export function groupHand(hand: GCard[], level: number, scheme: number = 0): Han
   };
 
   const collectRest = () => {
-    const rest = [...groupByR(avail()).entries()].sort((a, b) => {
-      const ka = a[0] >= 19 ? 100 : a[0];
-      const kb = b[0] >= 19 ? 100 : b[0];
-      return kb - ka;
-    });
+    // 散牌排序按牌力（cardVal）：大王 > 小王 > 级牌 > A > … > 3 > 非级牌2
+    const rest = [...groupByR(avail()).entries()].sort((a, b) =>
+      cardVal(b[1][0], level) - cardVal(a[1][0], level)
+    );
     for (const [, arr] of rest) {
       const c0 = arr[0];
       if (c0.k === 1) take(arr, '大王');
@@ -455,7 +460,7 @@ export function analyzePlay(cards: GCard[], level: number): PlayInfo | null {
 
   // 钢板（连续三张，无翅膀）
   if (w === 0 && n >= 6 && n % 3 === 0 && sizes.every((s) => s === 3) && onlySeqOk(ranks)) {
-    return { type: 'PLANE', key: cardVal(cards.find((c) => c.r === ranks[ranks.length - 1])!, level), size: n, cards };
+    return { type: 'PLANE', key: seqVal(ranks[ranks.length - 1]), size: n, cards }; // 按最高牌原数，级牌不抬升
   }
 
   // 连对（3+ 对连续）/ 钢板（连续三张）：变牌可补缺口
@@ -476,7 +481,7 @@ export function analyzePlay(cards: GCard[], level: number): PlayInfo | null {
       if (ok && need <= w && nArr.length === n / 2) {
         rs.sort((a, b) => a - b);
         if (onlySeqOk(rs)) {
-          return { type: 'PAIR_SEQ', key: cardVal(cards.find((c) => c.r === rs[rs.length - 1])!, level), size: n, cards };
+          return { type: 'PAIR_SEQ', key: seqVal(rs[rs.length - 1]), size: n, cards };
         }
       }
     }
@@ -494,7 +499,7 @@ export function analyzePlay(cards: GCard[], level: number): PlayInfo | null {
       if (ok && need <= w && nArr.length === n / 3) {
         rs.sort((a, b) => a - b);
         if (onlySeqOk(rs)) {
-          return { type: 'PLANE', key: cardVal(cards.find((c) => c.r === rs[rs.length - 1])!, level), size: n, cards };
+          return { type: 'PLANE', key: seqVal(rs[rs.length - 1]), size: n, cards };
         }
       }
     }
@@ -502,7 +507,7 @@ export function analyzePlay(cards: GCard[], level: number): PlayInfo | null {
 
   // 连对（纯牌，3+ 对连续）
   if (w === 0 && n >= 6 && n % 2 === 0 && sizes.every((s) => s === 2) && onlySeqOk(ranks)) {
-    return { type: 'PAIR_SEQ', key: cardVal(cards.find((c) => c.r === ranks[ranks.length - 1])!, level), size: n, cards };
+    return { type: 'PAIR_SEQ', key: seqVal(ranks[ranks.length - 1]), size: n, cards };
   }
 
   // 顺子 / 同花顺（固定 5 张；变牌补缺口）
@@ -1608,10 +1613,10 @@ export function GuandanGame() {
   }, [game, commitTurn]);
 
   const sortedHand = [...me].sort((a, b) => {
+    const va = cardVal(a, game ? game.level : 2);
+    const vb = cardVal(b, game ? game.level : 2);
+    if (va !== vb) return vb - va;
     if (a.k !== undefined && b.k !== undefined) return b.k! - a.k!;
-    if (a.k !== undefined) return 1;
-    if (b.k !== undefined) return -1;
-    if (a.r !== b.r) return b.r - a.r;
     return a.s < b.s ? -1 : 1;
   });
 
