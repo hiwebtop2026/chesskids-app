@@ -1363,9 +1363,10 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
         </>
       )}
       <div className="gd-topbar">
+        <span className="gd-info">🎯 打 <b className="gd-level">{levelName}</b></span>
+        <span className="gd-info">🃏 变牌 <b className="gd-wild-gold">红桃{levelName}</b></span>
         <span className="gd-info">我方 <b>{myTeamCount}</b> 张</span>
         <span className="gd-info">对方 <b>{oppTeamCount}</b> 张</span>
-        <span className="gd-info">目标 <b className="gd-level">过 {levelName}</b></span>
         <span className="gd-info">房间 <b className="gd-level">{roomCode}</b></span>
       </div>
       {game.gongMessage && <div className="gd-gong-bar">{game.gongMessage}</div>}
@@ -1480,7 +1481,10 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
               ? (headSeat === mySeat
                 ? '🏆 你已头游！' + (game.finished.length < 4 ? ' 明牌查看对家剩余牌' : '')
                 : `✅ 你已${game.finished.indexOf(mySeat) + 1}游，等待其他玩家…`)
-              : isMyTurn ? `🖐 轮到你（${myName}）出牌`
+              : isMyTurn
+                ? (canPlay ? `🖐 轮到你（${myName}）出牌`
+                  : game.lastPlay ? `🙅 没有牌大过上家（可点"不出"过牌）`
+                  : `🖐 轮到你（${myName}）出牌`)
               : `等待 ${seatLabel(game.current)} 出牌…`}
         </span>
         {/* 已出完玩家：完全隐藏出牌操作按钮，避免误触和混淆 */}

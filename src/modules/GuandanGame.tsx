@@ -1830,10 +1830,10 @@ export function GuandanGame() {
       )}
       {/* 顶部状态条 */}
       <div className="gd-topbar">
+        <span className="gd-info">🎯 打 <b className="gd-level">{levelName}</b></span>
+        <span className="gd-info">🃏 变牌 <b className="gd-wild-gold">红桃{levelName}</b></span>
         <span className="gd-info">我方 <b>{myTeamCount}</b> 张</span>
         <span className="gd-info">对方 <b>{oppTeamCount}</b> 张</span>
-        <span className="gd-info">目标 <b className="gd-level">过 {levelName}</b></span>
-        <span className="gd-info">级牌 <b className="gd-level">{levelName}</b></span>
       </div>
       {game.gongMessage && <div className="gd-gong-bar">{game.gongMessage}</div>}
 
@@ -1841,7 +1841,7 @@ export function GuandanGame() {
       <div className="gd-seats">
         {/* 队友（上·北） */}
         <div className={`gd-seat gd-seat-top ${game.current === 2 ? 'gd-active' : ''}`}>
-          <span className="gd-seat-name">🤝 队友</span>
+          <span className="gd-seat-name">🤝 队友<em className="gd-rank">宗师III</em></span>
           {headSeat === 2 && <span className="gd-head-tag">🏆 头游</span>}
           {counts[2] <= 10 && <span className="gd-seat-count">{counts[2]} 张</span>}
           {game.roundPass.includes(2) && <span className="gd-pass-tag">不出</span>}
@@ -1871,7 +1871,7 @@ export function GuandanGame() {
         <div className="gd-side-row">
           <div className="gd-side-col">
             <div className={`gd-seat gd-seat-left ${game.current === 3 ? 'gd-active' : ''}`}>
-              <span className="gd-seat-name">😈 对手B</span>
+              <span className="gd-seat-name">😈 对手B<em className="gd-rank">大师IV</em></span>
               {headSeat === 3 && <span className="gd-head-tag">🏆 头游</span>}
               {counts[3] <= 10 && <span className="gd-seat-count">{counts[3]} 张</span>}
               {game.roundPass.includes(3) && <span className="gd-pass-tag">不出</span>}
@@ -1905,7 +1905,7 @@ export function GuandanGame() {
           </div>
           <div className="gd-side-col">
             <div className={`gd-seat gd-seat-right ${game.current === 1 ? 'gd-active' : ''}`}>
-              <span className="gd-seat-name">😈 对手A</span>
+              <span className="gd-seat-name">😈 对手A<em className="gd-rank">大师II</em></span>
               {headSeat === 1 && <span className="gd-head-tag">🏆 头游</span>}
               {counts[1] <= 10 && <span className="gd-seat-count">{counts[1]} 张</span>}
               {game.roundPass.includes(1) && <span className="gd-pass-tag">不出</span>}
@@ -1943,8 +1943,11 @@ export function GuandanGame() {
               ? (headSeat === 0
                 ? '🏆 你已头游！' + (game.finished.length < 4 ? ' 明牌查看对家剩余牌' : '')
                 : `✅ 你已${game.finished.indexOf(0) + 1}游，等待其他玩家…`)
-              : isMyTurn ? '🖐 轮到你出牌'
-              : `等待 ${NAMES[game.current]} 出牌…`}
+              : isMyTurn
+                ? (canPlay ? '🖐 轮到你出牌（选牌后点"出牌"）'
+                  : game.lastPlay ? '🙅 没有牌大过上家（可点"不出"过牌）'
+                  : '🖐 轮到你出牌')
+                : `等待 ${NAMES[game.current]} 出牌…`}
         </span>
         {/* 已出完玩家：完全隐藏出牌操作按钮，避免误触和混淆 */}
         {!game.finished.includes(0) && game.phase === 'playing' && (
