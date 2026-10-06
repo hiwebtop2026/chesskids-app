@@ -1395,11 +1395,6 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
               <button className="gd-menu-btn" onClick={() => { copyRoomCode(); setMenuOpen(false); }}>
                 📋 复制房间号
               </button>
-              {sortMode === 'grouped' && (
-                <button className="gd-menu-btn" onClick={() => { setSortMode('rank'); setMenuOpen(false); }}>
-                  ↩️ 恢复排序
-                </button>
-              )}
               {role === 'host' && (
                 <button className="gd-menu-btn" onClick={() => { nextRound(); setMenuOpen(false); }} disabled={!game || game.phase !== 'over'}>
                   🔄 开始下一局
@@ -1561,6 +1556,9 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
         >
           {sortMode === 'rank' ? '一键理牌' : `方案${sortScheme + 1}/4`}
         </button>
+        {sortMode === 'grouped' && (
+          <button className="gd-btn gd-btn-sort gd-btn-restore" onClick={() => setSortMode('rank')}>↩️ 恢复理牌</button>
+        )}
       </div>
 
       {sortMode === 'grouped' ? (

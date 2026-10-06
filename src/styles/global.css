@@ -7536,6 +7536,7 @@ ul {
 .gd-btn-pass { background: linear-gradient(135deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.06)); }
 .gd-btn-hint { background: linear-gradient(135deg, rgba(120, 200, 255, 0.32), rgba(80, 160, 255, 0.16)); }
 .gd-btn-sort { background: linear-gradient(135deg, rgba(255, 213, 79, 0.3), rgba(255, 180, 0, 0.14)); }
+.gd-btn-restore { background: linear-gradient(135deg, rgba(140, 200, 255, 0.32), rgba(90, 160, 255, 0.16)); }
 
 .gd-hand {
   display: flex;

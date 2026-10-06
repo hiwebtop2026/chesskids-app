@@ -2016,11 +2016,6 @@ export function GuandanGame({ onExit }: { onExit?: () => void }) {
               <button className="gd-menu-btn" onClick={() => { applyHint(); setMenuOpen(false); }} disabled={!isMyTurn}>
                 💡 提示
               </button>
-              {sortMode === 'grouped' && (
-                <button className="gd-menu-btn" onClick={() => { restoreSort(); }}>
-                  ↩️ 恢复理牌
-                </button>
-              )}
               <button className="gd-menu-btn" onClick={() => { setShowHistory(true); setMenuOpen(false); }}>
                 📋 牌局记录
               </button>
@@ -2173,6 +2168,9 @@ export function GuandanGame({ onExit }: { onExit?: () => void }) {
         >
           {sortMode === 'rank' ? '一键理牌' : `方案${sortScheme + 1}/4`}
         </button>
+        {sortMode === 'grouped' && (
+          <button className="gd-btn gd-btn-sort gd-btn-restore" onClick={restoreSort}>↩️ 恢复理牌</button>
+        )}
       </div>
 
       {/* 我方（南）出牌区：手牌上方 */}
