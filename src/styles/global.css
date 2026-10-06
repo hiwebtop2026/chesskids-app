@@ -7426,29 +7426,69 @@ ul {
 .gd-play-west .gd-play-hand { transform: none; }
 .gd-play-east .gd-play-hand { transform: none; }
 .gd-side-col { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+/* v9.2 东西出牌区重设：容器自适应高度+加宽，牌面缩小单行完整显示，覆盖嵌套 gd-play-area 的裁切 */
 .gd-play-west, .gd-play-east {
   position: absolute;
   top: 48%;
-  width: 15%;
-  height: 12%;
-  max-height: 160px;
-  min-height: 110px;
-  min-width: 0;
-  overflow: visible; /* 覆盖 .gd-play-area 的 overflow 裁剪，牌面完整显示 */
+  width: 22%;
+  height: auto;              /* 覆盖 height:12%：盒子仅包内容，不裁切 */
+  max-height: none;
+  min-height: 0;
+  overflow: visible;         /* 覆盖 .gd-play-area 的 overflow 裁剪，牌面完整显示 */
   align-items: center;
   justify-content: center;
   border-radius: 14px;
   background: rgba(0, 0, 0, 0.16);
   border: 1.5px dashed rgba(255, 213, 79, 0.2);
-  padding: 10px 6px;
+  padding: 8px 6px;
+  z-index: 6;                /* 出牌区浮于手牌/按钮之上，不被遮挡 */
+  box-sizing: border-box;
 }
-.gd-play-west { left: 14%; } /* 出牌内容中心对齐左侧红框位置（19.8%-22.6%） */
-.gd-play-east { left: 71%; } /* 出牌内容中心对齐右侧红框位置（77.2%-80%） */
+/* 内部嵌套 gd-play-area：覆盖 height:100% + overflow-y:auto（原会裁切多牌型），改为自适应 */
+.gd-play-area.gd-play-west, .gd-play-area.gd-play-east {
+  height: auto;
+  overflow: visible;
+  padding: 2px 2px;
+  gap: 4px;
+}
+/* 东西向牌面行：单行不换行，牌面整体完整呈现（6 张顺子/同花顺也不截断） */
+.gd-play-area.gd-play-west .gd-play-cards-row, .gd-play-area.gd-play-east .gd-play-cards-row {
+  flex-wrap: nowrap;
+  gap: 2px;
+}
+/* 东西向牌面缩小，适配窄容器单行（提升特异性，压过手机端基础 28px 覆盖） */
+.gd-play-area.gd-play-west .gd-mini-card, .gd-play-area.gd-play-east .gd-mini-card {
+  width: 24px;
+  height: 34px;
+  border-radius: 4px;
+  font-size: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+.gd-play-area.gd-play-west .gd-mini-rank, .gd-play-area.gd-play-east .gd-mini-rank { font-size: 8px; }
+.gd-play-area.gd-play-west .gd-mini-suit, .gd-play-area.gd-play-east .gd-mini-suit { font-size: 7px; }
+.gd-play-area.gd-play-west .gd-mini-level, .gd-play-area.gd-play-east .gd-mini-level { font-size: 6px; }
+/* 东西向牌手：名字在上、牌面在下竖排，充分利用竖向空间 */
+.gd-play-area.gd-play-west .gd-play-hand, .gd-play-area.gd-play-east .gd-play-hand {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 4px 6px;
+}
+.gd-play-area.gd-play-west .gd-play-hand-name, .gd-play-area.gd-play-east .gd-play-hand-name {
+  font-size: 10.5px;
+  min-width: 0;
+}
+/* 位置：加宽后按原中心对齐调整（原中心 21.5%/78.5%） */
+.gd-play-west { left: 10.5%; }
+.gd-play-east { left: 67.5%; }
 @media (max-width: 640px) {
   .gd-play-north, .gd-play-south { width: 60%; max-width: 400px; left: 50%; max-height: 160px; }
-  .gd-play-west, .gd-play-east { width: 24%; height: 14%; min-height: 100px; top: 44%; overflow: visible; }
-  .gd-play-west { left: 22%; }
-  .gd-play-east { left: 54%; }
+  .gd-play-west, .gd-play-east { width: 30%; height: auto; min-height: 0; top: 44%; overflow: visible; }
+  .gd-play-area.gd-play-west .gd-mini-card, .gd-play-area.gd-play-east .gd-mini-card { width: 20px; height: 29px; font-size: 7px; }
+  .gd-play-area.gd-play-west .gd-mini-rank, .gd-play-area.gd-play-east .gd-mini-rank { font-size: 7px; }
+  .gd-play-area.gd-play-west .gd-mini-suit, .gd-play-area.gd-play-east .gd-mini-suit { font-size: 6px; }
+  .gd-play-west { left: 18%; }
+  .gd-play-east { left: 52%; }
 }
 @media (max-width: 640px) {
   .gd-play-card { font-size: 15px; padding: 5px 8px; }
