@@ -657,6 +657,32 @@ export function gomokuBestMove(
     if (makesFive(board, r, c, opp)) return [r, c];
   }
 
+  // v12 开局定式：前 3 手（board 仅 2 子）时优先"与己方首子构成活二/跳二且拉开空间"的成形点，
+  // 避免先手随手乱点导致开局散乱（对局记录实证 AI 先手开局不成形、中盘被对手抢先做棋）
+  {
+    let stones = 0, myStones: Array<[number, number]> = [];
+    for (let r = 0; r < 19; r++) for (let c = 0; c < 19; c++) {
+      if (board[r][c] === color) myStones.push([r, c]);
+      if (board[r][c] !== '') stones++;
+    }
+    if (stones === 2 && myStones.length === 1 && diff.depth >= 2) {
+      const [mr, mc] = myStones[0];
+      const shaped: Array<[number, number]> = [];
+      for (const [r, c] of cands) {
+        const dr = r - mr, dc = c - mc;
+        // 与首子直/斜相邻（活二）或隔一（跳二），且该点对手无强威胁（不堵自己）
+        const adjacent = (dr !== 0 || dc !== 0) && Math.abs(dr) <= 1 && Math.abs(dc) <= 1;
+        const gap = (Math.abs(dr) === 2 && Math.abs(dc) === 0) || (Math.abs(dr) === 0 && Math.abs(dc) === 2);
+        if ((adjacent || gap) && pointScore(board, r, c, opp) < 50_000) shaped.push([r, c]);
+      }
+      if (shaped.length > 0) {
+        const scored = shaped.map(([r, c]) => ({ r, c, v: pointScore(board, r, c, color) + Math.random() * 0.001 }));
+        scored.sort((a, b) => b.v - a.v);
+        return [scored[0].r, scored[0].c];
+      }
+    }
+  }
+
   // v6 威胁分级（修复：旧版">=800k 立即返回"让 master 中局不做深算，只堵眼前成型、
   // 看不到对手 2-3 手后的做棋升级，导致对局记录中 5 局全部死于"活四/双杀成型"）
   // 1) 我方活四（>=1.2M）：必胜，直接走出（v9.1：由 depth>=3 下放至 depth>=2，medium 也能主动杀）
@@ -739,6 +765,30 @@ export function gomokuBestMove(
     // 让中等难度也能打出连续冲四连杀，不再只能被动防守
     const vcf = vcfAttack(board, color, 0, 8, { n: 0 });
     if (vcf) return vcf;
+  }
+
+  // v12 防守平衡：我方无活三/组合进攻（<50k）时，拦截对方活三升级点（50k~700k 做棋苗头），
+  // 防止对手一手把活三升成活四/双活三（攻守平衡：有进攻机会先攻，无进攻先守苗头）
+  if (diff.depth >= 2) {
+    let myBest = 0;
+    for (const [r, c] of cands) {
+      const av = pointScore(board, r, c, color);
+      if (av > myBest) myBest = av;
+    }
+    if (myBest < 50_000) {
+      const oppThrees: Array<[number, number]> = [];
+      for (const [r, c] of cands) {
+        const os = pointScore(board, r, c, opp);
+        if (os >= 50_000 && os < 700_000) oppThrees.push([r, c]);
+      }
+      if (oppThrees.length > 0) {
+        const scored = oppThrees.map(([r, c]) => ({
+          r, c, v: pointScore(board, r, c, opp) + pointScore(board, r, c, color) + Math.random() * 0.001,
+        }));
+        scored.sort((a, b) => b.v - a.v);
+        return [scored[0].r, scored[0].c];
+      }
+    }
   }
 
   // v7：成长端预堵快速路径（hard/master）——对方"3 子成长窗口"升级点，

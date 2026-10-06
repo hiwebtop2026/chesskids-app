@@ -276,10 +276,11 @@ function aiLead(
       const big = [...bombs].sort((a, b) => b.n - a.n || b.key - a.key)[0];
       if (hand.length - big.n <= 1) return big.cards;
     }
-    // 3. 组合牌型（顺子/连对/钢板/三带）出最大
+    // 3. 组合牌型（顺子/连对/钢板/三带）出最大——同花顺除外（保留用于跟牌压制/关键时刻，绝不先出）
     const combos = groups.filter(g =>
-      g.label.includes('顺') || g.label.includes('连对') ||
-      g.label.includes('钢板') || g.label.includes('三带')
+      !g.label.includes('同花顺') &&
+      (g.label.includes('顺') || g.label.includes('连对') ||
+      g.label.includes('钢板') || g.label.includes('三带'))
     );
     if (combos.length > 0) {
       combos.sort((a, b) => cardVal(b.cards[0], level) - cardVal(a.cards[0], level));
