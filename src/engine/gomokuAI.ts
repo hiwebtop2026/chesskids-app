@@ -463,6 +463,18 @@ function search(
         return rootColor === color ? -1_000_000 : 1_000_000;
       }
     }
+    // v10：搜索内一步组合杀/活四检测（>=900k：活四/四三/双活三）——
+    // 让搜索在任意深度立即识别"落 X 即无解"的进攻点，不再依赖多一层搜索才看到组合威胁。
+    // 同时对方一步组合杀 → 立即返回负分，驱动防守前置。
+    for (const [r, c] of cands) {
+      const s = pointScore(b, r, c, color);
+      if (s >= 900_000 && s < 10_000_000) return rootColor === color ? 50_000_000 - depth : -50_000_000 + depth;
+    }
+    for (const [r, c] of cands) {
+      if (pointScore(b, r, c, opp) >= 900_000) {
+        return rootColor === color ? -900_000 : 900_000;
+      }
+    }
   }
 
   const ordered = orderedCandidates(b, color);
@@ -716,6 +728,11 @@ export function gomokuBestMove(
     // hard：小预算 VCT（活三链），中盘进攻成形
     const vct = vctAttack(board, color, 0, 5, { n: 0 });
     if (vct) return vct;
+  } else if (diff.depth >= 2) {
+    // v10：medium 也启用小预算 VCF（冲四链，深度 8/预算 1500），
+    // 让中等难度也能打出连续冲四连杀，不再只能被动防守
+    const vcf = vcfAttack(board, color, 0, 8, { n: 0 });
+    if (vcf) return vcf;
   }
 
   // v7：成长端预堵快速路径（hard/master）——对方"3 子成长窗口"升级点，
