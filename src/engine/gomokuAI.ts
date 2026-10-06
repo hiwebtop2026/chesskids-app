@@ -332,7 +332,11 @@ export function evaluateGomoku(b: GomokuBoard, color: GomokuColor): number {
   }
   mine += myPot;
   theirs += oppPot;
-  return mine - theirs * 1.18;
+  // v8 攻守平衡：防守系数动态化——
+  // 我方进攻潜力占优（mine >= theirs）→ 系数降到 1.0（不再用固定 1.18 压制进攻，鼓励进攻成形）；
+  // 对方威胁更大 → 保持 1.18 加强防守。让搜索在攻守之间做真正的权衡而非一味防守。
+  const defK = mine >= theirs ? 1.0 : 1.18;
+  return mine - theirs * defK;
 }
 
 /**
@@ -352,8 +356,21 @@ function orderedCandidates(
   useGrowth = false,
 ): Array<[number, number]> {
   const cands = gomokuCandidates(b);
-  const defK = 1.25 + (learn?.defenseLevel || 0) * 0.08;
   const opp = color === 'b' ? 'w' : 'b';
+  // v8 攻守平衡：根层（useGrowth=true）动态防守加权——
+  // 全局粗算攻守比：我方候选进攻分总和 >= 对方防守分总和 → 防守加权下调（鼓励进攻进候选）；
+  // 对方威胁更大 → 防守加权上调（防守候选前置）。
+  // 搜索内部保持固定 defK（避免热路径全盘求和开销）。
+  let defK = 1.25 + (learn?.defenseLevel || 0) * 0.08;
+  if (useGrowth) {
+    let aSum = 0, dSum = 0;
+    for (const [r, c] of cands) {
+      aSum += pointScore(b, r, c, color);
+      dSum += pointScore(b, r, c, opp);
+    }
+    if (aSum >= dSum) defK = Math.min(defK, 1.0);
+    else defK = Math.max(defK, 1.3);
+  }
   // v7：成长窗口升级点（仅根层决策时计算，避免搜索热路径全盘扫描）
   const oppGrowth = useGrowth ? openThreeExtendPoints(b, opp) : null;
   const myGrowth = useGrowth ? openThreeExtendPoints(b, color) : null;
@@ -587,6 +604,22 @@ export function gomokuBestMove(
       if (pointScore(board, r, c, opp) >= 700_000) opp900.push([r, c]);
     }
     if (opp900.length > 0) {
+      // v8 攻守平衡：先测算我方进攻价值——若我方有同级组合威胁（>=700k）
+      // 且最佳进攻值 >= 对方最佳威胁值 → 进攻优于防守，优先进攻
+      const oppBest = Math.max(...opp900.map(([r, c]) => pointScore(board, r, c, opp)));
+      let myBestAtk = 0;
+      for (const [r, c] of cands) {
+        const av = pointScore(board, r, c, color);
+        if (av > myBestAtk) myBestAtk = av;
+      }
+      if (my900.length > 0 && myBestAtk >= 700_000 && myBestAtk >= oppBest) {
+        const scored = my900.map(([r, c]) => ({
+          r, c, v: pointScore(board, r, c, color) + pointScore(board, r, c, opp) + Math.random() * 0.001,
+        }));
+        scored.sort((a, b2) => b2.v - a.v);
+        return [scored[0].r, scored[0].c];
+      }
+      // 对方威胁更紧迫 → 优先堵（攻防综合选最优堵点）
       const scored = opp900.map(([r, c]) => ({
         r, c, v: pointScore(board, r, c, color) + pointScore(board, r, c, opp) + Math.random() * 0.001,
       }));
@@ -629,8 +662,15 @@ export function gomokuBestMove(
       }));
       scored.sort((a, b2) => b2.v - a.v);
       const bestPt = scored[0];
-      // 仅在对方升级点数量少（早期做棋）时强制，避免牺牲进攻
-      if (bestPt.v > 150_000) return [bestPt.r, bestPt.c];
+      // v8 攻守平衡：若我方有更强进攻成型点（>=450k 活三/组合级）且对方升级点威胁不足
+      // → 进攻优于防守，不强制堵，交给深度搜索做攻守权衡（避免牺牲进攻机会）
+      let myBestAtk = 0;
+      for (const [r, c] of cands) {
+        const av = pointScore(board, r, c, color);
+        if (av > myBestAtk) myBestAtk = av;
+      }
+      // 仅在对方升级点数量少（早期做棋）且我方无更强进攻时强制，避免牺牲进攻
+      if (bestPt.v > 150_000 && myBestAtk < 450_000) return [bestPt.r, bestPt.c];
     }
   }
 
