@@ -900,9 +900,27 @@ function evaluateHandStrength(hand: GCard[], level: number, params?: Partial<{
 }
 
 /** 自由出牌：选择最优首攻牌型 */
-function aiLead(hand: GCard[], level: number, strategy: 'aggressive' | 'normal' | 'support'): GCard[] {
+function aiLead(hand: GCard[], level: number, strategy: 'aggressive' | 'normal' | 'support', nextOppCount: number = 27): GCard[] {
   const groups = groupHand(hand, level);
   const byRank = groupByR(hand);
+
+  // 【下家防守】下家报牌（≤10 张）→ 避免出"下家剩余张数"的牌型（防止下家一次脱手过）
+  // 例：下家报 5 张尽量不出 5 张顺子、报 2 张不出对子、报 1 张不出单张
+  const avoidLen = nextOppCount >= 1 && nextOppCount <= 10 ? nextOppCount : 0;
+  /** 避让下家报牌：下家报 X 张 → 优先换其他张数牌型；无替代返回 null 走原逻辑 */
+  const pickAvoiding = (pairsIn: GCard[][], triplesIn: GCard[][], singlesIn: GCard[]): GCard[] | null => {
+    if (avoidLen === 0) return null;
+    if (avoidLen === 1 && singlesIn.length > 0 && (pairsIn.length > 0 || triplesIn.length > 0)) {
+      return pairsIn.length > 0 ? pairsIn[0] : triplesIn[0];
+    }
+    if (avoidLen === 2 && pairsIn.length > 0 && (singlesIn.length > 0 || triplesIn.length > 0)) {
+      return singlesIn.length > 0 ? [singlesIn[0]] : triplesIn[0];
+    }
+    if (avoidLen === 3 && triplesIn.length > 0 && (singlesIn.length > 0 || pairsIn.length > 0)) {
+      return singlesIn.length > 0 ? [singlesIn[0]] : pairsIn[0];
+    }
+    return null;
+  };
 
   // 【冲刺】自己快出完（≤5 张）：能整组脱手就整组（炸弹/同花顺/王炸/顺子/三张/对子），绝不拆炸弹
   if (hand.length <= 5) {
@@ -941,10 +959,15 @@ function aiLead(hand: GCard[], level: number, strategy: 'aggressive' | 'normal' 
   // 策略1：主攻型 — 优先出整组牌型（顺子/连对/飞机/三带二）
   if (strategy === 'aggressive') {
     // 找最大的组合牌型优先出（减少手数）
-    const comboGroups = groups.filter(g =>
+    let comboGroups = groups.filter(g =>
       g.label.includes('顺') || g.label.includes('连对') ||
       g.label.includes('钢板') || g.label.includes('三带')
     );
+    // 下家报牌：避开下家张数的组合（如报 5 张不出顺子、报 3 张不出三带），防一次脱手
+    if (avoidLen > 0) {
+      const safe = comboGroups.filter(g => g.cards.length !== avoidLen);
+      if (safe.length > 0) comboGroups = safe;
+    }
     if (comboGroups.length > 0) {
       // 出最小的组合牌，保留大牌
       comboGroups.sort((a, b) => cardVal(a.cards[0], level) - cardVal(b.cards[0], level));
@@ -952,7 +975,7 @@ function aiLead(hand: GCard[], level: number, strategy: 'aggressive' | 'normal' 
     }
   }
 
-  // 策略2：辅助型 — 出最小单张送队友
+  // 策略2：辅助型 — 出最小单张送队友（下家报 1 张时改出对/三，不送单给下家）
   if (strategy === 'support') {
     const singles: GCard[] = [];
     for (const g of byRank.values()) {
@@ -961,6 +984,20 @@ function aiLead(hand: GCard[], level: number, strategy: 'aggressive' | 'normal' 
       }
     }
     singles.sort((a, b) => cardVal(a, level) - cardVal(b, level));
+    if (avoidLen === 1 && singles.length > 0) {
+      const pairsS: GCard[][] = [];
+      for (const g of byRank.values()) {
+        if (g.length >= 2 && g.every(c => c.k === undefined) && !isWild(g[0], level)) pairsS.push(g.slice(0, 2));
+      }
+      pairsS.sort((a, b) => cardVal(a[0], level) - cardVal(b[0], level));
+      if (pairsS.length > 0) return pairsS[0];
+      const trisS: GCard[][] = [];
+      for (const g of byRank.values()) {
+        if (g.length >= 3 && g.every(c => c.k === undefined) && !isWild(g[0], level)) trisS.push(g.slice(0, 3));
+      }
+      trisS.sort((a, b) => cardVal(a[0], level) - cardVal(b[0], level));
+      if (trisS.length > 0) return trisS[0];
+    }
     if (singles.length > 0) return [singles[0]];
   }
 
@@ -974,6 +1011,15 @@ function aiLead(hand: GCard[], level: number, strategy: 'aggressive' | 'normal' 
   }
   pairs.sort((a, b) => cardVal(a[0], level) - cardVal(b[0], level));
 
+  // 三张
+  const triples: GCard[][] = [];
+  for (const g of byRank.values()) {
+    if (g.length >= 3 && g.every(c => c.k === undefined) && !isWild(g[0], level)) {
+      triples.push(g.slice(0, 3));
+    }
+  }
+  triples.sort((a, b) => cardVal(a[0], level) - cardVal(b[0], level));
+
   // 单张
   const singles: GCard[] = [];
   for (const g of byRank.values()) {
@@ -982,6 +1028,10 @@ function aiLead(hand: GCard[], level: number, strategy: 'aggressive' | 'normal' 
     }
   }
   singles.sort((a, b) => cardVal(a, level) - cardVal(b, level));
+
+  // 【下家防守】下家报 1/2/3 张 → 优先换牌型，不给下家创造一次脱手机会
+  const avoiding = pickAvoiding(pairs, triples, singles);
+  if (avoiding) return avoiding;
 
   // 单张多于对子时出单张，反之出对子
   if (singles.length >= pairs.length && singles.length > 0) {
@@ -1124,6 +1174,7 @@ export function aiPlay(
     aggressiveThreshold: number; supportThreshold: number;
     mustBombThreshold: number; partnerSaveThreshold: number;
   }>,
+  nextOppCount: number = 27, // 下家（左手边对手）手牌数：报牌后用于防守避让
 ): { play: GCard[] | null; pass: boolean } {
   const handStrength = evaluateHandStrength(hand, level, evalParams);
 
@@ -1143,7 +1194,7 @@ export function aiPlay(
 
   // ===== 自由出牌 =====
   if (prev === null) {
-    const play = aiLead(hand, level, strategy);
+    const play = aiLead(hand, level, strategy, nextOppCount);
     return { play, pass: false };
   }
 
@@ -1171,14 +1222,15 @@ export function aiPlay(
   const pressure =
     hand.length <= 3 ||                  // 自己快出完：冲
     opponentHandCount <= 3 ||            // 对手快出完：拦
+    nextOppCount <= 3 ||                 // 下家快出完（报牌）：必须拦，不能放行
     partnerHandCount <= 0 ||             // 队友头游：冲
     (partnerHandCount <= 2 && opponentHandCount <= 8);
   const beat = aiSmartBeat(hand, prev, level, pressure);
   if (beat) {
     const beatInfo = analyzePlay(beat, level);
 
-    // 对手即将出完（≤2 张）→ 能压必压，阻止对手抢先（除非队友出的牌）
-    if (opponentHandCount <= 2 && !isMyTeamLast) {
+    // 对手/下家即将出完（≤2 张）→ 能压必压，阻止抢先（除非队友出的牌）
+    if ((opponentHandCount <= 2 || nextOppCount <= 2) && !isMyTeamLast) {
       return { play: beat, pass: false };
     }
 
@@ -1717,6 +1769,8 @@ export function GuandanGame() {
       const oppSeats = [0, 1, 2, 3].filter(s => s !== p && s !== partnerSeat);
       const opponentHandCount = Math.min(...oppSeats.map(s => game.hands[s].length));
       const partnerHandCount = game.hands[partnerSeat].length;
+      // 下家（左手边，p+1）手牌数：报牌后用于防守避让（不出下家张数牌型）
+      const nextOppCount = game.hands[(p + 1) % 4].length;
       const res = aiPlay(
         game.hands[p],
         prev ? prev.info : null,
@@ -1725,6 +1779,7 @@ export function GuandanGame() {
         opponentHandCount,
         partnerHandCount,
         learningProfile?.evalParams,
+        nextOppCount,
       );
       // 统计 AI 使用炸弹次数（用于学习）
       if (res.play && res.play.length >= 4) {

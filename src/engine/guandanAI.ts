@@ -218,9 +218,26 @@ function aiLead(
   role: AIRole,
   _partnerHandCount: number,
   partnerHeadStart: boolean, // 队友是否头游（已出完）
+  nextOppCount: number = 27, // 下家（左手边对手）手牌数：报牌后用于防守避让
 ): GCard[] {
   const groups = groupHand(hand, level);
   const byRank = groupByR(hand);
+
+  // 【下家防守】下家报牌（≤10 张）→ 避免出"下家剩余张数"的牌型（防止下家一次脱手过）
+  const avoidLen = nextOppCount >= 1 && nextOppCount <= 10 ? nextOppCount : 0;
+  const pickAvoiding = (pairsIn: GCard[][], triplesIn: GCard[][], singlesIn: GCard[]): GCard[] | null => {
+    if (avoidLen === 0) return null;
+    if (avoidLen === 1 && singlesIn.length > 0 && (pairsIn.length > 0 || triplesIn.length > 0)) {
+      return pairsIn.length > 0 ? pairsIn[0] : triplesIn[0];
+    }
+    if (avoidLen === 2 && pairsIn.length > 0 && (singlesIn.length > 0 || triplesIn.length > 0)) {
+      return singlesIn.length > 0 ? [singlesIn[0]] : triplesIn[0];
+    }
+    if (avoidLen === 3 && triplesIn.length > 0 && (singlesIn.length > 0 || pairsIn.length > 0)) {
+      return singlesIn.length > 0 ? [singlesIn[0]] : pairsIn[0];
+    }
+    return null;
+  };
 
   // 【冲刺】自己快出完（≤5 张）：能整组脱手就整组（炸弹/王炸/同花顺/顺子/三张/对子），绝不拆炸弹
   if (hand.length <= 5) {
@@ -256,18 +273,23 @@ function aiLead(
 
   // 队友已头游，自己冲刺：优先出整组牌型，尽快跑（同花顺除外——保留用于跟牌压制，首攻不出）
   if (partnerHeadStart) {
-    const comboGroups = groups.filter(g =>
+    let comboGroups = groups.filter(g =>
       !g.label.includes('同花顺') &&
       (g.label.includes('顺') || g.label.includes('连对') ||
       g.label.includes('钢板') || g.label.includes('三带'))
     );
+    // 下家报牌：避开下家张数组合，防一次脱手
+    if (avoidLen > 0) {
+      const safe = comboGroups.filter(g => g.cards.length !== avoidLen);
+      if (safe.length > 0) comboGroups = safe;
+    }
     if (comboGroups.length > 0) {
       comboGroups.sort((a, b) => cardVal(a.cards[0], level) - cardVal(b.cards[0], level));
       return comboGroups[0].cards;
     }
   }
 
-  // 辅助型：出最小的牌送队友
+  // 辅助型：出最小的牌送队友（下家报 1 张时改出对/三，不送单给下家）
   if (role === 'support') {
     // 优先出单张（队友大概率要单张）
     const singles: GCard[] = [];
@@ -277,6 +299,14 @@ function aiLead(
       }
     }
     singles.sort((a, b) => cardVal(a, level) - cardVal(b, level));
+    if (avoidLen === 1 && singles.length > 0) {
+      const pairsS: GCard[][] = [];
+      for (const g of byRank.values()) {
+        if (g.length >= 2 && g.every(c => c.k === undefined) && !isWild(g[0], level)) pairsS.push(g.slice(0, 2));
+      }
+      pairsS.sort((a, b) => cardVal(a[0], level) - cardVal(b[0], level));
+      if (pairsS.length > 0) return pairsS[0];
+    }
     if (singles.length > 0) return [singles[0]];
 
     // 没单张出最小对子
@@ -292,11 +322,16 @@ function aiLead(
 
   // 主攻型：出最大的组合牌（同花顺除外——保留用于跟牌压制，首攻不出）
   if (role === 'aggressive') {
-    const comboGroups = groups.filter(g =>
+    let comboGroups = groups.filter(g =>
       !g.label.includes('同花顺') &&
       (g.label.includes('顺') || g.label.includes('连对') ||
       g.label.includes('钢板') || g.label.includes('三带'))
     );
+    // 下家报牌：避开下家张数组合
+    if (avoidLen > 0) {
+      const safe = comboGroups.filter(g => g.cards.length !== avoidLen);
+      if (safe.length > 0) comboGroups = safe;
+    }
     if (comboGroups.length > 0) {
       comboGroups.sort((a, b) => cardVal(a.cards[0], level) - cardVal(b.cards[0], level));
       return comboGroups[0].cards;
@@ -305,8 +340,12 @@ function aiLead(
 
   // 普通型：根据牌型数量决定
   const pairs: GCard[][] = [];
+  const triples: GCard[][] = [];
   const singles: GCard[] = [];
   for (const g of byRank.values()) {
+    if (g.length >= 3 && g.every(c => c.k === undefined) && !isWild(g[0], level)) {
+      triples.push(g.slice(0, 3));
+    }
     if (g.length >= 2 && g.every(c => c.k === undefined) && !isWild(g[0], level)) {
       pairs.push(g.slice(0, 2));
     }
@@ -315,7 +354,12 @@ function aiLead(
     }
   }
   pairs.sort((a, b) => cardVal(a[0], level) - cardVal(b[0], level));
+  triples.sort((a, b) => cardVal(a[0], level) - cardVal(b[0], level));
   singles.sort((a, b) => cardVal(a, level) - cardVal(b, level));
+
+  // 【下家防守】下家报 1/2/3 张 → 优先换牌型，不给下家创造一次脱手机会
+  const avoiding = pickAvoiding(pairs, triples, singles);
+  if (avoiding) return avoiding;
 
   if (singles.length >= pairs.length && singles.length > 0) return [singles[0]];
   if (pairs.length > 0) return pairs[0];
@@ -458,6 +502,8 @@ function aiFollow(
   const partnerCount = handCounts[partnerSeat];
   const opponentSeats = [(mySeat + 1) % 4, (mySeat + 3) % 4];
   const minOppCount = Math.min(...opponentSeats.map(s => handCounts[s]));
+  // 下家（左手边，即将接我出牌/让牌的对手）手牌数：快出完时必须拦截，不能放行
+  const nextOppCount = handCounts[(mySeat + 1) % 4];
 
   // 【接队友】对手压了队友的牌（当前是对手出的）且队友快出完（≤6 张）→ 能压必压，帮队友接回出牌权
   if (!isMyTeamLast && partnerCount <= 6 && minOppCount <= 10) {
@@ -478,6 +524,7 @@ function aiFollow(
   const pressure =
     hand.length <= 3 ||                       // 自己快出完：冲
     minOppCount <= 3 ||                       // 对手快出完：拦
+    nextOppCount <= 3 ||                      // 下家快出完（报牌）：必须拦，不能放行
     headSeat === partnerSeat ||               // 队友已头游：自己冲刺
     (partnerCount <= 2 && minOppCount <= 8);  // 队友快出完且局面紧迫
   const beat = pickSmartBeat(hand, prev, level, pressure);
@@ -501,8 +548,8 @@ function aiFollow(
     return null;
   }
 
-  // 对手即将出完（≤2 张）→ 能压必压，阻止对手抢先
-  if (minOppCount <= 2) {
+  // 对手/下家即将出完（≤2 张）→ 能压必压，阻止抢先
+  if (minOppCount <= 2 || nextOppCount <= 2) {
     return beat;
   }
 
@@ -629,7 +676,9 @@ export function aiDecide(ctx: AIDecisionContext): AIDecisionResult {
 
   // ===== 自由出牌 =====
   if (!lastPlay) {
-    const play = aiLead(hand, level, role, handCounts[partnerSeat], headSeat === partnerSeat);
+    // 下家（左手边）手牌数：报牌后用于防守避让（不出下家张数牌型）
+    const nextOppCount = handCounts[(mySeat + 1) % 4];
+    const play = aiLead(hand, level, role, handCounts[partnerSeat], headSeat === partnerSeat, nextOppCount);
     return { play, pass: false, reason: `首攻(${role})` };
   }
 
