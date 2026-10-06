@@ -377,13 +377,20 @@ function orderedCandidates(
   // 搜索内部保持固定 defK（避免热路径全盘求和开销）。
   let defK = 1.25 + (learn?.defenseLevel || 0) * 0.08;
   if (useGrowth) {
-    let aSum = 0, dSum = 0;
+    let aSum = 0, dSum = 0, hasBigThreat = false;
     for (const [r, c] of cands) {
       aSum += pointScore(b, r, c, color);
       dSum += pointScore(b, r, c, opp);
+      // v9.1：散局检测——双方候选均无 >=50k 威胁（无成型活三/组合）时，
+      //       后面对防守加权再降一档，让 AI 开局/中盘更主动做棋成形
+      if (!hasBigThreat && (pointScore(b, r, c, color) >= 50_000 || pointScore(b, r, c, opp) >= 50_000)) {
+        hasBigThreat = true;
+      }
     }
     if (aSum >= dSum) defK = Math.min(defK, 1.0);
     else defK = Math.max(defK, 1.3);
+    // 散局（双方都无成型威胁）：进攻偏好，防守加权再降，避免"只堵不攻"的散乱布局
+    if (!hasBigThreat) defK = Math.min(defK, 0.85);
   }
   // v7：成长窗口升级点（仅根层决策时计算，避免搜索热路径全盘扫描）
   const oppGrowth = useGrowth ? openThreeExtendPoints(b, opp) : null;
@@ -549,7 +556,7 @@ function vctAttack(
   budget: { n: number } = { n: 0 },
 ): [number, number] | null {
   budget.n++;
-  if (budget.n > 2500 || depth >= maxDepth) return null;
+  if (budget.n > 4000 || depth >= maxDepth) return null;   // v9.1：预算 2500→4000，中盘活三链更易命中
 
   const cands = gomokuCandidates(board);
   // 一步成五 / 组合杀（活四、四三、双活三等对手无解）
@@ -634,8 +641,8 @@ export function gomokuBestMove(
 
   // v6 威胁分级（修复：旧版">=800k 立即返回"让 master 中局不做深算，只堵眼前成型、
   // 看不到对手 2-3 手后的做棋升级，导致对局记录中 5 局全部死于"活四/双杀成型"）
-  // 1) 我方活四（>=1.2M）：必胜，直接走出
-  if (diff.depth >= 3) {
+  // 1) 我方活四（>=1.2M）：必胜，直接走出（v9.1：由 depth>=3 下放至 depth>=2，medium 也能主动杀）
+  if (diff.depth >= 2) {
     for (const [r, c] of cands) {
       if (pointScore(board, r, c, color) >= 1_200_000) return [r, c];
     }
