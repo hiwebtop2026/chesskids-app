@@ -475,6 +475,13 @@ function search(
         return rootColor === color ? -900_000 : 900_000;
       }
     }
+    // v11：对方组合威胁（>=700k：双活三/活三+眠三）下沉——搜索任意深度看到
+    // 对方双活三/组合成型点立即返回负分，驱动防守前置（中盘不再等 2-3 层才堵做棋苗头）
+    for (const [r, c] of cands) {
+      if (pointScore(b, r, c, opp) >= 700_000 && pointScore(b, r, c, opp) < 900_000) {
+        return rootColor === color ? -600_000 : 600_000;
+      }
+    }
   }
 
   const ordered = orderedCandidates(b, color);
@@ -514,8 +521,7 @@ function vcfAttack(
   budget: { n: number } = { n: 0 },
 ): [number, number] | null {
   budget.n++;
-  if (budget.n > 5000) return null;   // 节点预算保护
-  if (depth >= maxDepth) return null;
+  if (budget.n > 8000 || depth >= maxDepth) return null;   // v11：VCF 预算 5000→8000，更远冲四链可命中
 
   const cands = gomokuCandidates(board);
   // 一步成五 / 一步组合杀（含活四：对手堵不住两端）
@@ -568,7 +574,7 @@ function vctAttack(
   budget: { n: number } = { n: 0 },
 ): [number, number] | null {
   budget.n++;
-  if (budget.n > 4000 || depth >= maxDepth) return null;   // v9.1：预算 2500→4000，中盘活三链更易命中
+  if (budget.n > 8000 || depth >= maxDepth) return null;   // v11：VCT 预算 4000→8000、深度 7→9，中盘活三链杀更强
 
   const cands = gomokuCandidates(board);
   // 一步成五 / 组合杀（活四、四三、双活三等对手无解）
@@ -720,9 +726,9 @@ export function gomokuBestMove(
 
   // VCF / VCT 强制行棋（master/hard）：有连续冲四/活三必胜链时直接连杀（先于深度搜索）
   if (diff.depth >= 4) {
-    const vcf = vcfAttack(board, color);
+    const vcf = vcfAttack(board, color, 0, 14, { n: 0 });   // v11：VCF 深度 12→14
     if (vcf) return vcf;
-    const vct = vctAttack(board, color);
+    const vct = vctAttack(board, color, 0, 9, { n: 0 });    // v11：VCT 深度 7→9
     if (vct) return vct;
   } else if (diff.depth >= 3) {
     // hard：小预算 VCT（活三链），中盘进攻成形
