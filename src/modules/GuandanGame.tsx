@@ -1676,7 +1676,7 @@ export function GuandanGame({ onExit }: { onExit?: () => void }) {
               resultText = win === 0 ? '🚀 打到 A！下一局双上即获胜！' : '对方打到 A，我方须双上才赢';
             }
             return {
-              ...st, hands, lastPlay, roundPass: [], roundPlays, roundEnded: false, finished,
+              ...st, hands, lastPlay, roundPass: [], roundPlays: [], roundEnded: false, finished,
               phase: 'over', winnerTeam, resultText,
               level: newLevel,
               aStrikes,
@@ -1866,6 +1866,10 @@ export function GuandanGame({ onExit }: { onExit?: () => void }) {
   // AI 回合
   useEffect(() => {
     if (!game || game.phase !== 'playing' || game.current === 0) return;
+    // 防御：任何一对玩家已双下（同队两人出完）却仍 playing（异常态）→ 停止 AI 出牌，
+    // 对手绝不能再出（正常流程 commitTurn 已结算，此处兜底防死循环/残留）
+    const fin = game.finished;
+    if (fin.length >= 2 && ((fin[0] ^ 2) === fin[1])) return;
     if (timerRef.current) clearTimeout(timerRef.current);
     const p = game.current;
     // 防御：若 current 指向已出完（finished）的座位，直接推进到下一活人，避免死锁
@@ -2174,13 +2178,16 @@ export function GuandanGame({ onExit }: { onExit?: () => void }) {
             <button className="gd-btn gd-btn-play gd-btn-primary" onClick={doPlay} disabled={!canPlay}>出牌</button>
           </>
         )}
-        <button
-          className="gd-btn gd-btn-sort"
-          onClick={doOneKeySort}
-        >
-          {sortMode === 'rank' ? '一键理牌' : `方案${sortScheme + 1}/4`}
-        </button>
-        {sortMode === 'grouped' && (
+        {/* 已出完玩家：理牌/恢复理牌对已无手牌的玩家无意义，一并隐藏 */}
+        {!game.finished.includes(0) && (
+          <button
+            className="gd-btn gd-btn-sort"
+            onClick={doOneKeySort}
+          >
+            {sortMode === 'rank' ? '一键理牌' : `方案${sortScheme + 1}/4`}
+          </button>
+        )}
+        {!game.finished.includes(0) && sortMode === 'grouped' && (
           <button className="gd-btn gd-btn-sort gd-btn-restore" onClick={restoreSort}>↩️ 恢复理牌</button>
         )}
       </div>
