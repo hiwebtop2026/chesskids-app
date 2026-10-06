@@ -15,7 +15,7 @@
 
 import {
   GOMOKU_SIZE, type GomokuBoard, type GomokuColor,
-  gomokuPlaceStone, checkGomokuWin, isGomokuBoardFull,
+  gomokuPlaceStone, isGomokuBoardFull,
 } from './gomoku';
 
 export interface GomokuDifficulty {
@@ -184,6 +184,20 @@ const PATTERN_VALUE = (p: Pattern): number => {
   }
   return 100;
 };
+
+/**
+ * v9：轻量"落 X 即成五（含跳型补缝）"检测。
+ * 对局记录实证（2026-10-06）：AI 多次漏走/漏堵"跳型补缝成五"（如 X_XXXX / XX_XX_），
+ * 因为快速路径用 checkGomokuWin（只认连续五）。本函数只判断 sub>=5（截断到 5），
+ * 不计算分值，比 pointScore 快一个量级，专供搜索热路径/快速路径使用。
+ */
+export function makesFive(b: GomokuBoard, r: number, c: number, color: GomokuColor): boolean {
+  for (const [dr, dc] of DIRS) {
+    const p = scanPattern(b, r, c, dr, dc, color);
+    if (p.sub >= 5) return true;
+  }
+  return false;
+}
 
 /**
  * 落子点威胁评分（color 视角）：
@@ -430,17 +444,15 @@ function search(
   const cands = gomokuCandidates(b);
   if (depth === 0 || cands.length === 0) return evaluateGomoku(b, rootColor);
 
-  // 快速胜负检测：一步即胜
+  // 快速胜负检测：一步即胜（v9：改用 makesFive，含跳型补缝成五——对局记录实证修复）
   if (depth >= 1) {
     const opp = color === 'b' ? 'w' : 'b';
     for (const [r, c] of cands) {
-      const nb = gomokuPlaceStone(b, r, c, color);
-      if (nb && checkGomokuWin(nb, r, c, color)) return rootColor === color ? 100_000_000 - depth : -100_000_000 + depth;
+      if (makesFive(b, r, c, color)) return rootColor === color ? 100_000_000 - depth : -100_000_000 + depth;
     }
-    // 对方一步即胜（必须堵）
+    // 对方一步即胜（必须堵，含跳型补缝）
     for (const [r, c] of cands) {
-      const nb = gomokuPlaceStone(b, r, c, opp);
-      if (nb && checkGomokuWin(nb, r, c, opp)) {
+      if (makesFive(b, r, c, opp)) {
         return rootColor === color ? -1_000_000 : 1_000_000;
       }
     }
@@ -522,6 +534,59 @@ function vcfAttack(
   return null;
 }
 
+/**
+ * VCT（连续活三）必胜链探测（v9，与 VCF 互补的 TSS 核心）：
+ * 我方沿"活三→对手必堵→再活三/冲四→…→成五"链进攻。VCF 每一步对手只有唯一应对，
+ * VCT 活三分支对手有多个防点，须"对手所有防点都输"才算必胜（AND/OR 语义）。
+ * 对局记录实证：AI 输盘多次死于"人类活三链逐步升级"，本函数在深度搜索前直接给出连杀链首。
+ * @returns 链首着法（我方当前应落点）；找不到必胜链返回 null
+ */
+function vctAttack(
+  board: GomokuBoard,
+  color: GomokuColor,
+  depth = 0,
+  maxDepth = 7,
+  budget: { n: number } = { n: 0 },
+): [number, number] | null {
+  budget.n++;
+  if (budget.n > 2500 || depth >= maxDepth) return null;
+
+  const cands = gomokuCandidates(board);
+  // 一步成五 / 组合杀（活四、四三、双活三等对手无解）
+  for (const [r, c] of cands) {
+    const v = pointScore(board, r, c, color);
+    if (v >= 10_000_000 || v >= 900_000) return [r, c];
+  }
+
+  const opp = color === 'b' ? 'w' : 'b';
+  // 活三/冲四候选：落 X 后形成活三（>=30k，含跳三活）或更强威胁
+  const cds: Array<{ r: number; c: number; sc: number }> = [];
+  for (const [r, c] of cands) {
+    const s = pointScore(board, r, c, color);
+    if (s >= 30_000 && s < 700_000) cds.push({ r, c, sc: s });
+  }
+  if (cds.length === 0) return null;
+  cds.sort((a, b) => b.sc - a.sc);
+
+  for (const cd of cds.slice(0, 5)) {
+    const nb = gomokuPlaceStone(board, cd.r, cd.c, color)!;
+    // 对手防点：落 X 能堵住我方威胁（对手落此也形成 >=8k 威胁的点 = 有效防守）
+    const defs: Array<[number, number]> = [];
+    for (const [r, c] of gomokuCandidates(nb)) {
+      if (pointScore(nb, r, c, opp) >= 8_000) defs.push([r, c]);
+    }
+    if (defs.length === 0) continue;
+    // AND 语义：对手所有防点都要输，该活三链才算必胜链
+    let allLose = true;
+    for (const [dr, dc] of defs.slice(0, 4)) {
+      const nb2 = gomokuPlaceStone(nb, dr, dc, opp)!;
+      if (!vctAttack(nb2, color, depth + 1, maxDepth, budget)) { allLose = false; break; }
+    }
+    if (allLose) return [cd.r, cd.c];
+  }
+  return null;
+}
+
 // ============ 对外主入口 ============
 
 /** 五子棋最佳落子（按难度 + 可选自学习数据） */
@@ -558,15 +623,13 @@ export function gomokuBestMove(
     return [scored[0].r, scored[0].c];
   }
 
-  // 一步制胜
+  // 一步制胜（v9：makesFive 含跳型补缝成五——对局记录实证 AI 多次漏走补缝成五）
   for (const [r, c] of cands) {
-    const nb = gomokuPlaceStone(board, r, c, color);
-    if (nb && checkGomokuWin(nb, r, c, color)) return [r, c];
+    if (makesFive(board, r, c, color)) return [r, c];
   }
-  // 必须防守：对方一步胜
+  // 必须防守：对方一步胜（v9：含跳型补缝）
   for (const [r, c] of cands) {
-    const nb = gomokuPlaceStone(board, r, c, opp);
-    if (nb && checkGomokuWin(nb, r, c, opp)) return [r, c];
+    if (makesFive(board, r, c, opp)) return [r, c];
   }
 
   // v6 威胁分级（修复：旧版">=800k 立即返回"让 master 中局不做深算，只堵眼前成型、
@@ -636,10 +699,16 @@ export function gomokuBestMove(
     }
   }
 
-  // VCF 强制行棋（master）：有连续冲四必胜链时直接连杀（先于深度搜索）
+  // VCF / VCT 强制行棋（master/hard）：有连续冲四/活三必胜链时直接连杀（先于深度搜索）
   if (diff.depth >= 4) {
     const vcf = vcfAttack(board, color);
     if (vcf) return vcf;
+    const vct = vctAttack(board, color);
+    if (vct) return vct;
+  } else if (diff.depth >= 3) {
+    // hard：小预算 VCT（活三链），中盘进攻成形
+    const vct = vctAttack(board, color, 0, 5, { n: 0 });
+    if (vct) return vct;
   }
 
   // v7：成长端预堵快速路径（hard/master）——对方"3 子成长窗口"升级点，
