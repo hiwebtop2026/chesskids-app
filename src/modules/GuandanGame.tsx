@@ -105,6 +105,47 @@ export interface HandGroup {
   cards: GCard[];
 }
 
+// ================================================================
+// 牌局记录器：逐步出牌记录 + localStorage 最近 10 局 + 导出 JSON
+// ================================================================
+export interface GDMove {
+  round: number;          // 轮次（roundId）
+  player: number;         // 座位 0~3
+  action: 'play' | 'pass';
+  type?: string;          // 牌型名
+  cards?: string[];       // 牌面（rank+suit 字符串）
+  countAfter: number;     // 出牌后剩余手牌数
+}
+export interface GDMatchRecord {
+  id: string;
+  ts: number;
+  level: number;
+  result: 'win' | 'loss';
+  resultText: string;
+  headOrder: number[];    // 头游顺序（座位）
+  moves: GDMove[];
+}
+const GD_HISTORY_KEY = 'gd-match-history';
+export function loadGDHistory(): GDMatchRecord[] {
+  try {
+    const raw = localStorage.getItem(GD_HISTORY_KEY);
+    if (!raw) return [];
+    const list = JSON.parse(raw);
+    return Array.isArray(list) ? list : [];
+  } catch { return []; }
+}
+function saveGDHistory(rec: GDMatchRecord): GDMatchRecord[] {
+  const list = loadGDHistory();
+  list.unshift(rec);
+  const trimmed = list.slice(0, 10);
+  try { localStorage.setItem(GD_HISTORY_KEY, JSON.stringify(trimmed)); } catch { /* 忽略 */ }
+  return trimmed;
+}
+function moveCardText(c: GCard): string {
+  if (c.k !== undefined) return c.k === 1 ? '大王' : '小王';
+  return `${rankName(c.r)}${SUIT_SYMBOL[c.s]}`;
+}
+
 // 桌垫分区框线（参考比赛专用桌垫：出牌区/收牌区，去掉报牌区，网格紧凑对称）
 // 背景装饰层，游戏牌面与出牌区浮于其上；文字按方位旋转（北倒/南正/西左/东右），外围大正方形白框
 export const GD_ZONES: { top: number; left: number; w: number; h: number; label: string; dir: string }[] = [
@@ -1314,9 +1355,10 @@ interface GameState {
 }
 
 const NAMES = ['你', '对手A', '队友', '对手B'];
+const SEAT_NAMES_SHORT = ['南', '西', '北', '东'];
 // 座位：0=玩家(南) 2=队友(北) 1=右对手 3=左对手（对家组队 0-2 / 1-3）
 
-export function GuandanGame() {
+export function GuandanGame({ onExit }: { onExit?: () => void }) {
   const [game, setGame] = useState<GameState | null>(null);
   const [selected, setSelected] = useState<number[]>([]);
   const [sortMode, setSortMode] = useState<'rank' | 'grouped'>('rank');
@@ -1326,6 +1368,12 @@ export function GuandanGame() {
   const [menuOpen, setMenuOpen] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const enteredFsRef = useRef(false);
+  // 一键理牌恢复：保存理牌前手牌原始顺序快照
+  const preSortRef = useRef<GCard[] | null>(null);
+  // 牌局记录器：本局逐步出牌记录 + 历史面板
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyList, setHistoryList] = useState<GDMatchRecord[]>(() => loadGDHistory());
+  const recordRef = useRef<GDMove[]>([]);
 
   // ===== AI 难度与自适应学习 =====
   const [aiDifficulty] = useState<GDAIDifficulty | 'auto'>('auto');
@@ -1371,6 +1419,10 @@ export function GuandanGame() {
   }, [floating]);
 
   const startNew = useCallback((prevLevel?: number, keepStrikes = 0, tributePlan: { from: number; to: number }[] | null = null, firstSeat?: number) => {
+    // 新一局：清空逐步记录与理牌快照
+    recordRef.current = [];
+    preSortRef.current = null;
+    setSortMode('rank');
     const deck = shuffle(buildDeck());
     const hands: GCard[][] = [[], [], [], []];
     deck.forEach((c, i) => hands[i % 4].push(c));
@@ -1556,6 +1608,8 @@ export function GuandanGame() {
 
       if (play) {
         hands[player] = hands[player].filter((c) => !play.some((p) => p.id === c.id));
+        // 牌局记录：本手出牌
+        recordRef.current.push({ round: st.roundId, player, action: 'play', type: analyzePlay(play, st.level)?.type, cards: play.map(moveCardText), countAfter: hands[player].length });
         if (hands[player].length === 0) {
           finished.push(player);
           // 双下判定：前两名同队（0↔2、1↔3）→ 对方必为 3、4 名，胜负已定，立即结算
@@ -1630,6 +1684,8 @@ export function GuandanGame() {
       } else {
         // 不出
         roundPass.push(player);
+        // 牌局记录：过牌
+        recordRef.current.push({ round: st.roundId, player, action: 'pass', countAfter: st.hands[player].length });
         // 一圈结束：除最后出牌者外，所有未出完玩家都已 pass
         // （有玩家头游后活人数减少，pass 满 3 可能永远不满足 → 按"活人-1"判定，避免上一轮牌面残留）
         const aliveNotBy = [0, 1, 2, 3].filter((p) => !finished.includes(p) && p !== st.lastPlayBy);
@@ -1671,6 +1727,45 @@ export function GuandanGame() {
     commitTurn(0, null);
   }, [game, commitTurn, isMyTurn]);
 
+  // 一键理牌：首次点击保存原始顺序快照（供"恢复"还原），再点切换理牌方案
+  const doOneKeySort = useCallback(() => {
+    if (sortMode === 'rank') {
+      if (game) preSortRef.current = game.hands[0].map((c) => ({ ...c }));
+      setSortMode('grouped');
+      setSortScheme(0);
+    } else {
+      setSortScheme((s) => (s + 1) % 4);
+    }
+  }, [sortMode, game]);
+
+  // 恢复一键理牌：还原理牌前手牌原始顺序
+  const restoreSort = useCallback(() => {
+    if (game && preSortRef.current && preSortRef.current.length === game.hands[0].length) {
+      setGame((prev) => (prev ? { ...prev, hands: [preSortRef.current!.map((c) => ({ ...c })), prev.hands[1], prev.hands[2], prev.hands[3]] } : prev));
+    }
+    setSortMode('rank');
+    setMenuOpen(false);
+  }, [game]);
+
+  // 导出牌局记录：下载 JSON
+  const exportHistory = useCallback(() => {
+    try {
+      const list = loadGDHistory();
+      if (list.length === 0) return;
+      const d = new Date();
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const name = `guandan-match-history-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}.json`;
+      const blob = new Blob([JSON.stringify(list, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch { /* 忽略 */ }
+  }, []);
+
   // ===== 游戏结束 → 记录学习 =====
   const gameOverRecordedRef = useRef(false);
   useEffect(() => {
@@ -1680,6 +1775,20 @@ export function GuandanGame() {
     }
     if (gameOverRecordedRef.current) return;
     gameOverRecordedRef.current = true;
+
+    // 牌局记录器：保存本局完整记录（含结果与逐步出牌）到 localStorage
+    try {
+      const rec: GDMatchRecord = {
+        id: `gd-${Date.now()}`,
+        ts: Date.now(),
+        level: game.level,
+        result: game.winnerTeam === 0 ? 'win' : 'loss',
+        resultText: game.resultText,
+        headOrder: [...game.finished],
+        moves: [...recordRef.current],
+      };
+      setHistoryList(saveGDHistory(rec));
+    } catch { /* 忽略 */ }
 
     if (!learningProfile) return;
 
@@ -1898,12 +2007,7 @@ export function GuandanGame() {
               <button
                 className="gd-menu-btn"
                 onClick={() => {
-                  if (sortMode === 'rank') {
-                    setSortMode('grouped');
-                    setSortScheme(0);
-                  } else {
-                    setSortScheme((s) => (s + 1) % 4);
-                  }
+                  doOneKeySort();
                   setMenuOpen(false);
                 }}
               >
@@ -1913,15 +2017,21 @@ export function GuandanGame() {
                 💡 提示
               </button>
               {sortMode === 'grouped' && (
-                <button className="gd-menu-btn" onClick={() => { setSortMode('rank'); setMenuOpen(false); }}>
-                  ↩️ 恢复排序
+                <button className="gd-menu-btn" onClick={() => { restoreSort(); }}>
+                  ↩️ 恢复理牌
                 </button>
               )}
+              <button className="gd-menu-btn" onClick={() => { setShowHistory(true); setMenuOpen(false); }}>
+                📋 牌局记录
+              </button>
               <button className="gd-menu-btn" onClick={() => { startNew(game.level, game.aStrikes || 0, game.tributePlan, game.phase === 'over' ? game.finished[0] : undefined); setMenuOpen(false); }}>
                 🔄 重新发牌
               </button>
               <button className="gd-menu-btn danger" onClick={() => { setFloating(false); try { exitFullscreen(); } catch { /* 忽略 */ } setMenuOpen(false); }}>
                 ⛶ 退出全屏
+              </button>
+              <button className="gd-menu-btn danger" onClick={() => { if (onExit) onExit(); else { setFloating(false); try { exitFullscreen(); } catch { /* 忽略 */ } } }}>
+                🚪 退出游戏
               </button>
             </div>
             <div className="gd-menu-hint">点击棋盘任意位置关闭面板</div>
@@ -2059,10 +2169,7 @@ export function GuandanGame() {
         )}
         <button
           className="gd-btn gd-btn-sort"
-          onClick={() => {
-            if (sortMode === 'rank') { setSortMode('grouped'); setSortScheme(0); }
-            else { setSortScheme((s) => (s + 1) % 4); }
-          }}
+          onClick={doOneKeySort}
         >
           {sortMode === 'rank' ? '一键理牌' : `方案${sortScheme + 1}/4`}
         </button>
@@ -2131,6 +2238,42 @@ export function GuandanGame() {
             </button>
           ))}
           {sortedHand.length === 0 && <div className="gd-hand-empty">牌已出完</div>}
+        </div>
+      )}
+
+      {/* 牌局记录面板：容器内居中显示，遮罩仅覆盖棋盘 */}
+      {showHistory && (
+        <div className="gd-overlay" onClick={() => setShowHistory(false)}>
+          <div className="gd-overlay-card gd-history-card" onClick={(e) => e.stopPropagation()}>
+            <h2>📋 牌局记录</h2>
+            {historyList.length === 0 ? (
+              <p className="gd-history-empty">暂无对局记录，完成一局掼蛋后自动保存（最近 10 局）</p>
+            ) : (
+              <div className="gd-history-list">
+                {historyList.map((rec) => (
+                  <div key={rec.id} className={`gd-history-item ${rec.result === 'win' ? 'gd-history-win' : 'gd-history-loss'}`}>
+                    <div className="gd-history-head">
+                      <span className="gd-history-result">{rec.result === 'win' ? '🏆 胜' : '💔 负'}</span>
+                      <span className="gd-history-text">{rec.resultText}</span>
+                      <span className="gd-history-meta">过 {rankName(rec.level)} · {rec.moves.length} 手 · {new Date(rec.ts).toLocaleString()}</span>
+                    </div>
+                    <div className="gd-history-moves">
+                      {rec.moves.map((m, i) => (
+                        <span key={i} className="gd-history-move">
+                          <b>{SEAT_NAMES_SHORT[m.player]}</b>
+                          {m.action === 'pass' ? ' 过' : ` ${m.type ?? ''}${m.cards ? `[${m.cards.join(' ')}]` : ''} →${m.countAfter}张`}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="gd-overlay-btns">
+              {historyList.length > 0 && <button className="gd-btn gd-btn-primary" onClick={exportHistory}>⬇️ 导出记录</button>}
+              <button className="gd-btn" onClick={() => setShowHistory(false)}>关闭</button>
+            </div>
+          </div>
         </div>
       )}
 

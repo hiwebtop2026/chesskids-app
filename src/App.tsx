@@ -362,9 +362,9 @@ const App: React.FC = () => {
       case 'gd-rules':
         return <GuandanRulesLearning />;
       case 'gd-ai':
-        return <GuandanGame />;
+        return <GuandanGame onExit={goHome} />;
       case 'gd-online':
-        return <GuandanOnlineGame autoJoinRoom={autoRoom} />;
+        return <GuandanOnlineGame autoJoinRoom={autoRoom} onExit={goHome} />;
       default:
         return null;
     }

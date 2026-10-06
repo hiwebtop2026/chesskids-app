@@ -338,7 +338,7 @@ async function sendWithRetry(conn: any, data: string, maxRetries = 3): Promise<b
 // ================================================================
 // 组件
 // ================================================================
-export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ autoJoinRoom }) => {
+export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?: () => void }> = ({ autoJoinRoom, onExit }) => {
   const [role, setRole] = useState<'host' | 'guest' | null>(null);
   const [roomCode, setRoomCode] = useState('');
   const [joinInput, setJoinInput] = useState('');
@@ -352,11 +352,15 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
   const [notice, setNotice] = useState('');
   const [errorDetail, setErrorDetail] = useState('');
   const [copied, setCopied] = useState(false);
+  // 出牌倒计时：轮到玩家时 15 秒内必须出牌，超时自动出最小牌
+  const [countdown, setCountdown] = useState(15);
   // 浮动窗口全屏（对局时默认开启）+ 左上角 ☰ 折叠菜单
   const [floating, setFloating] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const enteredFsRef = useRef(false);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const autoPlayedRef = useRef(false);
 
   const peerRef = useRef<any>(null);
   const connsRef = useRef<any[]>([]); // host：已连接的 guest connections
@@ -823,9 +827,9 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
     && game.hands[mySeat].length > 0;
   const myHand = game ? game.hands[mySeat] : [];
 
-  const doPlay = () => {
+  const doPlay = (cardsOverride?: GCard[]) => {
     if (!isMyTurn) return;
-    const cards = myHand.filter((c) => selected.includes(c.id));
+    const cards = cardsOverride ?? myHand.filter((c) => selected.includes(c.id));
     if (cards.length === 0) return;
     if (role === 'host') {
       setGame((prev) => {
@@ -843,6 +847,53 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
       });
     }
   };
+
+  // 超时自动出最小牌：有上家出最小能压的牌型；无上家出最小单张；压不过则过
+  const autoPlaySmallest = useCallback(() => {
+    if (!game || !isMyTurn) return;
+    if (game.lastPlay) {
+      const prev = analyzePlay(game.lastPlay.cards, game.level)!;
+      const beats = allBeats(myHand, prev, game.level);
+      if (beats.length > 0) {
+        let min = beats[0];
+        for (const b of beats) if (cardVal(b[0], game.level) < cardVal(min[0], game.level)) min = b;
+        doPlay(min);
+        return;
+      }
+      doPass();
+    } else {
+      let min = myHand[0];
+      for (const c of myHand) if (cardVal(c, game.level) < cardVal(min, game.level)) min = c;
+      doPlay([min]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game, isMyTurn, myHand, game?.lastPlay]);
+
+  // 15 秒出牌倒计时：轮到玩家启动，超时自动出最小牌
+  useEffect(() => {
+    if (!isMyTurn || !game || game.phase !== 'playing') {
+      if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
+      setCountdown(15);
+      autoPlayedRef.current = false;
+      return;
+    }
+    if (autoPlayedRef.current) return;
+    autoPlayedRef.current = false;
+    setCountdown(15);
+    countdownRef.current = setInterval(() => {
+      setCountdown((v) => {
+        if (v <= 1) {
+          if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
+          autoPlayedRef.current = true;
+          try { autoPlaySmallest(); } catch { /* 忽略 */ }
+          return 0;
+        }
+        return v - 1;
+      });
+    }, 1000);
+    return () => { if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; } };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMyTurn, game?.current, game?.roundId, game?.roundEnded, game?.phase]);
 
   const doPass = () => {
     if (!isMyTurn || !game?.lastPlay) return;
@@ -1357,6 +1408,9 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
               <button className="gd-menu-btn danger" onClick={() => { setFloating(false); try { exitFullscreen(); } catch { /* 忽略 */ } setMenuOpen(false); }}>
                 ⛶ 退出全屏
               </button>
+              <button className="gd-menu-btn danger" onClick={() => { if (onExit) onExit(); else { setFloating(false); try { exitFullscreen(); } catch { /* 忽略 */ } } }}>
+                🚪 退出游戏
+              </button>
             </div>
             <div className="gd-menu-hint">点击棋盘任意位置关闭面板</div>
           </div>
@@ -1368,6 +1422,9 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
         <span className="gd-info">我方 <b>{myTeamCount}</b> 张</span>
         <span className="gd-info">对方 <b>{oppTeamCount}</b> 张</span>
         <span className="gd-info">房间 <b className="gd-level">{roomCode}</b></span>
+        {isMyTurn && status === 'playing' && countdown > 0 && (
+          <span className={`gd-countdown ${countdown <= 5 ? 'gd-countdown-urgent' : ''}`}>⏱ {countdown}s</span>
+        )}
       </div>
       {game.gongMessage && <div className="gd-gong-bar">{game.gongMessage}</div>}
 
@@ -1492,7 +1549,7 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null }> = ({ 
           <>
             <button className="gd-btn gd-btn-pass" onClick={doPass} disabled={!canPass}>不出</button>
             <button className="gd-btn gd-btn-hint" onClick={applyHint} disabled={!isMyTurn}>提示</button>
-            <button className="gd-btn gd-btn-play gd-btn-primary" onClick={doPlay} disabled={!canPlay}>出牌</button>
+            <button className="gd-btn gd-btn-play gd-btn-primary" onClick={() => doPlay()} disabled={!canPlay}>出牌</button>
           </>
         )}
         <button
