@@ -31,7 +31,13 @@ function isKeyCard(c: GCard, level: number): boolean {
  * - 普通局面：优先"不拆对/三、不含关键牌"的方案；再退而求其次"不含王/变牌"；最后最小
  * 炸弹/同花顺/王炸不在本函数范围（由 decideBomb 单独决策）
  */
-function pickSmartBeat(hand: GCard[], prev: PlayInfo, level: number, pressure: boolean): GCard[] | null {
+function pickSmartBeat(
+  hand: GCard[],
+  prev: PlayInfo,
+  level: number,
+  pressure: boolean,
+  avoidSize = 0, // 下家报牌张数：压制时避免出同张数牌型（防止直接送下家过）
+): GCard[] | null {
   const beats = allBeats(hand, prev, level);
   if (beats.length === 0) return null;
   const sameType = beats.filter((cards) => {
@@ -39,7 +45,27 @@ function pickSmartBeat(hand: GCard[], prev: PlayInfo, level: number, pressure: b
     return info && info.type !== 'BOMB' && info.type !== 'ROCKET' && info.type !== 'STRAIGHT_FLUSH';
   });
   if (sameType.length === 0) return null; // 只有炸弹能压 → 交给炸弹决策
-  if (pressure) return sameType[0]; // 冲刺/拦截：最小能压直接出
+  if (pressure) {
+    // 下家报 1 张（即将脱手）且我压单张 → 用最大单张压死，绝不给下家接牌机会（职业打法）
+    if (avoidSize === 1 && prev.type === 'SINGLE') {
+      let maxSingle: GCard[] | null = null;
+      let maxKey = -1;
+      for (const cards of sameType) {
+        const info = analyzePlay(cards, level);
+        if (info && info.type === 'SINGLE' && info.key > maxKey) { maxKey = info.key; maxSingle = cards; }
+      }
+      if (maxSingle) return maxSingle;
+    }
+    // 下家报牌：优先非"同张数"牌型压制（炸弹除外），无替代再退回最小
+    if (avoidSize > 0) {
+      const alt = sameType.find((cards) => {
+        const info = analyzePlay(cards, level);
+        return info && info.size !== avoidSize;
+      });
+      if (alt) return alt;
+    }
+    return sameType[0]; // 冲刺/拦截：最小能压直接出
+  }
 
   const byR = groupByR(hand);
   // 第一优先：完整牌型（对子/三张/顺子等）且不含关键牌
@@ -527,7 +553,13 @@ function aiFollow(
     nextOppCount <= 3 ||                      // 下家快出完（报牌）：必须拦，不能放行
     headSeat === partnerSeat ||               // 队友已头游：自己冲刺
     (partnerCount <= 2 && minOppCount <= 8);  // 队友快出完且局面紧迫
-  const beat = pickSmartBeat(hand, prev, level, pressure);
+
+  // 下家报牌避让：下家是敌方且报牌（≤10 张）时，压牌避免出"同张数"牌型（防止直接送下家一次脱手）
+  const nextSeat = (mySeat + 1) % 4;
+  const avoidSize = (nextSeat !== partnerSeat && nextOppCount >= 1 && nextOppCount <= 10)
+    ? nextOppCount
+    : 0;
+  const beat = pickSmartBeat(hand, prev, level, pressure, avoidSize);
   if (!beat) {
     // 没普通牌可大 → 考虑炸弹
     return decideBomb(hand, prev, level, mySeat, lastPlayBy, handCounts, role, config, headSeat);

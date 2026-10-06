@@ -1428,12 +1428,21 @@ export function GuandanGame({ onExit }: { onExit?: () => void }) {
     deck.forEach((c, i) => hands[i % 4].push(c));
     const lv = prevLevel ?? 2;
     // 双下进贡/还贡：末游/三游进贡给头游/二游最大牌，头游/二游还一张 ≤10 的牌
+    // 职业规则：进贡方持有红桃级牌（变牌）可抗贡——免进贡（也不收还贡），本局抗贡者先出
     let gong = '';
+    let antiSeat: number | undefined;
     if (tributePlan && tributePlan.length > 0) {
       for (const t of tributePlan) {
         const from = hands[t.from];
         const to = hands[t.to];
         if (from.length === 0 || to.length === 0) continue;
+        // 抗贡判定：进贡方有红桃级牌
+        const hasWild = from.some((c) => isWild(c, lv));
+        if (hasWild) {
+          gong += `${NAMES[t.from]} 持有红桃级牌，抗贡！；`;
+          if (antiSeat === undefined) antiSeat = t.from;
+          continue;
+        }
         let maxIdx = 0;
         for (let i = 1; i < from.length; i++) {
           if (cardVal(from[i], lv) > cardVal(from[maxIdx], lv)) maxIdx = i;
@@ -1458,8 +1467,8 @@ export function GuandanGame({ onExit }: { onExit?: () => void }) {
       }
       gong = `🔄 ${gong}`;
     }
-    // 先手：首局随机；重开时默认头游先出（可传 firstSeat 覆盖）
-    const first = firstSeat !== undefined ? firstSeat : (prevLevel === undefined ? Math.floor(Math.random() * 4) : 0);
+    // 先手：首局随机；重开时默认头游先出（可传 firstSeat 覆盖）；抗贡时由抗贡者先出（职业规则）
+    const first = antiSeat !== undefined ? antiSeat : (firstSeat !== undefined ? firstSeat : (prevLevel === undefined ? Math.floor(Math.random() * 4) : 0));
     setGame({
       hands,
       level: lv,
@@ -1778,11 +1787,14 @@ export function GuandanGame({ onExit }: { onExit?: () => void }) {
 
     // 牌局记录器：保存本局完整记录（含结果与逐步出牌）到 localStorage
     try {
+      // 结果判定：头游在我队（0/2）= 我方赢（掼蛋规则：头游方必升级）；
+      // 不能用 winnerTeam（该字段仅在打 A 双上时非 null，普通局恒 null → 全部误记 loss）
+      const head = game.finished.length > 0 && (game.finished[0] === 0 || game.finished[0] === 2);
       const rec: GDMatchRecord = {
         id: `gd-${Date.now()}`,
         ts: Date.now(),
         level: game.level,
-        result: game.winnerTeam === 0 ? 'win' : 'loss',
+        result: head ? 'win' : 'loss',
         resultText: game.resultText,
         headOrder: [...game.finished],
         moves: [...recordRef.current],
@@ -1792,7 +1804,7 @@ export function GuandanGame({ onExit }: { onExit?: () => void }) {
 
     if (!learningProfile) return;
 
-    const myTeamWon = game.winnerTeam === 0;
+    const myTeamWon = game.finished.length > 0 && (game.finished[0] === 0 || game.finished[0] === 2);
     const result = myTeamWon ? 'win' : 'loss';
 
     // 自己的名次
