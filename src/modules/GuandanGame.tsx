@@ -904,22 +904,38 @@ function aiLead(hand: GCard[], level: number, strategy: 'aggressive' | 'normal' 
   const groups = groupHand(hand, level);
   const byRank = groupByR(hand);
 
-  // 【冲刺】自己快出完（≤3 张）：优先整组跑牌，无组合则出小留大/出对
-  if (hand.length <= 3) {
+  // 【冲刺】自己快出完（≤5 张）：能整组脱手就整组（炸弹/同花顺/王炸/顺子/三张/对子），绝不拆炸弹
+  if (hand.length <= 5) {
+    // 1. 整手本身是合法牌型（炸弹/王炸/同花顺/顺子/三张/对子）→ 一次脱手
+    const whole = analyzePlay(hand, level);
+    if (whole) return hand;
+    // 2. 炸弹/同花顺占绝大多数（剩 ≤1 张散牌）→ 整组出，不拆炸弹
+    const bombs = bombCandidates(hand, level);
+    if (bombs.length > 0) {
+      const big = [...bombs].sort((a, b) => b.n - a.n || b.key - a.key)[0];
+      if (hand.length - big.n <= 1) return big.cards;
+    }
+    const sfNow = findStraightFlush(hand);
+    if (sfNow && hand.length - sfNow.length <= 1) return sfNow;
+    // 3. 组合牌型（顺子/连对/钢板/三带）出最大，一次少一手
     const comboGroups = groups.filter(g =>
-      !g.label.includes('同花顺') &&
-      (g.label.includes('顺') || g.label.includes('连对') ||
-      g.label.includes('钢板') || g.label.includes('三带'))
+      g.label.includes('顺') || g.label.includes('连对') ||
+      g.label.includes('钢板') || g.label.includes('三带')
     );
     if (comboGroups.length > 0) {
       comboGroups.sort((a, b) => cardVal(b.cards[0], level) - cardVal(a.cards[0], level));
-      return comboGroups[0].cards; // 出最大组合，一次脱手概率高
+      return comboGroups[0].cards;
     }
+    // 4. 有对子优先出最小对子（保留散牌更灵活）
     const sorted = [...hand].sort((a, b) => cardVal(a, level) - cardVal(b, level));
-    if (hand.length === 2 && sorted[0].k === undefined && sorted[1].k === undefined && sorted[0].r === sorted[1].r) {
-      return sorted; // 剩对子直接出对
+    const pairsNow: GCard[][] = [];
+    for (const g of byRank.values()) {
+      if (g.length >= 2) pairsNow.push(g.slice(0, 2));
     }
-    return [sorted[0]]; // 出小留大
+    pairsNow.sort((a, b) => cardVal(a[0], level) - cardVal(b[0], level));
+    if (pairsNow.length > 0) return pairsNow[0];
+    // 5. 出最小单张
+    return [sorted[0]];
   }
 
   // 策略1：主攻型 — 优先出整组牌型（顺子/连对/飞机/三带二）
@@ -1000,6 +1016,34 @@ function shouldBomb(
 
   // 队友刚出最大牌 → 绝对不炸
   if (isMyTeamLast) return null;
+
+  // 【实战·炸弹多早炸】炸弹 ≥3 且对手牌不多（≤15）→ 主动用炸弹抢出牌权（用数量换轮次优势）
+  if (bombs.length >= 3 && opponentHandCount <= 15) {
+    for (const b of bombs) {
+      const info = { type: 'BOMB' as PlayType, key: b.key, size: b.n, cards: b.cards };
+      if (canBeat(prev, info) && b.kind === 0 && b.n <= 5) return b.cards;
+    }
+  }
+
+  // 【实战·长牌型压制】对手自由出的顺子/连对/钢板/同花顺且对手牌还多（≥12）→ 用炸弹拿回轮次（实战：首轮顺子必须炸，避免被动）
+  if (
+    (prev.type === 'STRAIGHT' || prev.type === 'PAIR_SEQ' || prev.type === 'PLANE' ||
+      prev.type === 'TRIPLE_PAIR' || prev.type === 'STRAIGHT_FLUSH') &&
+    opponentHandCount >= 12 && bombs.length >= 2
+  ) {
+    for (const b of bombs) {
+      const info = { type: 'BOMB' as PlayType, key: b.key, size: b.n, cards: b.cards };
+      if (canBeat(prev, info) && b.kind === 0 && b.n <= 5) return b.cards;
+    }
+  }
+
+  // 【实战·炸最后大王】对手出单张级牌/大王（≥16）且对手牌不多（≤8）→ 炸掉夺回单牌控制权
+  if (prev.type === 'SINGLE' && prev.key >= 16 && opponentHandCount <= 8) {
+    for (const b of bombs) {
+      const info = { type: 'BOMB' as PlayType, key: b.key, size: b.n, cards: b.cards };
+      if (canBeat(prev, info)) return b.cards;
+    }
+  }
 
   // 对手剩牌很少 → 必须炸（阻止对方头游）
   if (opponentHandCount <= mustBomb) {
@@ -1110,7 +1154,8 @@ export function aiPlay(
 
   // ===== 接队友：对手压了队友的牌且队友快出完（≤6 张）→ 能压必压，帮队友接回出牌权 =====
   if (partnerHandCount <= 6 && opponentHandCount <= 10) {
-    const beat = findSmallestBeat(hand, prev, level);
+    // 智能跟牌（枚举含变牌凑组方案）：变牌逢人配补短板（如 3+变牌凑对/三压牌），能压必压
+    const beat = aiSmartBeat(hand, prev, level, true);
     if (beat) return { play: beat, pass: false };
     // 普通牌压不了 → 队友只剩 ≤3 张、对手也少 → 敢用小炸弹接回
     if (partnerHandCount <= 3 && opponentHandCount <= 4) {
