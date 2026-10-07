@@ -1006,12 +1006,13 @@ function aiLead(hand: GCard[], level: number, strategy: 'aggressive' | 'normal' 
     return [sorted[0]];
   }
 
-  // 策略1：主攻型 — 优先出整组牌型（顺子/连对/飞机/三带二）
+  // 策略1：主攻型 — 优先出整组牌型（顺子/连对/飞机/三带二）；同花顺保留（关键压制，首攻不出）
   if (strategy === 'aggressive') {
-    // 找最大的组合牌型优先出（减少手数）
+    // 找最大的组合牌型优先出（减少手数）；明确排除同花顺——首攻/自由出牌不出同花顺（职业打法：同花顺留作压制利器）
     let comboGroups = groups.filter(g =>
-      g.label.includes('顺') || g.label.includes('连对') ||
-      g.label.includes('钢板') || g.label.includes('三带')
+      !g.label.includes('同花顺') &&
+      (g.label.includes('顺') || g.label.includes('连对') ||
+        g.label.includes('钢板') || g.label.includes('三带'))
     );
     // 下家报牌：避开下家张数的组合（如报 5 张不出顺子、报 3 张不出三带），防一次脱手
     if (avoidLen > 0) {
