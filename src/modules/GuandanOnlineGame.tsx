@@ -220,12 +220,21 @@ export function gdNewGame(level: number, names: string[], firstSeat: number, kee
   const hands: GCard[][] = [[], [], [], []];
   deck.forEach((c, i) => hands[i % 4].push(c));
   // 双下进贡/还贡：末游/三游进贡给头游/二游最大牌，头游/二游还一张 ≤10 的牌
+  // 职业规则抗贡：进贡方持有红桃级牌（变牌）或两张大王 → 抗贡（免进贡也不收还贡），抗贡后仍由上盘头游先出
   let gong = '';
+  let antiSeat: number | undefined;
   if (tributePlan && tributePlan.length > 0) {
     for (const t of tributePlan) {
       const from = hands[t.from];
       const to = hands[t.to];
       if (from.length === 0 || to.length === 0) continue;
+      const hasWild = from.some((c) => isWild(c, level));
+      const hasTwoBigJokers = from.filter((c) => c.k === 1).length >= 2;
+      if (hasWild || hasTwoBigJokers) {
+        gong += `${names[t.from] || SEAT_NAMES[t.from]} ${hasTwoBigJokers ? '持有两张大王' : '持有红桃级牌'}，抗贡！；`;
+        if (antiSeat === undefined) antiSeat = t.from;
+        continue;
+      }
       let maxIdx = 0;
       for (let i = 1; i < from.length; i++) {
         if (cardVal(from[i], level) > cardVal(from[maxIdx], level)) maxIdx = i;
@@ -250,8 +259,10 @@ export function gdNewGame(level: number, names: string[], firstSeat: number, kee
     }
     gong = `🔄 ${gong}`;
   }
+  // 抗贡时继续由上盘头游（tributePlan[0].to）先出
+  const firstSeat2 = antiSeat !== undefined ? tributePlan![0].to : firstSeat;
   return {
-    hands, level, current: firstSeat, lastPlay: null, lastPlayBy: -1, turnStart: firstSeat,
+    hands, level, current: firstSeat2, lastPlay: null, lastPlayBy: -1, turnStart: firstSeat2,
     finished: [], roundPass: [], roundPlays: [], roundEnded: false, roundId: 0, phase: 'playing', winnerTeam: null, resultText: '', playerNames: names,
     aStrikes: keepStrikes, tributePlan: null, gongMessage: gong,
   };
@@ -1498,7 +1509,7 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
               {game.hands[2].map((c) => (
                 <span
                   key={c.id}
-                  className={`gd-mini-card ${c.k !== undefined ? 'gd-mini-joker' : ''} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'}`}
+                  className={`gd-mini-card ${c.k !== undefined ? (c.k === 1 ? 'gd-mini-joker' : 'gd-mini-small-joker') : ''} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'}`}
                 >
                   <span className="gd-mini-rank">{c.k !== undefined ? (c.k === 1 ? '大王' : '小王') : rankName(c.r)}</span>
                   {c.k === undefined && <span className="gd-mini-suit">{SUIT_SYMBOL[c.s]}</span>}
@@ -1527,7 +1538,7 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
                   {game.hands[3].map((c) => (
                     <span
                       key={c.id}
-                      className={`gd-mini-card ${c.k !== undefined ? 'gd-mini-joker' : ''} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
+                      className={`gd-mini-card ${c.k !== undefined ? (c.k === 1 ? 'gd-mini-joker' : 'gd-mini-small-joker') : ''} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
                     >
                       <span className="gd-mini-rank">{c.k !== undefined ? (c.k === 1 ? '大王' : '小王') : rankName(c.r)}</span>
                       {c.k === undefined && <span className="gd-mini-suit">{SUIT_SYMBOL[c.s]}</span>}
@@ -1562,7 +1573,7 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
                   {game.hands[1].map((c) => (
                     <span
                       key={c.id}
-                      className={`gd-mini-card ${c.k !== undefined ? 'gd-mini-joker' : ''} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
+                      className={`gd-mini-card ${c.k !== undefined ? (c.k === 1 ? 'gd-mini-joker' : 'gd-mini-small-joker') : ''} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
                     >
                       <span className="gd-mini-rank">{c.k !== undefined ? (c.k === 1 ? '大王' : '小王') : rankName(c.r)}</span>
                       {c.k === undefined && <span className="gd-mini-suit">{SUIT_SYMBOL[c.s]}</span>}
@@ -1625,7 +1636,7 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
                 {g.cards.map((c, ci) => (
                   <button
                     key={c.id}
-                    className={`gd-card ${selected.includes(c.id) ? 'gd-selected' : ''} ${c.k !== undefined ? 'gd-card-joker' : (c.r === levelRank(game.level) ? 'gd-card-level' : '')} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
+                    className={`gd-card ${selected.includes(c.id) ? 'gd-selected' : ''} ${c.k !== undefined ? (c.k === 1 ? 'gd-card-joker' : 'gd-card-small-joker') : (c.r === levelRank(game.level) ? 'gd-card-level' : '')} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
                     onClick={() => toggleCard(c.id)}
                     style={{ zIndex: 100 - ci }}
                   >
@@ -1658,7 +1669,7 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
           {sortedHand.map((c, i) => (
             <button
               key={c.id}
-              className={`gd-card ${selected.includes(c.id) ? 'gd-selected' : ''} ${c.k !== undefined ? 'gd-card-joker' : (c.r === levelRank(game.level) ? 'gd-card-level' : '')} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
+              className={`gd-card ${selected.includes(c.id) ? 'gd-selected' : ''} ${c.k !== undefined ? (c.k === 1 ? 'gd-card-joker' : 'gd-card-small-joker') : (c.r === levelRank(game.level) ? 'gd-card-level' : '')} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
               onClick={() => toggleCard(c.id)}
               style={{ marginLeft: i > 0 ? -Math.min(34, 300 / sortedHand.length) : 0 }}
             >

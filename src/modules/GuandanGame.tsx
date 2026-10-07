@@ -1447,10 +1447,11 @@ export function GuandanGame({ onExit }: { onExit?: () => void }) {
         const from = hands[t.from];
         const to = hands[t.to];
         if (from.length === 0 || to.length === 0) continue;
-        // 抗贡判定：进贡方有红桃级牌
+        // 抗贡判定（职业规则）：进贡方持有红桃级牌（变牌）或持有两张大王 → 抗贡（免进贡也不收还贡）
         const hasWild = from.some((c) => isWild(c, lv));
-        if (hasWild) {
-          gong += `${NAMES[t.from]} 持有红桃级牌，抗贡！；`;
+        const hasTwoBigJokers = from.filter((c) => c.k === 1).length >= 2;
+        if (hasWild || hasTwoBigJokers) {
+          gong += `${NAMES[t.from]} ${hasTwoBigJokers ? '持有两张大王' : '持有红桃级牌'}，抗贡！；`;
           if (antiSeat === undefined) antiSeat = t.from;
           continue;
         }
@@ -1478,8 +1479,8 @@ export function GuandanGame({ onExit }: { onExit?: () => void }) {
       }
       gong = `🔄 ${gong}`;
     }
-    // 先手：首局随机；重开时默认头游先出（可传 firstSeat 覆盖）；抗贡时由抗贡者先出（职业规则）
-    const first = antiSeat !== undefined ? antiSeat : (firstSeat !== undefined ? firstSeat : (prevLevel === undefined ? Math.floor(Math.random() * 4) : 0));
+    // 先手：首局随机；重开时默认头游先出（可传 firstSeat 覆盖）；抗贡时继续由上盘头游先出（职业规则）
+    const first = antiSeat !== undefined ? tributePlan![0].to : (firstSeat !== undefined ? firstSeat : (prevLevel === undefined ? Math.floor(Math.random() * 4) : 0));
     setGame({
       hands,
       level: lv,
@@ -1960,7 +1961,7 @@ export function GuandanGame({ onExit }: { onExit?: () => void }) {
               {pl.cards.map((c) => (
                 <span
                   key={c.id}
-                  className={`gd-mini-card ${c.k !== undefined ? 'gd-mini-joker' : ''} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
+                  className={`gd-mini-card ${c.k !== undefined ? (c.k === 1 ? 'gd-mini-joker' : 'gd-mini-small-joker') : ''} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
                 >
                   <span className="gd-mini-rank">{c.k !== undefined ? (c.k === 1 ? '大王' : '小王') : rankName(c.r)}</span>
                   {c.k === undefined && <span className="gd-mini-suit">{SUIT_SYMBOL[c.s]}</span>}
@@ -2086,7 +2087,7 @@ export function GuandanGame({ onExit }: { onExit?: () => void }) {
               {game.hands[2].map((c) => (
                 <span
                   key={c.id}
-                  className={`gd-mini-card ${c.k !== undefined ? 'gd-mini-joker' : ''} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
+                  className={`gd-mini-card ${c.k !== undefined ? (c.k === 1 ? 'gd-mini-joker' : 'gd-mini-small-joker') : ''} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
                 >
                   <span className="gd-mini-rank">{c.k !== undefined ? (c.k === 1 ? '大王' : '小王') : rankName(c.r)}</span>
                   {c.k === undefined && <span className="gd-mini-suit">{SUIT_SYMBOL[c.s]}</span>}
@@ -2116,7 +2117,7 @@ export function GuandanGame({ onExit }: { onExit?: () => void }) {
                   {game.hands[3].map((c) => (
                     <span
                       key={c.id}
-                      className={`gd-mini-card ${c.k !== undefined ? 'gd-mini-joker' : ''} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
+                      className={`gd-mini-card ${c.k !== undefined ? (c.k === 1 ? 'gd-mini-joker' : 'gd-mini-small-joker') : ''} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
                     >
                       <span className="gd-mini-rank">{c.k !== undefined ? (c.k === 1 ? '大王' : '小王') : rankName(c.r)}</span>
                       {c.k === undefined && <span className="gd-mini-suit">{SUIT_SYMBOL[c.s]}</span>}
@@ -2150,7 +2151,7 @@ export function GuandanGame({ onExit }: { onExit?: () => void }) {
                   {game.hands[1].map((c) => (
                     <span
                       key={c.id}
-                      className={`gd-mini-card ${c.k !== undefined ? 'gd-mini-joker' : ''} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
+                      className={`gd-mini-card ${c.k !== undefined ? (c.k === 1 ? 'gd-mini-joker' : 'gd-mini-small-joker') : ''} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
                     >
                       <span className="gd-mini-rank">{c.k !== undefined ? (c.k === 1 ? '大王' : '小王') : rankName(c.r)}</span>
                       {c.k === undefined && <span className="gd-mini-suit">{SUIT_SYMBOL[c.s]}</span>}
@@ -2215,7 +2216,7 @@ export function GuandanGame({ onExit }: { onExit?: () => void }) {
                 {g.cards.map((c, ci) => (
                   <button
                     key={c.id}
-                    className={`gd-card ${selected.includes(c.id) ? 'gd-selected' : ''} ${c.k !== undefined ? 'gd-card-joker' : (c.r === levelRank(game.level) ? 'gd-card-level' : '')} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
+                    className={`gd-card ${selected.includes(c.id) ? 'gd-selected' : ''} ${c.k !== undefined ? (c.k === 1 ? 'gd-card-joker' : 'gd-card-small-joker') : (c.r === levelRank(game.level) ? 'gd-card-level' : '')} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
                     onClick={() => toggleCard(c.id)}
                     style={{ zIndex: 100 - ci }}
                   >
@@ -2248,7 +2249,7 @@ export function GuandanGame({ onExit }: { onExit?: () => void }) {
           {sortedHand.map((c, i) => (
             <button
               key={c.id}
-              className={`gd-card ${selected.includes(c.id) ? 'gd-selected' : ''} ${c.k !== undefined ? 'gd-card-joker' : (c.r === levelRank(game.level) ? 'gd-card-level' : '')} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
+              className={`gd-card ${selected.includes(c.id) ? 'gd-selected' : ''} ${c.k !== undefined ? (c.k === 1 ? 'gd-card-joker' : 'gd-card-small-joker') : (c.r === levelRank(game.level) ? 'gd-card-level' : '')} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
               onClick={() => toggleCard(c.id)}
               style={{ marginLeft: i > 0 ? -Math.min(34, 300 / sortedHand.length) : 0 }}
             >

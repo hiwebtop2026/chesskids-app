@@ -7283,6 +7283,7 @@ ul {
 .gd-mini-card.gd-red { color: #d32f2f; }
 .gd-mini-card.gd-black { color: #1b1b1b; }
 .gd-mini-card.gd-mini-joker { background: linear-gradient(135deg, #6a1b9a, #c62828); color: #fff; }
+.gd-mini-card.gd-mini-small-joker { background: linear-gradient(135deg, #5d5d5d, #9e9e9e); color: #fff; }
 .gd-mini-rank { font-size: 10px; font-weight: 800; }
 .gd-mini-suit { font-size: 9px; }
 .gd-mini-level {
@@ -7573,6 +7574,8 @@ ul {
 .gd-card.gd-red { color: #d32f2f; }
 .gd-card.gd-black { color: #1b1b1b; }
 .gd-card.gd-card-joker { background: linear-gradient(135deg, #7b1fa2, #c62828); color: #fff; }
+.gd-card.gd-card-small-joker { background: linear-gradient(135deg, #5d5d5d, #9e9e9e); color: #fff; }
+.gd-card-small-joker { background: linear-gradient(135deg, #5d5d5d, #9e9e9e); color: #fff; }
 /* 牌面：左上/右下角 点数+小花色，中间大花色 logo */
 .gd-card-corner {
   position: absolute;
@@ -7612,6 +7615,7 @@ ul {
 .gd-card.gd-red { color: #d32f2f; }
 .gd-card.gd-black { color: #1b1b1b; }
 .gd-card-joker { background: linear-gradient(135deg, #6a1b9a, #c62828); color: #fff !important; }
+.gd-card-small-joker { background: linear-gradient(135deg, #5d5d5d, #9e9e9e); color: #fff !important; }
 .gd-card-level { box-shadow: inset 0 0 0 2.5px #ffb300; }
 /* 变牌（红桃级牌·逢人配）：金色描边 + 角标 */
 .gd-card.gd-wild {
