@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { enterFullscreen, exitFullscreen } from '../utils/fullscreen';
 import { playGdBombEffect } from '../utils/gdEffects';
+import { GuandanJoker } from '../components/GuandanJoker';
 import {
   getLearningProfile, recordGameResult,
   resolveAutoAiDifficulty,
@@ -1054,6 +1055,23 @@ function aiLead(hand: GCard[], level: number, strategy: 'aggressive' | 'normal' 
     if (singles.length > 0) return [singles[0]];
   }
 
+  // 【实战·组合先行】普通型也优先出组合牌型（顺/连对/钢板/三带二）——先压缩手牌张数，
+  // 避免散牌缠身；同花顺仍保留（关键时刻压制，首攻不出）。下家报牌时避开同张数组合。
+  const comboGroupsN = groups.filter(g =>
+    !g.label.includes('同花顺') &&
+    (g.label.includes('顺') || g.label.includes('连对') ||
+      g.label.includes('钢板') || g.label.includes('三带'))
+  );
+  if (comboGroupsN.length > 0) {
+    // 优先最短组合（最接近脱手），同长取小
+    comboGroupsN.sort((a, b) => a.cards.length - b.cards.length || cardVal(a.cards[0], level) - cardVal(b.cards[0], level));
+    if (avoidLen > 0) {
+      const safe = comboGroupsN.filter(g => g.cards.length !== avoidLen);
+      if (safe.length > 0) return safe[0].cards;
+    }
+    return comboGroupsN[0].cards;
+  }
+
   // 策略3：普通型 — 优先出对子/三张，其次最小单张
   // 先找最小的对子
   const pairs: GCard[][] = [];
@@ -1184,11 +1202,11 @@ function aiKeyCard(c: GCard, level: number): boolean {
 
 /**
  * 人机引擎：智能跟牌选择（非机械最小）
- * - pressure=true（冲刺/拦截）：直接最小能压
+ * - pressure=true（冲刺/拦截）：直接最小能压（下家报牌时避开同张数，报1张用最大单压死）
  * - 普通局面：优先不拆对/三、不含关键牌；其次不含王/变牌；最后最小
  * 炸弹/同花顺/王炸由 shouldBomb 单独决策
  */
-function aiSmartBeat(hand: GCard[], prev: PlayInfo, level: number, pressure: boolean): GCard[] | null {
+function aiSmartBeat(hand: GCard[], prev: PlayInfo, level: number, pressure: boolean, avoidSize = 0): GCard[] | null {
   const beats = allBeats(hand, prev, level);
   if (beats.length === 0) return null;
   const sameType = beats.filter((cards) => {
@@ -1196,7 +1214,27 @@ function aiSmartBeat(hand: GCard[], prev: PlayInfo, level: number, pressure: boo
     return info && info.type !== 'BOMB' && info.type !== 'ROCKET' && info.type !== 'STRAIGHT_FLUSH';
   });
   if (sameType.length === 0) return null;
-  if (pressure) return sameType[0];
+  if (pressure) {
+    // 下家报 1 张（即将脱手）且我压单张 → 用最大单张压死，绝不给下家接牌机会（职业打法）
+    if (avoidSize === 1 && prev.type === 'SINGLE') {
+      let maxSingle: GCard[] | null = null;
+      let maxKey = -1;
+      for (const cards of sameType) {
+        const info = analyzePlay(cards, level);
+        if (info && info.type === 'SINGLE' && info.key > maxKey) { maxKey = info.key; maxSingle = cards; }
+      }
+      if (maxSingle) return maxSingle;
+    }
+    // 下家报牌：优先非"同张数"牌型压制（防止直接送下家过），无替代再退回最小
+    if (avoidSize > 0) {
+      const alt = sameType.find((cards) => {
+        const info = analyzePlay(cards, level);
+        return info && info.size !== avoidSize;
+      });
+      if (alt) return alt;
+    }
+    return sameType[0];
+  }
 
   const byR = groupByR(hand);
   for (const cards of sameType) {
@@ -1228,6 +1266,7 @@ export function aiPlay(
     mustBombThreshold: number; partnerSaveThreshold: number;
   }>,
   nextOppCount: number = 27, // 下家（左手边对手）手牌数：报牌后用于防守避让
+  avoidSize: number = 0,     // 下家报牌张数（1~10）：跟牌/压制时避开同张数牌型，防止送下家一次脱手
 ): { play: GCard[] | null; pass: boolean } {
   const handStrength = evaluateHandStrength(hand, level, evalParams);
 
@@ -1278,7 +1317,7 @@ export function aiPlay(
     nextOppCount <= 3 ||                 // 下家快出完（报牌）：必须拦，不能放行
     partnerHandCount <= 0 ||             // 队友头游：冲
     (partnerHandCount <= 2 && opponentHandCount <= 8);
-  const beat = aiSmartBeat(hand, prev, level, pressure);
+  const beat = aiSmartBeat(hand, prev, level, pressure, avoidSize);
   if (beat) {
     const beatInfo = analyzePlay(beat, level);
 
@@ -1931,6 +1970,8 @@ export function GuandanGame({ onExit }: { onExit?: () => void }) {
       const partnerHandCount = game.hands[partnerSeat].length;
       // 下家（左手边，p+1）手牌数：报牌后用于防守避让（不出下家张数牌型）
       const nextOppCount = game.hands[(p + 1) % 4].length;
+      // 下家报牌避让：下家是对手且报牌（≤10 张）时，跟牌/压制避开同张数牌型（防送下家一次脱手）
+      const avoidSize = ((p + 1) % 4 !== partnerSeat && nextOppCount >= 1 && nextOppCount <= 10) ? nextOppCount : 0;
       const res = aiPlay(
         game.hands[p],
         prev ? prev.info : null,
@@ -1940,6 +1981,7 @@ export function GuandanGame({ onExit }: { onExit?: () => void }) {
         partnerHandCount,
         learningProfile?.evalParams,
         nextOppCount,
+        avoidSize,
       );
       // 统计 AI 使用炸弹次数（用于学习）
       if (res.play && res.play.length >= 4) {
@@ -2247,7 +2289,7 @@ export function GuandanGame({ onExit }: { onExit?: () => void }) {
                       <span className="gd-card-rank">{c.k !== undefined ? (c.k === 1 ? 'JOKER' : 'joker') : rankName(c.r)}</span>
                       {c.k === undefined && <span className="gd-card-suit">{SUIT_SYMBOL[c.s]}</span>}
                     </span>
-                    <span className="gd-card-center">{c.k !== undefined ? 'JOKER' : SUIT_SYMBOL[c.s]}</span>
+                    <span className="gd-card-center">{c.k !== undefined ? <GuandanJoker big={c.k === 1} /> : SUIT_SYMBOL[c.s]}</span>
                     <span className="gd-card-corner gd-corner-br">
                       <span className="gd-card-rank">{c.k !== undefined ? (c.k === 1 ? 'JOKER' : 'joker') : rankName(c.r)}</span>
                       {c.k === undefined && <span className="gd-card-suit">{SUIT_SYMBOL[c.s]}</span>}
@@ -2280,7 +2322,7 @@ export function GuandanGame({ onExit }: { onExit?: () => void }) {
                 <span className="gd-card-rank">{c.k !== undefined ? (c.k === 1 ? 'JOKER' : 'joker') : rankName(c.r)}</span>
                 {c.k === undefined && <span className="gd-card-suit">{SUIT_SYMBOL[c.s]}</span>}
               </span>
-              <span className="gd-card-center">{c.k !== undefined ? 'JOKER' : SUIT_SYMBOL[c.s]}</span>
+              <span className="gd-card-center">{c.k !== undefined ? <GuandanJoker big={c.k === 1} /> : SUIT_SYMBOL[c.s]}</span>
               <span className="gd-card-corner gd-corner-br">
                 <span className="gd-card-rank">{c.k !== undefined ? (c.k === 1 ? 'JOKER' : 'joker') : rankName(c.r)}</span>
                 {c.k === undefined && <span className="gd-card-suit">{SUIT_SYMBOL[c.s]}</span>}

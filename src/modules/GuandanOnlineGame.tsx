@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { enterFullscreen, exitFullscreen } from '../utils/fullscreen';
 import { playGdBombEffect } from '../utils/gdEffects';
+import { GuandanJoker } from '../components/GuandanJoker';
 import { loadPeerJS, reloadPeerJS } from '../utils/peerjsLoader';
 import {
   type GCard, type PlayInfo, analyzePlay, canBeat, cardVal, rankName,
@@ -1670,7 +1671,7 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
                       <span className="gd-card-rank">{c.k !== undefined ? (c.k === 1 ? 'JOKER' : 'joker') : rankName(c.r)}</span>
                       {c.k === undefined && <span className="gd-card-suit">{SUIT_SYMBOL[c.s]}</span>}
                     </span>
-                    <span className="gd-card-center">{c.k !== undefined ? 'JOKER' : SUIT_SYMBOL[c.s]}</span>
+                    <span className="gd-card-center">{c.k !== undefined ? <GuandanJoker big={c.k === 1} /> : SUIT_SYMBOL[c.s]}</span>
                     <span className="gd-card-corner gd-corner-br">
                       <span className="gd-card-rank">{c.k !== undefined ? (c.k === 1 ? 'JOKER' : 'joker') : rankName(c.r)}</span>
                       {c.k === undefined && <span className="gd-card-suit">{SUIT_SYMBOL[c.s]}</span>}
@@ -1703,7 +1704,7 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
                 <span className="gd-card-rank">{c.k !== undefined ? (c.k === 1 ? 'JOKER' : 'joker') : rankName(c.r)}</span>
                 {c.k === undefined && <span className="gd-card-suit">{SUIT_SYMBOL[c.s]}</span>}
               </span>
-              <span className="gd-card-center">{c.k !== undefined ? 'JOKER' : SUIT_SYMBOL[c.s]}</span>
+              <span className="gd-card-center">{c.k !== undefined ? <GuandanJoker big={c.k === 1} /> : SUIT_SYMBOL[c.s]}</span>
               <span className="gd-card-corner gd-corner-br">
                 <span className="gd-card-rank">{c.k !== undefined ? (c.k === 1 ? 'JOKER' : 'joker') : rankName(c.r)}</span>
                 {c.k === undefined && <span className="gd-card-suit">{SUIT_SYMBOL[c.s]}</span>}
