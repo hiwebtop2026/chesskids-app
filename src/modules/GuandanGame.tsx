@@ -1211,15 +1211,43 @@ function aiSmartBeat(hand: GCard[], prev: PlayInfo, level: number, pressure: boo
   });
   if (sameType.length === 0) return null;
   if (pressure) {
-    // 下家报 1 张（即将脱手）且我压单张 → 用最大单张压死，绝不给下家接牌机会（职业打法）
-    if (avoidSize === 1 && prev.type === 'SINGLE') {
-      let maxSingle: GCard[] | null = null;
-      let maxKey = -1;
-      for (const cards of sameType) {
-        const info = analyzePlay(cards, level);
-        if (info && info.type === 'SINGLE' && info.key > maxKey) { maxKey = info.key; maxSingle = cards; }
+    // 【下家报牌拦截】下家报 1~2 张（即将脱手）→ 用最大能压的牌拦截，不给下家接牌机会
+    if (avoidSize === 1 || avoidSize === 2) {
+      // 报 1 张且压单张 → 最大单张压死（下家只剩 1 张，只有单张能接）
+      if (avoidSize === 1 && prev.type === 'SINGLE') {
+        let maxSingle: GCard[] | null = null;
+        let maxKey = -1;
+        for (const cards of sameType) {
+          const info = analyzePlay(cards, level);
+          if (info && info.type === 'SINGLE' && info.key > maxKey) { maxKey = info.key; maxSingle = cards; }
+        }
+        if (maxSingle) return maxSingle;
       }
-      if (maxSingle) return maxSingle;
+      // 报 2 张且压对子 → 最大对压死（下家一对也接不过）
+      if (avoidSize === 2 && prev.type === 'PAIR') {
+        let maxPair: GCard[] | null = null;
+        let maxKey = -1;
+        for (const cards of sameType) {
+          const info = analyzePlay(cards, level);
+          if (info && info.type === 'PAIR' && info.key > maxKey) { maxKey = info.key; maxPair = cards; }
+        }
+        if (maxPair) return maxPair;
+      }
+      // 报 1/2 张且压三张 → 最大三张压死（下家若有三张必接不过）
+      if (avoidSize >= 1 && avoidSize <= 2 && prev.type === 'TRIPLE') {
+        let maxTriple: GCard[] | null = null;
+        let maxKey = -1;
+        for (const cards of sameType) {
+          const info = analyzePlay(cards, level);
+          if (info && info.type === 'TRIPLE' && info.key > maxKey) { maxKey = info.key; maxTriple = cards; }
+        }
+        if (maxTriple) return maxTriple;
+      }
+      // 其余下家可接的牌型（单张链）→ 同样取最大拦截
+      if (prev.type === 'SINGLE') {
+        const last = sameType[sameType.length - 1];
+        if (last) return last;
+      }
     }
     // 下家报牌：优先非"同张数"牌型压制（防止直接送下家过），无替代再退回最小
     if (avoidSize > 0) {
@@ -1367,6 +1395,18 @@ export function aiPlay(
   });
   if (bomb) {
     return { play: bomb, pass: false };
+  }
+
+  // ===== 【下家报牌·炸弹拦截】下家报 1~2 张即将脱手，普通牌压不了 → 用炸弹拦死（小炸优先） =====
+  // 优先级低于普通 shouldBomb（避免浪费炸弹），但高于直接放弃——防下家一手走掉
+  if (avoidSize >= 1 && avoidSize <= 2 && !isMyTeamLast) {
+    const bombs = bombCandidates(hand, level);
+    const winnable = bombs
+      .filter((b) => canBeat(prev, { type: 'BOMB' as PlayType, key: b.key, size: b.n, cards: b.cards }))
+      .sort((a, b) => a.n - b.n || a.key - b.key);
+    if (winnable.length > 0) {
+      return { play: winnable[0].cards, pass: false };
+    }
   }
 
   // ===== 实在不行就过 =====
