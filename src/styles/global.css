@@ -7881,6 +7881,35 @@ ul {
 .gd-room-code b { font-size: 26px; letter-spacing: 6px; color: #ffd54f; }
 .gd-room-code em { font-size: 12px; color: #a5d6a7; font-style: normal; }
 .gd-room-players { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 10px 0; }
+/* 4 向座位格（田字布局：北上、东左、西右、南下） */
+.gd-room-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  margin: 12px 0; max-width: 420px; width: 100%;
+}
+.gd-seat-cell {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-height: 78px; border-radius: 14px; border: 1.5px dashed rgba(255,255,255,0.25);
+  background: rgba(255, 255, 255, 0.07); cursor: default;
+  transition: all 0.2s ease; overflow: hidden;
+}
+.gd-seat-cell .gd-seat-dir {
+  position: absolute; top: 6px; left: 10px; font-size: 11px; font-weight: 700;
+  color: rgba(255,255,255,0.55); letter-spacing: 1px;
+}
+.gd-seat-cell .gd-seat-name { font-size: 15px; font-weight: 700; color: #e8f5e9; margin-top: 10px; max-width: 90%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gd-seat-cell .gd-seat-role { font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 3px; }
+.gd-seat-cell.gd-seat-clickable { cursor: pointer; border-style: dashed; border-color: rgba(255, 213, 79, 0.55); }
+.gd-seat-cell.gd-seat-clickable:hover { border-color: #ffd54f; background: rgba(255, 213, 79, 0.12); transform: translateY(-2px); }
+.gd-seat-cell.gd-seat-clickable:hover .gd-seat-name { color: #ffd54f; }
+.gd-seat-cell.gd-seat-me { border-style: solid; border-color: #80deea; background: rgba(128, 222, 234, 0.16); }
+.gd-seat-cell.gd-seat-me .gd-seat-name { color: #80deea; }
+.gd-seat-cell.gd-seat-taken { border-style: solid; border-color: rgba(255,255,255,0.2); background: rgba(255,255,255,0.1); }
+.gd-seat-cell.gd-host { border-style: solid; border-color: #ffd54f; background: rgba(255, 213, 79, 0.1); }
+.gd-seat-cell.gd-host .gd-seat-name { color: #ffd54f; }
+.gd-seat-cell.gd-ai { border-style: solid; border-color: #ce93d8; background: rgba(206, 147, 216, 0.12); }
+.gd-seat-cell.gd-ai .gd-seat-name { color: #e1bee7; }
+.gd-seat-cell.gd-guest { border-style: solid; border-color: #64b5f6; background: rgba(100, 181, 246, 0.12); }
+.gd-seat-cell.gd-guest .gd-seat-name { color: #90caf9; }
 .gd-room-player {
   background: rgba(255, 255, 255, 0.12);
   border-radius: 99px; padding: 7px 14px; font-size: 13.5px;

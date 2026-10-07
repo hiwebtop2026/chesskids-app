@@ -438,6 +438,28 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
         }
         sendAll({ type: 'ROOM_STATE', players: playerList });
       }
+    } else if (msg.type === 'SEAT_CHOOSE') {
+      // 玩家主动选择东西南北任一座位（0=南/房主位不可选，1=东，2=北，3=西）
+      const want = msg.seat;
+      if (typeof want !== 'number' || want < 1 || want > 3) return;
+      const occupied = connsRef.current.some((c) => c !== conn && c._gdSeat === want);
+      if (occupied) {
+        try { conn.send(JSON.stringify({ type: 'SEAT_TAKEN', seat: want })); } catch {}
+        return;
+      }
+      const oldSeat = conn._gdSeat;
+      if (oldSeat !== undefined && oldSeat !== want) {
+        setPlayers((p) => { const np = [...p]; np[oldSeat] = ''; return np; });
+      }
+      conn._gdSeat = want;
+      conn._gdName = conn._gdName || '玩家';
+      try { conn.send(JSON.stringify({ type: 'WELCOME', seat: want, name: conn._gdName })); } catch {}
+      setPlayers((p) => { const np = [...p]; np[want] = conn._gdName; return np; });
+      const playerList: string[] = ['房主', '', '', ''];
+      for (const c of connsRef.current) {
+        if (c._gdSeat !== undefined) playerList[c._gdSeat] = c._gdName || '玩家';
+      }
+      sendAll({ type: 'ROOM_STATE', players: playerList });
     } else if (msg.type === 'PLAY' || msg.type === 'PASS') {
       const seat = conn._gdSeat;
       if (seat === undefined) return;
@@ -487,12 +509,14 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
       setMySeat(msg.seat);
       setStatus('waiting');
     } else if (msg.type === 'ROOM_STATE') {
-      const names: string[] = ['房主', ...(msg.players || [])];
+      const names: string[] = msg.players || [];
       setPlayers((p) => {
         const np = [...p];
         names.forEach((n, i) => { if (n) np[i] = n; });
         return np;
       });
+    } else if (msg.type === 'SEAT_TAKEN') {
+      setNotice('⚠ 该座位已被其他玩家占用，请选择其他位置');
     } else if (msg.type === 'STATE') {
       // 收到状态后立即校验一致性，避免出现"已出完还提示出牌"的闪烁
       const validated = validateGDState(msg.state);
@@ -767,8 +791,9 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
     const aiDifficulties: GDAIDifficulty[] = [];
     for (let i = 0; i < needAI; i++) aiDifficulties.push(aiDifficulty);
 
-    // 收集所有玩家信息
-    const playerNames: string[] = ['房主', '', '', ''];
+    // 收集所有玩家信息（房主按 mySeat 入座，默认南 0）
+    const playerNames: string[] = ['', '', '', ''];
+    playerNames[mySeat] = '房主';
     const newAiPlayers: AIPlayer[] = [];
 
     // 已连接的真实玩家
@@ -801,7 +826,7 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
       enteredFsRef.current = true;
       try { enterFullscreen(); } catch { /* 忽略 */ }
     }
-  }, [aiCount, aiDifficulty, broadcastState]);
+  }, [aiCount, aiDifficulty, broadcastState, mySeat]);
 
   // ============ 房主：重新发牌（下一局） ============
   const nextRound = useCallback(() => {
@@ -809,14 +834,14 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
     // 保留 AI 玩家名字
     const names = [...game.playerNames];
     // 真实玩家名字同步
-    names[0] = '房主';
+    names[mySeat] = '房主';
     for (const c of connsRef.current) {
       if (c._gdSeat !== undefined) names[c._gdSeat] = c._gdName || '玩家';
     }
     const st = gdNewGame(game.level, names, game.finished[0] ?? 0, game.aStrikes || 0, game.tributePlan);
     setGame(st);
     broadcastState(st);
-  }, [game, broadcastState]);
+  }, [game, broadcastState, mySeat]);
 
   // ============ 我的回合操作 ============
   // 严格判断是否轮到自己：必须是游戏中、是当前座位、未出完、手牌不为空
@@ -834,9 +859,9 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
     if (role === 'host') {
       setGame((prev) => {
         // 严格二次校验：防止竞态条件（状态已更新但UI还未刷新时点击出牌）
-        if (!prev || prev.phase !== 'playing' || prev.current !== 0) return prev;
-        if (prev.finished.includes(0) || prev.hands[0].length === 0) return prev;
-        const next = gdApplyTurn(prev, 0, cards);
+        if (!prev || prev.phase !== 'playing' || prev.current !== mySeat) return prev;
+        if (prev.finished.includes(mySeat) || prev.hands[mySeat].length === 0) return prev;
+        const next = gdApplyTurn(prev, mySeat, cards);
         broadcastState(next);
         return next;
       });
@@ -900,10 +925,10 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
     if (role === 'host') {
       setGame((prev) => {
         // 严格二次校验：防止竞态条件
-        if (!prev || prev.phase !== 'playing' || prev.current !== 0) return prev;
-        if (prev.finished.includes(0) || prev.hands[0].length === 0) return prev;
+        if (!prev || prev.phase !== 'playing' || prev.current !== mySeat) return prev;
+        if (prev.finished.includes(mySeat) || prev.hands[mySeat].length === 0) return prev;
         if (!prev.lastPlay) return prev;
-        const next = gdApplyTurn(prev, 0, null);
+        const next = gdApplyTurn(prev, mySeat, null);
         broadcastState(next);
         return next;
       });
@@ -1207,41 +1232,47 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
     );
   }
 
-  // ============ 渲染：等待房间（房主） ============
+  // ============ 渲染：等待房间（房主）——4 向座位格，可换座 ============
   if (role === 'host' && status === 'waiting') {
     const connected = connsRef.current.length;
-    const totalPlayers = connected + 1; // 房主 + 来宾
-    const needAI = Math.max(0, 4 - totalPlayers);
+    const needAI = Math.max(0, 4 - (connected + 1));
     const canStart = needAI <= aiCount; // AI 补位够就能开局
 
-    // 构建完整玩家列表（按座位号排列：0=房主, 1=对手A, 2=队友, 3=对手B）
-    // AI 优先填对手位(1,3)，好友加入时自动坐队友位(2)
-    const seats: { name: string; type: 'host' | 'guest' | 'ai' | 'empty' }[] = [
-      { name: '房主（你）', type: 'host' },
-      { name: '', type: 'empty' },
-      { name: '', type: 'empty' },
-      { name: '', type: 'empty' },
+    // 4 个座位格（田字布局：北 2 上、东 1 左、西 3 右、南 0 下；0=南 1=东 2=北 3=西）
+    const seatOrder = [2, 1, 3, 0];
+    const seatLabels = ['南', '东', '北', '西'];
+    const seatCells: { name: string; type: 'host' | 'guest' | 'ai' | 'empty' }[] = [
+      { name: '', type: 'empty' }, { name: '', type: 'empty' }, { name: '', type: 'empty' }, { name: '', type: 'empty' },
     ];
-    // 已连接好友按加入顺序分配座位：第一个→2(队友)，第二个→1，第三个→3
-    const guestSeatOrder = [2, 1, 3];
-    const guests = connsRef.current;
-    for (let i = 0; i < guests.length && i < 3; i++) {
-      const seat = guestSeatOrder[i];
-      seats[seat] = { name: guests[i]._gdName || '玩家', type: 'guest' };
+    seatCells[mySeat] = { name: '房主（你）', type: 'host' };
+    for (const c of connsRef.current) {
+      if (c._gdSeat !== undefined) seatCells[c._gdSeat] = { name: c._gdName || '玩家', type: 'guest' };
     }
-    // AI 补位：优先填对手位(1,3)，再填队友位(2)
+    // AI 补位预览：空位按对手位(1,3)优先再队友位(2)
     const aiToShow = Math.min(needAI, aiCount);
-    const aiSeatOrder = [1, 3, 2]; // 对手优先
     let aiIdx = 0;
-    for (const seat of aiSeatOrder) {
+    for (const seat of [1, 3, 2]) {
       if (aiIdx >= aiToShow) break;
-      if (seats[seat].type === 'empty') {
+      if (seatCells[seat].type === 'empty') {
         const diffName = aiDifficulty === 'easy' ? '简单' : aiDifficulty === 'medium' ? '中等' : aiDifficulty === 'hard' ? '困难' : '大师';
-        seats[seat] = { name: `AI ${diffName}`, type: 'ai' };
+        seatCells[seat] = { name: `AI ${diffName}`, type: 'ai' };
         aiIdx++;
       }
     }
-    const playerList = seats;
+
+    // 房主换座：点击空位入座（东西北可换，南为默认房主位）
+    const moveMySeat = (seat: number) => {
+      if (seat === mySeat || seat === 0) return;
+      if (seatCells[seat].type !== 'empty') return;
+      setMySeat(seat);
+      setPlayers((p) => { const np = [...p]; np[mySeat] = ''; np[seat] = '房主'; return np; });
+      const playerList: string[] = ['', '', '', ''];
+      playerList[seat] = '房主';
+      for (const c of connsRef.current) {
+        if (c._gdSeat !== undefined) playerList[c._gdSeat] = c._gdName || '玩家';
+      }
+      sendAll({ type: 'ROOM_STATE', players: playerList });
+    };
 
     return (
       <div className="gd-online">
@@ -1252,17 +1283,24 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
             <b>{roomCode}</b>
             <em>{copied ? '✅ 已复制' : '📋 点击复制'}</em>
           </div>
-          <div className="gd-room-players">
-            {playerList.map((p, i) => (
-              <div
-                className={`gd-room-player ${p.type === 'host' ? 'gd-host' : ''} ${p.type === 'empty' ? 'gd-empty' : ''} ${p.type === 'ai' ? 'gd-ai' : ''} ${(i === 0 || i === 2) ? 'gd-room-team-mine' : 'gd-room-team-opp'}`}
-                key={i}
-              >
-                {p.type === 'host' ? '👑 ' : p.type === 'guest' ? '🎮 ' : p.type === 'ai' ? '🤖 ' : '⏳ '}
-                {p.name}
-                <span className={`gd-room-team-label ${(i === 0 || i === 2) ? 'gd-mine-label' : 'gd-opp-label'}`}>{(i === 0 || i === 2) ? '我方' : '对方'}</span>
-              </div>
-            ))}
+          <div className="gd-room-grid">
+            {seatOrder.map((s) => {
+              const cell = seatCells[s];
+              return (
+                <div
+                  className={`gd-seat-cell ${cell.type} ${s === mySeat ? 'gd-seat-me' : ''} ${cell.type === 'empty' ? 'gd-seat-clickable' : ''}`}
+                  key={s}
+                  onClick={() => moveMySeat(s)}
+                  title={cell.type === 'empty' ? `点击入座${seatLabels[s]}位` : ''}
+                >
+                  <span className="gd-seat-dir">{seatLabels[s]}</span>
+                  <span className="gd-seat-name">{cell.name || '空位'}</span>
+                  <span className="gd-seat-role">
+                    {cell.type === 'empty' ? '点击入座' : cell.type === 'guest' ? '好友' : cell.type === 'ai' ? 'AI' : '你'}
+                  </span>
+                </div>
+              );
+            })}
           </div>
           <p className="gd-online-tip">
             玩家 {connected} 人 · AI {aiToShow} 人
@@ -1278,8 +1316,16 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
     );
   }
 
-  // ============ 渲染：等待开局（来宾） ============
+  // ============ 渲染：等待开局（来宾）——4 向座位格，可点选入座 ============
   if (role === 'guest' && status === 'waiting') {
+    const seatOrder = [2, 1, 3, 0];
+    const seatLabels = ['南', '东', '北', '西'];
+    const chooseSeat = (seat: number) => {
+      if (seat === 0 || seat === mySeat) return; // 南为房主位
+      if (players[seat]) return; // 已占用
+      setNotice(`正在选择${seatLabels[seat]}位…`);
+      sendToHost({ type: 'SEAT_CHOOSE', seat });
+    };
     return (
       <div className="gd-online">
         <div className="gd-online-card">
@@ -1287,14 +1333,24 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
           <div className="gd-room-code">
             <span>房间号</span><b>{roomCode}</b>
           </div>
-          <div className="gd-room-players">
-            {players.map((n, i) => (
-              <div className={`gd-room-player ${i === mySeat ? 'gd-me' : ''} ${n ? '' : 'gd-empty'}`} key={i}>
-                {i === 0 ? '👑 ' : ''}{n || '⏳ 等待加入…'}{i === mySeat ? '（你）' : ''}
-              </div>
-            ))}
+          <div className="gd-room-grid">
+            {seatOrder.map((s) => {
+              const occupied = !!players[s];
+              return (
+                <div
+                  className={`gd-seat-cell ${occupied ? 'gd-seat-taken' : 'gd-seat-clickable'} ${s === mySeat ? 'gd-seat-me' : ''}`}
+                  key={s}
+                  onClick={() => chooseSeat(s)}
+                  title={occupied ? `${seatLabels[s]}位已有人` : `点击入座${seatLabels[s]}位`}
+                >
+                  <span className="gd-seat-dir">{seatLabels[s]}</span>
+                  <span className="gd-seat-name">{players[s] || '空位'}</span>
+                  <span className="gd-seat-role">{s === mySeat ? '你' : occupied ? '已入座' : '点击入座'}</span>
+                </div>
+              );
+            })}
           </div>
-          <p className="gd-online-tip">等待房主发牌开局…</p>
+          <p className="gd-online-tip">点击空位选择入座方向，等待房主发牌开局…</p>
         </div>
       </div>
     );
