@@ -357,6 +357,9 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
   const [status, setStatus] = useState<'lobby' | 'connecting' | 'waiting' | 'playing' | 'error'>('lobby');
   const [players, setPlayers] = useState<string[]>(['', '', '', '']); // 各座位名字
   const [game, setGame] = useState<GDOnlineState | null>(null);
+  const tableRef = useRef<HTMLDivElement | null>(null);
+  const lastFxKeyRef = useRef('');
+
   const [mySeat, setMySeat] = useState(0);
   const mySeatRef = useRef(0);
   useEffect(() => { mySeatRef.current = mySeat; }, [mySeat]);
@@ -1440,9 +1443,6 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
       </div>
     );
   };
-
-  const tableRef = useRef<HTMLDivElement | null>(null);
-  const lastFxKeyRef = useRef('');
 
   return (
     <div ref={tableRef} className={`gd-table ${floating ? 'gd-floating' : ''}`}>

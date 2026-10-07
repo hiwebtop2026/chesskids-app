@@ -1377,6 +1377,8 @@ export function GuandanGame({ onExit }: { onExit?: () => void }) {
   const [sortScheme, setSortScheme] = useState(0); // 0~3 四套理牌方案循环切换
   // 浮动窗口全屏模式（默认开启，脱离浏览器布局限制）+ 左上角 ☰ 折叠菜单
   const [floating, setFloating] = useState(true);
+  const tableRef = useRef<HTMLDivElement | null>(null);
+  const lastFxKeyRef = useRef('');
   const [menuOpen, setMenuOpen] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const enteredFsRef = useRef(false);
@@ -2018,9 +2020,6 @@ export function GuandanGame({ onExit }: { onExit?: () => void }) {
   const headSeat = game.finished.length > 0 ? game.finished[0] : -1;
   const partnerSeat = headSeat >= 0 ? headSeat ^ 2 : -1;
   const showPartnerCards = headSeat >= 0 && (headSeat === 0 || headSeat === 2) && partnerSeat !== 0;
-
-  const tableRef = useRef<HTMLDivElement | null>(null);
-  const lastFxKeyRef = useRef('');
 
   return (
     <div ref={tableRef} className={`gd-table ${floating ? 'gd-floating' : ''} ${!isMyTurn ? 'gd-watching' : ''}`} onClick={requestFullscreenOnGesture}>
