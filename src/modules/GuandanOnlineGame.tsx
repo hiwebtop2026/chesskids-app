@@ -6,6 +6,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { enterFullscreen, exitFullscreen } from '../utils/fullscreen';
+import { playGdBombEffect } from '../utils/gdEffects';
 import { loadPeerJS, reloadPeerJS } from '../utils/peerjsLoader';
 import {
   type GCard, type PlayInfo, analyzePlay, canBeat, cardVal, rankName,
@@ -357,6 +358,8 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
   const [players, setPlayers] = useState<string[]>(['', '', '', '']); // 各座位名字
   const [game, setGame] = useState<GDOnlineState | null>(null);
   const [mySeat, setMySeat] = useState(0);
+  const mySeatRef = useRef(0);
+  useEffect(() => { mySeatRef.current = mySeat; }, [mySeat]);
   const [selected, setSelected] = useState<number[]>([]);
   const [sortMode, setSortMode] = useState<'rank' | 'grouped'>('rank');
   const [sortScheme, setSortScheme] = useState(0); // 0~3 四套理牌方案循环切换
@@ -450,9 +453,9 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
         sendAll({ type: 'ROOM_STATE', players: playerList });
       }
     } else if (msg.type === 'SEAT_CHOOSE') {
-      // 玩家主动选择东西南北任一座位（0=南/房主位不可选，1=东，2=北，3=西）
+      // 玩家主动选择东西南北任一座位（房主当前座位不可选，其余空位可反复换座）
       const want = msg.seat;
-      if (typeof want !== 'number' || want < 1 || want > 3) return;
+      if (typeof want !== 'number' || want < 0 || want > 3 || want === mySeatRef.current) return;
       const occupied = connsRef.current.some((c) => c !== conn && c._gdSeat === want);
       if (occupied) {
         try { conn.send(JSON.stringify({ type: 'SEAT_TAKEN', seat: want })); } catch {}
@@ -863,6 +866,26 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
     && game.hands[mySeat].length > 0;
   const myHand = game ? game.hands[mySeat] : [];
 
+  // ===== 出牌视觉特效：炸弹 / 同花顺 / 王炸（随机效果，天王炸最炫）=====
+  useEffect(() => {
+    if (!game || game.phase !== 'playing') return;
+    const plays = game.roundPlays;
+    if (!plays || plays.length === 0) return;
+    const last = plays[plays.length - 1];
+    if (!last || !last.cards || last.cards.length === 0) return;
+    const info = analyzePlay(last.cards, game.level);
+    if (!info) return;
+    const isSpecial = info.type === 'BOMB' || info.type === 'STRAIGHT_FLUSH' || info.type === 'ROCKET';
+    if (!isSpecial) return;
+    const key = `${game.roundId}:${plays.length}:${last.player || ''}`;
+    if (lastFxKeyRef.current === key) return;
+    lastFxKeyRef.current = key;
+    if (tableRef.current) {
+      try { playGdBombEffect(tableRef.current, info.type, last.cards); } catch { /* 特效失败不影响游戏 */ }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game?.roundPlays, game?.phase]);
+
   const doPlay = (cardsOverride?: GCard[]) => {
     if (!isMyTurn) return;
     const cards = cardsOverride ?? myHand.filter((c) => selected.includes(c.id));
@@ -1271,9 +1294,9 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
       }
     }
 
-    // 房主换座：点击空位入座（东西北可换，南为默认房主位）
+    // 房主换座：点击空位入座（支持反复换座，含换回默认南位）
     const moveMySeat = (seat: number) => {
-      if (seat === mySeat || seat === 0) return;
+      if (seat === mySeat) return;
       if (seatCells[seat].type !== 'empty') return;
       setMySeat(seat);
       setPlayers((p) => { const np = [...p]; np[mySeat] = ''; np[seat] = '房主'; return np; });
@@ -1332,8 +1355,8 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
     const seatOrder = [2, 1, 3, 0];
     const seatLabels = ['南', '东', '北', '西'];
     const chooseSeat = (seat: number) => {
-      if (seat === 0 || seat === mySeat) return; // 南为房主位
-      if (players[seat]) return; // 已占用
+      if (seat === mySeat) return; // 已在此座
+      if (players[seat]) return; // 已占用（含房主位显示'房主'时）
       setNotice(`正在选择${seatLabels[seat]}位…`);
       sendToHost({ type: 'SEAT_CHOOSE', seat });
     };
@@ -1418,8 +1441,11 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
     );
   };
 
+  const tableRef = useRef<HTMLDivElement | null>(null);
+  const lastFxKeyRef = useRef('');
+
   return (
-    <div className={`gd-table ${floating ? 'gd-floating' : ''}`}>
+    <div ref={tableRef} className={`gd-table ${floating ? 'gd-floating' : ''}`}>
       {/* 桌垫方位水印、分区框线与铭牌（参考比赛专用桌垫） */}
       <span className="gd-dir gd-dir-n">北</span>
       <span className="gd-dir gd-dir-s">南</span>

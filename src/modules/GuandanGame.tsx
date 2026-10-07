@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { enterFullscreen, exitFullscreen } from '../utils/fullscreen';
+import { playGdBombEffect } from '../utils/gdEffects';
 import {
   getLearningProfile, recordGameResult,
   resolveAutoAiDifficulty,
@@ -1787,6 +1788,26 @@ export function GuandanGame({ onExit }: { onExit?: () => void }) {
     } catch { /* 忽略 */ }
   }, []);
 
+  // ===== 出牌视觉特效：炸弹 / 同花顺 / 王炸（随机效果，天王炸最炫） =====
+  useEffect(() => {
+    if (!game || game.phase !== 'playing') return;
+    const plays = game.roundPlays;
+    if (!plays || plays.length === 0) return;
+    const last = plays[plays.length - 1];
+    if (!last || !last.cards || last.cards.length === 0) return;
+    const info = analyzePlay(last.cards, game.level);
+    if (!info) return;
+    const isSpecial = info.type === 'BOMB' || info.type === 'STRAIGHT_FLUSH' || info.type === 'ROCKET';
+    if (!isSpecial) return;
+    const key = `${game.roundId}:${plays.length}:${last.player || ''}`;
+    if (lastFxKeyRef.current === key) return;
+    lastFxKeyRef.current = key;
+    if (tableRef.current) {
+      try { playGdBombEffect(tableRef.current, info.type, last.cards); } catch { /* 特效失败不影响游戏 */ }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game?.roundPlays, game?.phase]);
+
   // ===== 游戏结束 → 记录学习 =====
   const gameOverRecordedRef = useRef(false);
   useEffect(() => {
@@ -1998,8 +2019,11 @@ export function GuandanGame({ onExit }: { onExit?: () => void }) {
   const partnerSeat = headSeat >= 0 ? headSeat ^ 2 : -1;
   const showPartnerCards = headSeat >= 0 && (headSeat === 0 || headSeat === 2) && partnerSeat !== 0;
 
+  const tableRef = useRef<HTMLDivElement | null>(null);
+  const lastFxKeyRef = useRef('');
+
   return (
-    <div className={`gd-table ${floating ? 'gd-floating' : ''} ${!isMyTurn ? 'gd-watching' : ''}`} onClick={requestFullscreenOnGesture}>
+    <div ref={tableRef} className={`gd-table ${floating ? 'gd-floating' : ''} ${!isMyTurn ? 'gd-watching' : ''}`} onClick={requestFullscreenOnGesture}>
       {/* 桌垫方位水印、分区框线与铭牌（参考比赛专用桌垫） */}
       <span className="gd-dir gd-dir-n">北</span>
       <span className="gd-dir gd-dir-s">南</span>
