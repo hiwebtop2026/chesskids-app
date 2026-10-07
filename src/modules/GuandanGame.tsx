@@ -438,6 +438,10 @@ export function analyzePlay(cards: GCard[], level: number): PlayInfo | null {
   if (n === 4 && cards.every((c) => c.k !== undefined)) {
     return { type: 'ROCKET', key: 19, size: 4, cards };
   }
+  // 王炸（火箭）：两张王（大小王一对）——职业规则最大牌型
+  if (n === 2 && cards.every((c) => c.k !== undefined)) {
+    return { type: 'ROCKET', key: 20, size: 2, cards };
+  }
 
   // 单张：变牌单张只比王牌小
   if (n === 1) {
@@ -584,8 +588,12 @@ export function analyzePlay(cards: GCard[], level: number): PlayInfo | null {
   return null;
 }
 
-// 判断 cur 能否大过 prev
+// 判断 cur 能否大过 prev（职业规则：同花顺 > 4/5 炸，但 < 6 炸及以上；王炸最大）
 export function canBeat(prev: PlayInfo, cur: PlayInfo): boolean {
+  // 同花顺与炸弹交叉大小：同花顺只压 4/5 张炸弹；6 张及以上炸弹才能压同花顺
+  if (prev.type === 'BOMB' && cur.type === 'STRAIGHT_FLUSH') return prev.size <= 5;
+  if (prev.type === 'STRAIGHT_FLUSH' && cur.type === 'BOMB') return cur.size >= 6;
+  if (prev.type === 'ROCKET') return false; // 王炸/天王炸：任何牌不能压
   const pr = TYPE_RANK[prev.type] || 1;
   const cr = TYPE_RANK[cur.type] || 1;
   if (cr > pr) return true;
@@ -600,7 +608,6 @@ export function canBeat(prev: PlayInfo, cur: PlayInfo): boolean {
     if (cur.size !== prev.size) return false;
     return cur.key > prev.key;
   }
-  if (prev.type === 'ROCKET') return false;
   // 普通牌型：必须同型且点数更大（顺子/连对/钢板等还需同长度）
   if (cur.type !== prev.type) return false;
   if (cur.size !== prev.size) return false;
@@ -734,15 +741,18 @@ function findBombBeat(hand: GCard[], prev: PlayInfo, level: number): GCard[] | n
   const sf = findStraightFlush(hand);
   if (sf) cands.push({ cards: sf, kind: 1, n: 5, key: Math.max(...sf.filter((c) => c.k === undefined).map((c) => c.r)) });
   if (kings.length === 4) cands.push({ cards: kings, kind: 2, n: 4, key: 0 });
+  else if (kings.length >= 2) cands.push({ cards: kings.slice(0, 2), kind: 2, n: 2, key: 0 }); // 王炸（两张王）
 
   const ok = cands.filter((c) => {
     if (prev.type === 'BOMB') {
       if (c.kind === 0) return c.n > prev.size || (c.n === prev.size && c.key > prev.key);
-      return true; // 同花顺/王炸都大于炸弹
+      if (c.kind === 1) return prev.size <= 5; // 同花顺只压 4/5 张炸弹（职业规则）
+      return true; // 王炸
     }
     if (prev.type === 'STRAIGHT_FLUSH') {
       if (c.kind === 1) return c.key > prev.key;
-      return c.kind === 2;
+      if (c.kind === 0) return c.n >= 6; // 6 张及以上炸弹才能压同花顺（职业规则）
+      return true; // 王炸
     }
     return true; // 普通牌型：任何炸弹都能压
   });
@@ -797,6 +807,7 @@ export function bombCandidates(hand: GCard[], level: number): { cards: GCard[]; 
     }
   }
   if (kings.length === 4) out.push({ cards: kings, kind: 2, n: 4, key: 0 });
+  else if (kings.length >= 2) out.push({ cards: kings.slice(0, 2), kind: 2, n: 2, key: 0 }); // 王炸（两张王）
   out.sort((a, b) => (a.kind !== b.kind ? a.kind - b.kind : (a.kind === 0 ? (a.n !== b.n ? a.n - b.n : a.key - b.key) : (a.kind === 1 ? a.key - b.key : 0))));
   return out;
 }
