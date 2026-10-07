@@ -61,13 +61,13 @@ function pointVal(c: GCard, level: number): number {
 
 // ================================================================
 // 逢人配（变牌）：红桃级牌可当除大小王外任意牌；
-// 作单张时只比王牌小、大于其他所有牌（含普通级牌）
+// 作单张时视为级牌本身（与普通级牌同级，互相不能压）
 // ================================================================
 export function isWild(c: GCard, level: number): boolean {
   return c.k === undefined && c.s === 'H' && c.r === levelRank(level);
 }
-export const WILD_SINGLE_KEY = 16.5; // 单张牌力：> 级牌(16)、< 小王(17)
-export const WILD_GROUP_KEY = 16.5;  // 双变牌成对/三张时的最大组值
+export const WILD_SINGLE_KEY = 16; // 保留兼容：红桃级牌单出 = 级牌（同级 16）
+export const WILD_GROUP_KEY = 16;  // 双变牌成对/三张 = 级牌组（同级 16）
 
 // 顺子/连对用点数：2 不能进顺子，级牌在顺子里按原数
 function seqVal(r: number): number {
@@ -436,18 +436,14 @@ export function analyzePlay(cards: GCard[], level: number): PlayInfo | null {
   const norm = cards.map((c) => ({ c, v: pointVal(c, level) }));
   norm.sort((a, b) => a.v - b.v);
 
-  // 天王炸：四张王
+  // 王炸：四张王（两副牌大小王各两张）——唯一王炸形态，全场最大
   if (n === 4 && cards.every((c) => c.k !== undefined)) {
     return { type: 'ROCKET', key: 19, size: 4, cards };
   }
-  // 王炸（火箭）：两张王（大小王一对）——职业规则最大牌型
-  if (n === 2 && cards.every((c) => c.k !== undefined)) {
-    return { type: 'ROCKET', key: 20, size: 2, cards };
-  }
 
-  // 单张：变牌单张只比王牌小
+  // 单张：红桃级牌单出视为级牌（key=16，与普通级牌同级，互相不能压）；王最大
   if (n === 1) {
-    return { type: 'SINGLE', key: isWild(cards[0], level) ? WILD_SINGLE_KEY : norm[0].v, size: 1, cards };
+    return { type: 'SINGLE', key: cardVal(cards[0], level), size: 1, cards };
   }
 
   const groups = groupByR(cards);
