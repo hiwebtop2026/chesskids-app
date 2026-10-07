@@ -738,8 +738,8 @@ function findBombBeat(hand: GCard[], prev: PlayInfo, level: number): GCard[] | n
   }
   const sf = findStraightFlush(hand);
   if (sf) cands.push({ cards: sf, kind: 1, n: 5, key: Math.max(...sf.filter((c) => c.k === undefined).map((c) => c.r)) });
+  // 王炸候选：仅四张王才是王炸；两张/三张王不成牌型，绝不能当炸弹压
   if (kings.length === 4) cands.push({ cards: kings, kind: 2, n: 4, key: 0 });
-  else if (kings.length >= 2) cands.push({ cards: kings.slice(0, 2), kind: 2, n: 2, key: 0 }); // 王炸（两张王）
 
   const ok = cands.filter((c) => {
     if (prev.type === 'BOMB') {
@@ -804,8 +804,8 @@ export function bombCandidates(hand: GCard[], level: number): { cards: GCard[]; 
       }
     }
   }
+  // 王炸候选：仅四张王（两副牌大小王各两张）才是王炸；两张/三张王不成牌型，绝不能当炸弹压
   if (kings.length === 4) out.push({ cards: kings, kind: 2, n: 4, key: 0 });
-  else if (kings.length >= 2) out.push({ cards: kings.slice(0, 2), kind: 2, n: 2, key: 0 }); // 王炸（两张王）
   out.sort((a, b) => (a.kind !== b.kind ? a.kind - b.kind : (a.kind === 0 ? (a.n !== b.n ? a.n - b.n : a.key - b.key) : (a.kind === 1 ? a.key - b.key : 0))));
   return out;
 }
