@@ -6,6 +6,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import './styles/global.css';
+import './styles/guandan-stage.css';
 
 /**
  * 全局错误兜底：捕获未被 ErrorBoundary 覆盖的运行时异常与 Promise 拒绝

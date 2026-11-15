@@ -15,7 +15,7 @@ import {
   type GCard, type PlayInfo, type PlayType,
   cardVal, isWild, levelRank, groupByR, groupHand,
   analyzePlay, canBeat, bombCandidates, allBeats,
-} from '../modules/GuandanGame';
+} from './guandan/core.ts';
 
 // ================================================================
 // 智能跟牌工具：避免浪费关键牌 / 拆散牌型

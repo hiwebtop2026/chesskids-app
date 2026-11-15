@@ -13,6 +13,7 @@
  */
 
 import { WebSocketServer, WebSocket } from 'ws';
+import { attachGuandan } from './guandan.js';
 
 // 防止单个消息处理异常 / Promise 拒绝导致整个服务器崩溃（否则所有在线玩家同时闪退掉线）
 process.on('uncaughtException', (err) => {
@@ -95,6 +96,9 @@ console.log(`[ChessKids] 联网对战服务器已启动，端口 ${PORT}`);
 wss.on('connection', (ws) => {
   console.log('[ChessKids] 新客户端连接');
 
+  // 掼蛋服务端权威会话（与下方的国际象棋中继共用同一端口，按消息前缀 GD_ 分发）
+  const guandan = attachGuandan(ws);
+
   // 为每个连接初始化心跳状态
   ws.isAlive = true;
 
@@ -110,6 +114,9 @@ wss.on('connection', (ws) => {
       sendTo(ws, { type: 'ERROR', message: '无效的消息格式' });
       return;
     }
+
+    // 掼蛋协议优先分发（GD_ 前缀），未命中再走国际象棋协议
+    if (guandan.handleMessage(msg)) return;
 
     switch (msg.type) {
       // ===== 创建房间 =====
@@ -297,12 +304,14 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
+    guandan.handleClose();
     handleLeave(ws);
     console.log('[ChessKids] 客户端断开连接');
   });
 
   ws.on('error', (err) => {
     console.error('[ChessKids] 连接错误:', err.message);
+    guandan.handleClose();
     handleLeave(ws);
   });
 });

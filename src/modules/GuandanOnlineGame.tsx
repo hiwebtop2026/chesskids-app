@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 掼蛋 · 联机对战（四人两两组队，PeerJS P2P 星型 + AI 补位）
  * 房主(座位0)为中枢：发牌、回合仲裁、广播完整状态；其余玩家通过房间码连接房主。
  * 人数不足时可用 AI 补位，支持 1 人 + 3AI / 2 人 + 2AI / 3 人 + 1AI
@@ -9,266 +9,23 @@ import { enterFullscreen, exitFullscreen } from '../utils/fullscreen';
 import { playGdBombEffect } from '../utils/gdEffects';
 import { GuandanJoker } from '../components/GuandanJoker';
 import { loadPeerJS, reloadPeerJS } from '../utils/peerjsLoader';
+import { GuandanServerClient, type GDServerPlayer } from '../utils/guandanServerClient';
 import {
   type GCard, type PlayInfo, analyzePlay, canBeat, cardVal, rankName,
-  buildDeck, shuffle, groupHand, groupByR, GD_ZONES, SUIT_SYMBOL, isWild, levelRank, findSeq,
+  groupHand, groupByR, GD_ZONES, SUIT_SYMBOL, isWild, levelRank, findSeq,
 } from './GuandanGame';
 import {
   aiDecide, generateAINames,
   type GDAIDifficulty, type AIPlayer,
 } from '../engine/guandanAI';
 
-// ================================================================
-// 座位与队伍：0=房主(南) 2=队友(北) 1/3=对手
-// ================================================================
-const SEAT_NAMES = ['房主', '对手A', '队友', '对手B'];
-function teamOf(seat: number): number { return seat === 0 || seat === 2 ? 0 : 1; }
+// 四人状态机统一从共享引擎导入（客户端 / 服务端共用）
+import {
+  type GDOnlineState,
+  validateGDState, gdApplyTurn, gdNewGame, teamOf, SEAT_NAMES,
+} from '../engine/guandan/room.ts';
+export * from '../engine/guandan/room.ts';
 
-// ================================================================
-// 联机状态（与 GuandanGame 的 GameState 同构，lastPlay 只保留 cards）
-// ================================================================
-export interface GDOnlineState {
-  hands: GCard[][];
-  level: number;
-  current: number;
-  lastPlay: { player: number; cards: GCard[] } | null;
-  lastPlayBy: number;
-  turnStart: number;
-  finished: number[];
-  roundPass: number[];
-  /** 本轮各方位已出的牌（一轮出完才清理），用于方位展示 */
-  roundPlays: { player: number; cards: GCard[]; roundId: number }[];
-  /** 一圈全过后标记为 true：保留出牌信息显示，直到下一次出牌才清除 */
-  roundEnded: boolean;
-  /** 当前轮次号：出牌区显示层只认当前轮，上一轮记录即使残留也不显示 */
-  roundId: number;
-  phase: 'playing' | 'over';
-  winnerTeam: number | null;
-  resultText: string;
-  playerNames: string[];
-  /** 打 A 连续未过局数（连续 3 把不过退回 2 重新打） */
-  aStrikes: number;
-  /** 双下进贡计划（结算时设置，下一局发牌后自动进贡/还贡） */
-  tributePlan: { from: number; to: number }[] | null;
-  /** 进贡/还贡提示（新一局开始时展示一次） */
-  gongMessage: string;
-}
-
-// ================================================================
-// 纯函数状态机（房主侧）：applyTurn(state, player, playCards|null)
-// ================================================================
-// 找到下一个未出完（未 finished）的玩家：头游后跳过，避免轮到空手玩家
-export function nextAliveSeat(from: number, finished: number[]): number {
-  let s = ((from % 4) + 4) % 4;
-  for (let i = 0; i < 4; i++) {
-    const p = (s + i) % 4;
-    if (!finished.includes(p)) return p;
-  }
-  return s;
-}
-
-/** 状态一致性校验：确保 current 永远指向有牌、未出完的活人；手牌为空者强制加入 finished */
-export function validateGDState(st: GDOnlineState): GDOnlineState {
-  if (st.phase !== 'playing') return st;
-  let changed = false;
-  const finished = [...st.finished];
-  // 1. 手牌为空但不在 finished 中 → 强制加入（防御：极端情况下漏登记）
-  for (let p = 0; p < 4; p++) {
-    if (st.hands[p].length === 0 && !finished.includes(p)) {
-      finished.push(p);
-      changed = true;
-    }
-  }
-  // 2. 手牌不为空但在 finished 中 → 移除（防御：状态回退异常）
-  const cleanedFinished = finished.filter((p) => st.hands[p].length === 0);
-  if (cleanedFinished.length !== finished.length) changed = true;
-  // 3. current 指向已出完玩家 → 推进到下一位活人
-  let current = st.current;
-  if (cleanedFinished.includes(current) || st.hands[current]?.length === 0) {
-    current = nextAliveSeat(current + 1, cleanedFinished);
-    changed = true;
-  }
-  // 4. 只剩一个活人 → 游戏结束（防御：死循环）
-  const alive = [0, 1, 2, 3].filter((p) => !cleanedFinished.includes(p));
-  if (alive.length <= 1 && cleanedFinished.length >= 3) {
-    // 把最后一个活人也加入 finished，按顺序排名
-    if (alive.length === 1 && !cleanedFinished.includes(alive[0])) {
-      const finalFinished = [...cleanedFinished, alive[0]];
-      return { ...st, finished: finalFinished, phase: 'over' as const, current: finalFinished[0], lastPlay: null, lastPlayBy: -1 };
-    }
-  }
-  if (!changed) return st;
-  return { ...st, finished: cleanedFinished, current, turnStart: current };
-}
-
-export function gdApplyTurn(prev: GDOnlineState, player: number, play: GCard[] | null): GDOnlineState {
-  // ========== 入口前置校验：确保 prev 状态本身一致 ==========
-  // 防御：如果传入状态已经不一致（如 current 指向已出完玩家），先修正再处理
-  const st = validateGDState(prev);
-  // 校验后发现游戏已结束 → 直接返回，不再处理任何出牌
-  if (st.phase !== 'playing') return st;
-
-  const hands = st.hands.map((h) => [...h]);
-  const roundPass = [...st.roundPass];
-  const finished = [...st.finished];
-  // 出牌时：若上一轮已结束（roundEnded），清除旧 roundPlays 重新开始；否则追加
-  // 记录一律带 roundId：显示层只显示当前轮，双保险杜绝上轮残留
-  const roundPlays = play
-    ? (st.roundEnded ? [{ player, cards: play, roundId: st.roundId }] : [...st.roundPlays, { player, cards: play, roundId: st.roundId }])
-    : st.roundPlays;
-
-  // 安全修正：如果传入的 player 已经出完，直接推进到下一位活人，避免死循环
-  if (finished.includes(player)) {
-    const next = nextAliveSeat(player + 1, finished);
-    return { ...st, current: next, turnStart: next };
-  }
-
-  if (play) {
-    hands[player] = hands[player].filter((c) => !play.some((p) => p.id === c.id));
-    if (hands[player].length === 0) {
-      finished.push(player);
-      // 双下判定：前两名同队（0↔2、1↔3）→ 对方必为 3、4 名，胜负已定，立即结算
-      const duo = finished.length >= 2 && ((finished[0] ^ 2) === finished[1]);
-      if (finished.length === 4 || duo) {
-        const order = [...finished];
-        // 双下且对方未打完：按剩余手牌数推定 3、4 游（多者末游进贡、少者三游）
-        if (duo && finished.length < 4) {
-          const opps = [0, 1, 2, 3].filter((s) => !finished.includes(s));
-          const ranked = [...opps].sort((a, b) => hands[b].length - hands[a].length);
-          order.push(ranked[1], ranked[0]); // 少者=三游(order[2])、多者=末游(order[3])
-        }
-        const myTeamWon = teamOf(order[0]) === 0;
-        let up: number; let txt: string;
-        let tributePlan: { from: number; to: number }[] | null = null;
-        if (myTeamWon) {
-          if (teamOf(order[1]) === 0) { up = 3; txt = '双下！升 3 级'; tributePlan = [{ from: order[3], to: order[0] }, { from: order[2], to: order[1] }]; }
-          else if (teamOf(order[2]) === 0) { up = 2; txt = '升 2 级'; }
-          else { up = 1; txt = '升 1 级'; }
-        } else {
-          if (teamOf(order[1]) === 1) { up = 3; txt = '对方双下，升 3 级'; tributePlan = [{ from: order[3], to: order[0] }, { from: order[2], to: order[1] }]; }
-          else if (teamOf(order[2]) === 1) { up = 2; txt = '对方升 2 级'; }
-          else { up = 1; txt = '对方升 1 级'; }
-        }
-        let newLevel = st.level + up;
-        let resultText = txt;
-        let winnerTeam: number | null = null;
-        let aStrikes = st.aStrikes || 0;
-        if (st.level === 14) {
-          // 打 A 中：必须双上（己方 1、2 名）才算过 A 获胜
-          if (myTeamWon && up >= 3) {
-            winnerTeam = 0; newLevel = 14; aStrikes = 0;
-            resultText = '🏆 双上打过 A！房主队获胜！';
-          } else if (!myTeamWon && up >= 3) {
-            // 对方双上打过 A：退回 2 重新打
-            newLevel = 2; aStrikes = 0;
-            resultText = '对方双上打过 A，退回 2 重新打';
-          } else {
-            aStrikes += 1;
-            if (aStrikes >= 3) {
-              newLevel = 2; aStrikes = 0;
-              resultText = '连续 3 把未过 A，退回 2 重新打';
-            } else {
-              newLevel = 14;
-              resultText = `打 A 未过（第 ${aStrikes} 把，连 3 把不过退回 2）`;
-            }
-          }
-        } else if (newLevel > 14) {
-          // 升超 A：一律停在 14（A）继续打 A 局，不直接判胜（打 A 须双上才赢）
-          newLevel = 14;
-          resultText = myTeamWon ? '🚀 打到 A！下一局双上即获胜！' : '对方打到 A，我方须双上才赢';
-        } else if (newLevel === 14) {
-          resultText = myTeamWon ? '🚀 打到 A！下一局双上即获胜！' : '对方打到 A，我方须双上才赢';
-        }
-        return {
-          ...st, hands, roundPass: [], roundPlays, roundEnded: false, finished, phase: 'over', winnerTeam, resultText,
-          level: newLevel, aStrikes, tributePlan, current: order[0], lastPlay: null, lastPlayBy: -1,
-        };
-      }
-    }
-    // 出牌后推进轮次：跳过头游等已出完玩家
-    const nextSeat = nextAliveSeat(player + 1, finished);
-    return {
-      ...st, hands,
-      lastPlay: { player, cards: play }, lastPlayBy: player, roundPass: [], roundPlays, roundEnded: false,
-      current: nextSeat, turnStart: nextSeat,
-    };
-  }
-  // 不出
-  roundPass.push(player);
-  // 一圈结束：除最后出牌者外，所有未出完玩家都已 pass
-  // （有玩家头游后活人数减少，pass 满 3 可能永远不满足 → 按"活人-1"判定，避免上一轮牌面残留）
-  const aliveNotBy = [0, 1, 2, 3].filter((p) => !finished.includes(p) && p !== st.lastPlayBy);
-  if (roundPass.length >= Math.max(1, aliveNotBy.length)) {
-    // 一圈全过 → 立即清空四家出牌信息，下一轮出牌从零开始
-    // 接风规则：最后出牌者已出完（头游）时，由其对家（队友）接风自由出牌；否则最后出牌者自由出牌
-    let freer: number;
-    if (finished.includes(st.lastPlayBy)) {
-      // 最后出牌者已出完：队友接风；若队友也出完，找下一位活人
-      const partner = st.lastPlayBy ^ 2;
-      freer = finished.includes(partner) ? nextAliveSeat(st.lastPlayBy + 1, finished) : partner;
-    } else {
-      freer = st.lastPlayBy;
-    }
-    // 双重保险：freer 必须是活人
-    if (finished.includes(freer)) freer = nextAliveSeat(freer + 1, finished);
-    return { ...st, hands, roundPass: [], roundPlays: [], roundEnded: true, roundId: st.roundId + 1, current: freer, lastPlay: null, lastPlayBy: freer };
-  }
-  const nextSeat = nextAliveSeat(player + 1, finished);
-  return { ...st, hands, roundPass, roundPlays, current: nextSeat };
-}
-
-export function gdNewGame(level: number, names: string[], firstSeat: number, keepStrikes = 0, tributePlan: { from: number; to: number }[] | null = null): GDOnlineState {
-  const deck = shuffle(buildDeck());
-  const hands: GCard[][] = [[], [], [], []];
-  deck.forEach((c, i) => hands[i % 4].push(c));
-  // 双下进贡/还贡：末游/三游进贡给头游/二游最大牌，头游/二游还一张 ≤10 的牌
-  // 职业规则抗贡：进贡方持有红桃级牌（变牌）或两张大王 → 抗贡（免进贡也不收还贡），抗贡后仍由上盘头游先出
-  let gong = '';
-  let antiSeat: number | undefined;
-  if (tributePlan && tributePlan.length > 0) {
-    for (const t of tributePlan) {
-      const from = hands[t.from];
-      const to = hands[t.to];
-      if (from.length === 0 || to.length === 0) continue;
-      const hasWild = from.some((c) => isWild(c, level));
-      const hasTwoBigJokers = from.filter((c) => c.k === 1).length >= 2;
-      if (hasWild || hasTwoBigJokers) {
-        gong += `${names[t.from] || SEAT_NAMES[t.from]} ${hasTwoBigJokers ? '持有两张大王' : '持有红桃级牌'}，抗贡！；`;
-        if (antiSeat === undefined) antiSeat = t.from;
-        continue;
-      }
-      let maxIdx = 0;
-      for (let i = 1; i < from.length; i++) {
-        if (cardVal(from[i], level) > cardVal(from[maxIdx], level)) maxIdx = i;
-      }
-      const given = from.splice(maxIdx, 1)[0];
-      let backIdx = -1;
-      for (let i = 0; i < to.length; i++) {
-        const c = to[i];
-        if (c.k === undefined && cardVal(c, level) <= 10 && !isWild(c, level)) {
-          if (backIdx < 0 || cardVal(c, level) < cardVal(to[backIdx], level)) backIdx = i;
-        }
-      }
-      if (backIdx >= 0) {
-        const back = to.splice(backIdx, 1)[0];
-        to.push(given);
-        from.push(back);
-        gong += `${names[t.from] || SEAT_NAMES[t.from]} 进贡 ${rankName(given.r)}${given.k === undefined ? SUIT_SYMBOL[given.s] : (given.k === 1 ? '大王' : '小王')}，${names[t.to] || SEAT_NAMES[t.to]} 还贡 ${rankName(back.r)}${SUIT_SYMBOL[back.s]}；`;
-      } else {
-        to.push(given);
-        gong += `${names[t.from] || SEAT_NAMES[t.from]} 进贡 ${rankName(given.r)}${given.k === undefined ? SUIT_SYMBOL[given.s] : (given.k === 1 ? '大王' : '小王')}；`;
-      }
-    }
-    gong = `🔄 ${gong}`;
-  }
-  // 抗贡时继续由上盘头游（tributePlan[0].to）先出
-  const firstSeat2 = antiSeat !== undefined ? tributePlan![0].to : firstSeat;
-  return {
-    hands, level, current: firstSeat2, lastPlay: null, lastPlayBy: -1, turnStart: firstSeat2,
-    finished: [], roundPass: [], roundPlays: [], roundEnded: false, roundId: 0, phase: 'playing', winnerTeam: null, resultText: '', playerNames: names,
-    aStrikes: keepStrikes, tributePlan: null, gongMessage: gong,
-  };
-}
 
 // ================================================================
 // PeerJS 封装 + ICE 配置 + 多信令服务器
@@ -354,6 +111,19 @@ async function sendWithRetry(conn: any, data: string, maxRetries = 3): Promise<b
 export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?: () => void }> = ({ autoJoinRoom, onExit }) => {
   const [role, setRole] = useState<'host' | 'guest' | null>(null);
   const [roomCode, setRoomCode] = useState('');
+  const roomCodeRef = useRef('');
+  roomCodeRef.current = roomCode;
+  const roleRef = useRef<'host' | 'guest' | null>(null);
+  roleRef.current = role;
+  /** 传输层：服务端权威优先，PeerJS P2P 作为降级通道 */
+  const [transport, setTransport] = useState<'server' | 'p2p'>('p2p');
+  const transportRef = useRef<'server' | 'p2p'>('p2p');
+  const serverRef = useRef<GuandanServerClient | null>(null);
+  const p2pJoinRef = useRef<((code: string) => void) | null>(null);
+  const connectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearConnectTimer = useCallback(() => {
+    if (connectTimerRef.current) { clearTimeout(connectTimerRef.current); connectTimerRef.current = null; }
+  }, []);
   const [joinInput, setJoinInput] = useState('');
   const [status, setStatus] = useState<'lobby' | 'connecting' | 'waiting' | 'playing' | 'error'>('lobby');
   const [players, setPlayers] = useState<string[]>(['', '', '', '']); // 各座位名字
@@ -392,6 +162,66 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
   const [aiDifficulty, setAiDifficulty] = useState<GDAIDifficulty>('medium');
   const [aiCount, setAiCount] = useState(2); // 默认 2 个 AI（房主+好友 vs 2AI）
   const aiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ============ 服务端权威通道（优先）/ PeerJS P2P（降级） ============
+  const applyServerPlayers = useCallback((list: (GDServerPlayer | null)[]) => {
+    const names = ['', '', '', ''];
+    for (const p of list) if (p) names[p.seat] = p.name;
+    setPlayers(names);
+  }, []);
+
+  const ensureServer = useCallback(() => {
+    if (serverRef.current) return serverRef.current;
+    const client = new GuandanServerClient({
+      onWelcome: (m) => {
+        clearConnectTimer();
+        setTransport('server'); transportRef.current = 'server';
+        setRoomCode(m.roomCode);
+        setMySeat(m.seat);
+        mySeatRef.current = m.seat;
+        applyServerPlayers(m.players);
+        setRole(m.seat === m.hostSeat ? 'host' : 'guest');
+        setStatus(m.status === 'waiting' ? 'waiting' : 'playing');
+        setNotice('');
+        setErrorDetail('');
+      },
+      onRoom: (m) => {
+        applyServerPlayers(m.players);
+        if (m.hostSeat === mySeatRef.current) setRole('host');
+        if (m.status === 'waiting' && statusRef.current !== 'playing') setStatus('waiting');
+      },
+      onState: (m) => {
+        clearConnectTimer();
+        // 服务端下发的已是对应座位视角（对手手牌为空、仅有 handCounts），不可再做本地"补全"
+        setGame(m.state);
+        setStatus('playing');
+        setNotice('');
+        setSelected([]);
+        setFloating(true);
+        if (!enteredFsRef.current) {
+          enteredFsRef.current = true;
+          try { enterFullscreen(); } catch { /* 忽略 */ }
+        }
+      },
+      onError: (m) => {
+        clearConnectTimer();
+        if (m.code === 'ROOM_NOT_FOUND' && roleRef.current === 'guest' && transportRef.current === 'server') {
+          // 6 位房间号可能是旧版 P2P 房间：自动降级
+          setTransport('p2p'); transportRef.current = 'p2p';
+          setNotice('服务器上未找到该房间，正在尝试 P2P 直连…');
+          p2pJoinRef.current?.(roomCodeRef.current);
+          return;
+        }
+        setNotice(m.message || '服务器错误');
+      },
+      onConnection: (s) => {
+        if (s === 'closed' && transportRef.current === 'server') setNotice('⚠ 连接中断，正在重连…');
+        if (s === 'reconnected') setNotice('');
+      },
+    });
+    serverRef.current = client;
+    return client;
+  }, [applyServerPlayers, clearConnectTimer]);
 
   // ============ 复制房间号 ============
   const copyRoomCode = useCallback(() => {
@@ -553,8 +383,8 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
     }
   }, []);
 
-  // ============ 创建房间（房主）—— 多信令节点自动选择 ============
-  const createRoom = useCallback(async () => {
+  // ============ 创建房间（P2P 降级通道）—— 多信令节点自动选择 ============
+  const createRoomP2P = useCallback(async () => {
     setRole('host');
     setStatus('connecting');
     setErrorDetail('');
@@ -605,6 +435,37 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
     setErrorDetail(lastErr?.type || lastErr?.message || '所有信令服务器均无法连接');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onHostMessage]);
+
+  // ============ 创建房间：服务端权威优先，不可达时降级 PeerJS ============
+  const createRoom = useCallback(async () => {
+    setRole('host');
+    setStatus('connecting');
+    setErrorDetail('');
+    setNotice('正在连接游戏服务器…');
+    setPlayers(['房主', '', '', '']);
+    try {
+      const server = ensureServer();
+      await server.connect(2500);
+      setTransport('server');
+      transportRef.current = 'server';
+      setNotice('服务器已连接，正在创建房间…');
+      server.createRoom('房主');
+      clearConnectTimer();
+      connectTimerRef.current = setTimeout(() => {
+        if (transportRef.current === 'server' && !roomCodeRef.current) {
+          setNotice('创建房间超时，已切换 P2P 直连模式');
+          setTransport('p2p');
+          transportRef.current = 'p2p';
+          void createRoomP2P();
+        }
+      }, 5000);
+    } catch {
+      setTransport('p2p');
+      transportRef.current = 'p2p';
+      setNotice('游戏服务器不可用，已切换 P2P 直连模式');
+      await createRoomP2P();
+    }
+  }, [ensureServer, createRoomP2P]);
 
   /** 尝试在指定信令节点创建房间 */
   async function tryCreateRoom(code: string, serverIdx: number): Promise<{ success: boolean; error?: any }> {
@@ -664,8 +525,8 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
     });
   }
 
-  // ============ 加入房间（来宾）—— 多信令节点自动遍历 ============
-  const joinRoom = useCallback(async (code: string) => {
+  // ============ 加入房间（P2P 降级通道）—— 多信令节点自动遍历 ============
+  const joinRoomP2P = useCallback(async (code: string) => {
     const c = code.trim().toUpperCase();
     if (!c) return;
     setRoomCode(c);
@@ -707,6 +568,52 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
     setErrorDetail(`已尝试 ${PEER_SERVERS.length} 个信令服务器：\n` + errors.map((e, i) => `  ${i + 1}. ${e}`).join('\n'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onGuestMessage]);
+
+  // ============ 加入房间：6 位优先服务端，失败自动降级 P2P ============
+  const joinRoom = useCallback(async (code: string) => {
+    const c = code.trim().toUpperCase();
+    if (!c) return;
+    setRoomCode(c);
+    setRole('guest');
+    setStatus('connecting');
+    setErrorDetail('');
+    setGame(null);
+
+    // 7 位房间号是旧版 P2P 房间（6 位码 + 信令节点号），直接走 P2P
+    if (c.length === 7) {
+      setTransport('p2p');
+      transportRef.current = 'p2p';
+      await joinRoomP2P(c);
+      return;
+    }
+
+    setNotice('正在连接游戏服务器…');
+    try {
+      const server = ensureServer();
+      await server.connect(2500);
+      setTransport('server');
+      transportRef.current = 'server';
+      setNotice('服务器已连接，正在加入房间…');
+      // 房间不存在时由 onError(ROOM_NOT_FOUND) 自动降级到 P2P
+      server.joinRoom(c, myNameRef.current);
+      clearConnectTimer();
+      connectTimerRef.current = setTimeout(() => {
+        if (transportRef.current === 'server' && !roomCodeRef.current) {
+          setNotice('加入房间超时，已切换 P2P 直连模式');
+          setTransport('p2p');
+          transportRef.current = 'p2p';
+          void joinRoomP2P(c);
+        }
+      }, 5000);
+    } catch {
+      setTransport('p2p');
+      transportRef.current = 'p2p';
+      setNotice('游戏服务器不可用，已切换 P2P 直连模式');
+      await joinRoomP2P(c);
+    }
+  }, [ensureServer, joinRoomP2P]);
+
+  useEffect(() => { p2pJoinRef.current = (code: string) => { void joinRoomP2P(code); }; }, [joinRoomP2P]);
 
   /** 尝试在指定信令节点加入房间 */
   async function tryJoinRoom(hostPeerId: string, serverIdx: number): Promise<{ success: boolean; errorType?: string; errorMsg?: string }> {
@@ -796,6 +703,12 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
 
   // ============ 房主：开始对局（支持 AI 补位） ============
   const startGame = useCallback(() => {
+    // 服务端权威模式：发牌、AI 补位、回合仲裁全部交给服务器
+    if (transportRef.current === 'server') {
+      serverRef.current?.startGame(aiCount, aiDifficulty);
+      setNotice('正在开局…');
+      return;
+    }
     const realPlayers = connsRef.current.length + 1; // 房主 + 来宾
     const needAI = Math.max(0, 4 - realPlayers);
 
@@ -848,6 +761,10 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
 
   // ============ 房主：重新发牌（下一局） ============
   const nextRound = useCallback(() => {
+    if (transportRef.current === 'server') {
+      serverRef.current?.nextRound();
+      return;
+    }
     if (!game) return;
     // 保留 AI 玩家名字
     const names = [...game.playerNames];
@@ -894,6 +811,12 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
     if (!isMyTurn) return;
     const cards = cardsOverride ?? myHand.filter((c) => selected.includes(c.id));
     if (cards.length === 0) return;
+    if (transportRef.current === 'server') {
+      // 只把动作发给服务器，状态以服务端广播为准
+      serverRef.current?.play(cards);
+      setSelected([]);
+      return;
+    }
     if (role === 'host') {
       setGame((prev) => {
         // 严格二次校验：防止竞态条件（状态已更新但UI还未刷新时点击出牌）
@@ -960,6 +883,11 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
 
   const doPass = () => {
     if (!isMyTurn || !game?.lastPlay) return;
+    if (transportRef.current === 'server') {
+      serverRef.current?.pass();
+      setSelected([]);
+      return;
+    }
     if (role === 'host') {
       setGame((prev) => {
         // 严格二次校验：防止竞态条件
@@ -1076,7 +1004,9 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
     }
     return () => {
       try { if (peerRef.current) peerRef.current.destroy(); } catch {}
+      try { serverRef.current?.close(); } catch {}
       if (copyTimer.current) clearTimeout(copyTimer.current);
+      if (connectTimerRef.current) clearTimeout(connectTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1091,8 +1021,8 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
   // ============ 状态一致性自动校正 ============
   // 终极防御：任何状态变更后，如果 current 指向已出完/无牌玩家，自动推进到下一位活人
   useEffect(() => {
+    if (transportRef.current === 'server') return; // 服务端权威，客户端不做补全
     if (!game || game.phase !== 'playing') return;
-    // 快速校验：current 必须是活人且有牌
     if (!game.finished.includes(game.current) && game.hands[game.current]?.length > 0) return;
     // 发现不一致 → 调用 validateGDState 修复
     setGame((prev) => {
@@ -1107,6 +1037,7 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
 
   // ============ AI 自动出牌驱动（仅房主侧） ============
   useEffect(() => {
+    if (transportRef.current === 'server') return; // AI 由服务端托管
     if (role !== 'host') return;
     if (!game || game.phase !== 'playing') return;
     if (status !== 'playing') return;
@@ -1155,6 +1086,7 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
 
   // ============ 房主定期状态同步（每 3 秒重播，确保客户端状态不脱节） ============
   useEffect(() => {
+    if (transportRef.current === 'server') return; // 服务端主动推送，无需客户端重播
     if (role !== 'host' || status !== 'playing' || !game) return;
     const timer = setInterval(() => {
       setGame((prev) => {
@@ -1193,6 +1125,7 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
   if (status === 'lobby' || status === 'connecting' || status === 'error') {
     return (
       <div className="gd-online">
+        {onExit && <button className="gd3-lobby-close" onClick={onExit} aria-label="退出联机">✕</button>}
         <div className="gd-online-card">
           <h2>🃏 掼蛋 · 联机对战</h2>
           <p className="gd-online-sub">四人两两组队 · 经典规则 · 创建房间分享给好友即可开局</p>
@@ -1272,7 +1205,8 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
 
   // ============ 渲染：等待房间（房主）——4 向座位格，可换座 ============
   if (role === 'host' && status === 'waiting') {
-    const connected = connsRef.current.length;
+    // 人数统计统一读 players（服务端与 P2P 都会维护该数组）
+    const connected = Math.max(0, players.filter(Boolean).length - 1);
     const needAI = Math.max(0, 4 - (connected + 1));
     const canStart = needAI <= aiCount; // AI 补位够就能开局
 
@@ -1282,10 +1216,11 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
     const seatCells: { name: string; type: 'host' | 'guest' | 'ai' | 'empty' }[] = [
       { name: '', type: 'empty' }, { name: '', type: 'empty' }, { name: '', type: 'empty' }, { name: '', type: 'empty' },
     ];
-    seatCells[mySeat] = { name: '房主（你）', type: 'host' };
-    for (const c of connsRef.current) {
-      if (c._gdSeat !== undefined) seatCells[c._gdSeat] = { name: c._gdName || '玩家', type: 'guest' };
-    }
+    players.forEach((name, seat) => {
+      if (!name) return;
+      seatCells[seat] = { name, type: seat === mySeat ? 'host' : 'guest' };
+    });
+    if (seatCells[mySeat].type === 'empty') seatCells[mySeat] = { name: '房主（你）', type: 'host' };
     // AI 补位预览：空位按对手位(1,3)优先再队友位(2)
     const aiToShow = Math.min(needAI, aiCount);
     let aiIdx = 0;
@@ -1302,6 +1237,11 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
     const moveMySeat = (seat: number) => {
       if (seat === mySeat) return;
       if (seatCells[seat].type !== 'empty') return;
+      if (transportRef.current === 'server') {
+        setNotice(`正在选择${seatLabels[seat]}位…`);
+        serverRef.current?.chooseSeat(seat);
+        return;
+      }
       setMySeat(seat);
       setPlayers((p) => { const np = [...p]; np[mySeat] = ''; np[seat] = '房主'; return np; });
       const playerList: string[] = ['', '', '', ''];
@@ -1314,6 +1254,7 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
 
     return (
       <div className="gd-online">
+        {onExit && <button className="gd3-lobby-close" onClick={onExit} aria-label="退出房间">✕</button>}
         <div className="gd-online-card">
           <h2>🃏 掼蛋房间</h2>
           <div className="gd-room-code" onClick={copyRoomCode} title="点击复制房间号">
@@ -1344,6 +1285,9 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
             玩家 {connected} 人 · AI {aiToShow} 人
             {!canStart && ` · 还需 ${needAI - aiCount} 人或增加 AI`}
           </p>
+          <p className="gd-online-tip">
+            通道：{transport === 'server' ? '🛰 服务器权威 · 断线可重连' : '🔗 P2P 直连'}
+          </p>
           <div className="gd-online-btns">
             <button className="gd-btn gd-btn-primary" onClick={startGame} disabled={!canStart}>
               {canStart ? '开始对局 →' : '人数不足'}
@@ -1362,10 +1306,15 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
       if (seat === mySeat) return; // 已在此座
       if (players[seat]) return; // 已占用（含房主位显示'房主'时）
       setNotice(`正在选择${seatLabels[seat]}位…`);
+      if (transportRef.current === 'server') {
+        serverRef.current?.chooseSeat(seat);
+        return;
+      }
       sendToHost({ type: 'SEAT_CHOOSE', seat });
     };
     return (
       <div className="gd-online">
+        {onExit && <button className="gd3-lobby-close" onClick={onExit} aria-label="退出房间">✕</button>}
         <div className="gd-online-card">
           <h2>🃏 已加入房间</h2>
           <div className="gd-room-code">
@@ -1389,6 +1338,9 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
             })}
           </div>
           <p className="gd-online-tip">点击空位选择入座方向，等待房主发牌开局…</p>
+          <p className="gd-online-tip">
+            通道：{transport === 'server' ? '🛰 服务器权威 · 断线可重连' : '🔗 P2P 直连'}
+          </p>
         </div>
       </div>
     );
@@ -1397,15 +1349,24 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
   // ============ 渲染：对局 ============
   if (!game) return <div className="module-loading">对局准备中…</div>;
 
-  // 头游：第一个出完牌的玩家；对家（搭档）= 头游 ^ 2（0↔2、1↔3）
-  // 明牌规则：仅本方（0 我 或 2 队友）头游时，把本队另一人的剩余手牌明牌给本方看；对手头游不泄露对手牌
+  // 头游：第一个出完牌的玩家
   const headSeat = game.finished.length > 0 ? game.finished[0] : -1;
-  const partnerSeat = headSeat >= 0 ? headSeat ^ 2 : -1;
-  const showPartnerCards = headSeat >= 0 && (headSeat === 0 || headSeat === 2) && partnerSeat !== 0;
+  // 相对方位：底板永远是自己，对面是队友，左右为两名对手（任意座位入座都能正确显示）
+  const seatBottom = mySeat;
+  const seatRight = (mySeat + 1) % 4;
+  const seatTop = (mySeat + 2) % 4;
+  const seatLeft = (mySeat + 3) % 4;
+  const partnerSeat = seatTop;
+  // 明牌规则：仅本方头游时，把队友剩余手牌明牌给本方看
+  const showPartnerCards = headSeat >= 0
+    && teamOf(headSeat) === teamOf(mySeat)
+    && headSeat !== partnerSeat
+    && !game.finished.includes(partnerSeat);
 
-  const counts = game.hands.map((h) => h.length);
-  const myTeamCount = counts[0] + counts[2];
-  const oppTeamCount = counts[1] + counts[3];
+  // 服务端视角只下发手牌张数（防作弊），P2P 模式回退到手牌长度
+  const counts = game.handCounts ?? game.hands.map((h) => h.length);
+  const myTeamCount = counts[seatBottom] + counts[seatTop];
+  const oppTeamCount = counts[seatLeft] + counts[seatRight];
   const levelName = rankName(game.level);
   const myName = players[mySeat] || SEAT_NAMES[mySeat];
   const seatLabel = (s: number) => players[s] || SEAT_NAMES[s];
@@ -1446,7 +1407,7 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
   };
 
   return (
-    <div ref={tableRef} className={`gd-table ${floating ? 'gd-floating' : ''}`}>
+    <div ref={tableRef} className={`gd-table gd3-stage ${floating ? 'gd-floating' : ''}`}>
       {/* 桌垫方位水印、分区框线与铭牌（参考比赛专用桌垫） */}
       <span className="gd-dir gd-dir-n">北</span>
       <span className="gd-dir gd-dir-s">南</span>
@@ -1464,8 +1425,8 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
         ))}
       </div>
       <span className="gd-table-name">掼蛋比赛专用桌垫</span>
-      {/* 浮动全屏：左上角 ☰ 折叠菜单 */}
-      {floating && (
+      {/* 独立全屏舞台：左上角 ☰ 菜单 */}
+      {(
         <>
           <button
             className={`gd-top-handle ${menuOpen ? 'active' : ''}`}
@@ -1494,9 +1455,6 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
                   🔄 开始下一局
                 </button>
               )}
-              <button className="gd-menu-btn danger" onClick={() => { setFloating(false); try { exitFullscreen(); } catch { /* 忽略 */ } setMenuOpen(false); }}>
-                ⛶ 退出全屏
-              </button>
               <button className="gd-menu-btn danger" onClick={() => { if (onExit) onExit(); else { setFloating(false); try { exitFullscreen(); } catch { /* 忽略 */ } } }}>
                 🚪 退出游戏
               </button>
@@ -1511,6 +1469,9 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
         <span className="gd-info">我方 <b>{myTeamCount}</b> 张</span>
         <span className="gd-info">对方 <b>{oppTeamCount}</b> 张</span>
         <span className="gd-info">房间 <b className="gd-level">{roomCode}</b></span>
+        <span className={`gd-info gd-transport ${transport === 'server' ? 'gd-transport-server' : ''}`}>
+          {transport === 'server' ? '🛰 服务器权威' : '🔗 P2P 直连'}
+        </span>
         {isMyTurn && status === 'playing' && countdown > 0 && (
           <span className={`gd-countdown ${countdown <= 5 ? 'gd-countdown-urgent' : ''}`}>⏱ {countdown}s</span>
         )}
@@ -1518,22 +1479,22 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
       {game.gongMessage && <div className="gd-gong-bar">{game.gongMessage}</div>}
 
       <div className="gd-seats">
-        <div className={`gd-seat gd-seat-top gd-team-mine ${game.current === 2 ? 'gd-active' : ''}`}>
-          <span className="gd-seat-name">🤝 {seatLabel(2)}</span>
+        <div className={`gd-seat gd-seat-top gd-team-mine ${game.current === seatTop ? 'gd-active' : ''}`}>
+          <span className="gd-seat-name">🤝 {seatLabel(seatTop)}</span>
           <span className="gd-team-tag gd-team-mine-tag">我方</span>
-          {game.finished.includes(2)
-            ? <span className={`gd-rank-tag ${game.finished[0] === 2 ? 'gd-rank-1' : ''}`}>
-                {game.finished[0] === 2 ? '🏆 头游' : `第${game.finished.indexOf(2) + 1}名`}
+          {game.finished.includes(seatTop)
+            ? <span className={`gd-rank-tag ${game.finished[0] === seatTop ? 'gd-rank-1' : ''}`}>
+                {game.finished[0] === seatTop ? '🏆 头游' : `第${game.finished.indexOf(seatTop) + 1}名`}
               </span>
             : null}
-          {!game.finished.includes(2) && counts[2] <= 10 && <span className="gd-seat-count">{counts[2]} 张</span>}
-          {!game.finished.includes(2) && game.roundPass.includes(2) && <span className="gd-pass-tag">不出</span>}
+          {!game.finished.includes(seatTop) && counts[seatTop] <= 10 && <span className="gd-seat-count">{counts[seatTop]} 张</span>}
+          {!game.finished.includes(seatTop) && game.roundPass.includes(seatTop) && <span className="gd-pass-tag">不出</span>}
         </div>
-        {showPartnerCards && partnerSeat === 2 && (
+        {showPartnerCards && partnerSeat === seatTop && (
           <div className="gd-partner-cards">
             <span className="gd-partner-label">🤝 对家牌面</span>
             <div className="gd-partner-cards-row">
-              {game.hands[2].map((c) => (
+              {game.hands[partnerSeat].map((c) => (
                 <span
                   key={c.id}
                   className={`gd-mini-card ${c.k !== undefined ? (c.k === 1 ? 'gd-mini-joker' : 'gd-mini-small-joker') : ''} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'}`}
@@ -1543,41 +1504,22 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
                   {c.r === levelRank(game.level) && c.k === undefined && <span className="gd-mini-level">级</span>}
                 </span>
               ))}
-              {game.hands[2].length === 0 && <span className="gd-partner-empty">已出完</span>}
+              {counts[seatTop] === 0 && <span className="gd-partner-empty">已出完</span>}
             </div>
           </div>
         )}
-        <div className="gd-play-area gd-play-north">{renderRoundPlays(2)}</div>
+        <div className="gd-play-area gd-play-north">{renderRoundPlays(seatTop)}</div>
         <div className="gd-side-row">
           <div className="gd-side-col">
-            <div className={`gd-seat gd-seat-left gd-team-opp ${game.current === 3 ? 'gd-active' : ''}`}>
-              <span className="gd-seat-name">😈 {seatLabel(3)}</span>
+            <div className={`gd-seat gd-seat-left gd-team-opp ${game.current === seatLeft ? 'gd-active' : ''}`}>
+              <span className="gd-seat-name">😈 {seatLabel(seatLeft)}</span>
               <span className="gd-team-tag gd-team-opp-tag">对方</span>
-              {headSeat === 3 && <span className="gd-head-tag">🏆 头游</span>}
-              {counts[3] <= 10 && <span className="gd-seat-count">{counts[3]} 张</span>}
-              {game.roundPass.includes(3) && <span className="gd-pass-tag">不出</span>}
-              {game.finished.includes(3) && <span className="gd-finished-tag">已出完</span>}
+              {headSeat === seatLeft && <span className="gd-head-tag">🏆 头游</span>}
+              {counts[seatLeft] <= 10 && <span className="gd-seat-count">{counts[seatLeft]} 张</span>}
+              {game.roundPass.includes(seatLeft) && <span className="gd-pass-tag">不出</span>}
+              {game.finished.includes(seatLeft) && <span className="gd-finished-tag">已出完</span>}
             </div>
-            {showPartnerCards && partnerSeat === 3 && (
-              <div className="gd-partner-cards">
-                <span className="gd-partner-label">🤝 对家牌面</span>
-                <div className="gd-partner-cards-row">
-                  {game.hands[3].map((c) => (
-                    <span
-                      key={c.id}
-                      className={`gd-mini-card ${c.k !== undefined ? (c.k === 1 ? 'gd-mini-joker' : 'gd-mini-small-joker') : ''} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
-                    >
-                      <span className="gd-mini-rank">{c.k !== undefined ? (c.k === 1 ? '大王' : '小王') : rankName(c.r)}</span>
-                      {c.k === undefined && <span className="gd-mini-suit">{SUIT_SYMBOL[c.s]}</span>}
-                      {c.r === levelRank(game.level) && c.k === undefined && <span className="gd-mini-level">级</span>}
-                      {isWild(c, game.level) && <span className="gd-wild-tag">变</span>}
-                    </span>
-                  ))}
-                  {game.hands[3].length === 0 && <span className="gd-partner-empty">已出完</span>}
-                </div>
-              </div>
-            )}
-            <div className="gd-play-area gd-play-west">{renderRoundPlays(3)}</div>
+            <div className="gd-play-area gd-play-west">{renderRoundPlays(seatLeft)}</div>
           </div>
           <div className="gd-center-play">
             {game.phase === 'over' ? <span className="gd-freetext">{game.resultText}</span> :
@@ -1585,40 +1527,21 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
               <span className="gd-freetext">自由出牌</span>}
           </div>
           <div className="gd-side-col">
-            <div className={`gd-seat gd-seat-right gd-team-opp ${game.current === 1 ? 'gd-active' : ''}`}>
-              <span className="gd-seat-name">😈 {seatLabel(1)}</span>
+            <div className={`gd-seat gd-seat-right gd-team-opp ${game.current === seatRight ? 'gd-active' : ''}`}>
+              <span className="gd-seat-name">😈 {seatLabel(seatRight)}</span>
               <span className="gd-team-tag gd-team-opp-tag">对方</span>
-              {headSeat === 1 && <span className="gd-head-tag">🏆 头游</span>}
-              {counts[1] <= 10 && <span className="gd-seat-count">{counts[1]} 张</span>}
-              {game.roundPass.includes(1) && <span className="gd-pass-tag">不出</span>}
-              {game.finished.includes(1) && <span className="gd-finished-tag">已出完</span>}
+              {headSeat === seatRight && <span className="gd-head-tag">🏆 头游</span>}
+              {counts[seatRight] <= 10 && <span className="gd-seat-count">{counts[seatRight]} 张</span>}
+              {game.roundPass.includes(seatRight) && <span className="gd-pass-tag">不出</span>}
+              {game.finished.includes(seatRight) && <span className="gd-finished-tag">已出完</span>}
             </div>
-            {showPartnerCards && partnerSeat === 1 && (
-              <div className="gd-partner-cards">
-                <span className="gd-partner-label">🤝 对家牌面</span>
-                <div className="gd-partner-cards-row">
-                  {game.hands[1].map((c) => (
-                    <span
-                      key={c.id}
-                      className={`gd-mini-card ${c.k !== undefined ? (c.k === 1 ? 'gd-mini-joker' : 'gd-mini-small-joker') : ''} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
-                    >
-                      <span className="gd-mini-rank">{c.k !== undefined ? (c.k === 1 ? '大王' : '小王') : rankName(c.r)}</span>
-                      {c.k === undefined && <span className="gd-mini-suit">{SUIT_SYMBOL[c.s]}</span>}
-                      {c.r === levelRank(game.level) && c.k === undefined && <span className="gd-mini-level">级</span>}
-                      {isWild(c, game.level) && <span className="gd-wild-tag">变</span>}
-                    </span>
-                  ))}
-                  {game.hands[1].length === 0 && <span className="gd-partner-empty">已出完</span>}
-                </div>
-              </div>
-            )}
-            <div className="gd-play-area gd-play-east">{renderRoundPlays(1)}</div>
+            <div className="gd-play-area gd-play-east">{renderRoundPlays(seatRight)}</div>
           </div>
         </div>
       </div>
 
       {/* 我方（南）出牌区：手牌上方 */}
-      <div className="gd-play-area gd-play-south">{renderRoundPlays(0)}</div>
+      <div className="gd-play-area gd-play-south">{renderRoundPlays(seatBottom)}</div>
 
       <div className={`gd-actions ${game.finished.includes(mySeat) ? 'gd-actions-finished' : ''}`}>
         <span className="gd-turn-hint">
@@ -1665,7 +1588,7 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
                     key={c.id}
                     className={`gd-card ${selected.includes(c.id) ? 'gd-selected' : ''} ${c.k !== undefined ? (c.k === 1 ? 'gd-card-joker' : 'gd-card-small-joker') : (c.r === levelRank(game.level) ? 'gd-card-level' : '')} ${c.s === 'H' || c.s === 'D' ? 'gd-red' : 'gd-black'} ${isWild(c, game.level) ? 'gd-wild' : ''}`}
                     onClick={() => toggleCard(c.id)}
-                    style={{ zIndex: 100 - ci }}
+                    style={{ zIndex: ci + 1 }}
                   >
                     <span className="gd-card-corner gd-corner-tl">
                       <span className="gd-card-rank">{c.k !== undefined ? (c.k === 1 ? 'JOKER' : 'joker') : rankName(c.r)}</span>

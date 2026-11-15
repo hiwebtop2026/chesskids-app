@@ -9,8 +9,8 @@
  * 数据持久化：localStorage（guandan-learning-v1）
  */
 
-import type { GCard, PlayType } from '../modules/GuandanGame';
-import { cardVal } from '../modules/GuandanGame';
+import type { GCard, PlayType } from './guandan/core.ts';
+import { cardVal } from './guandan/core.ts';
 
 // ================================================================
 // 类型定义

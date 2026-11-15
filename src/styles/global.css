@@ -7181,6 +7181,8 @@ ul {
 .gd-info { font-size: 13px; color: #e8f5e9; padding: 2px 8px; background: rgba(255,255,255,0.08); border-radius: 99px; }
 .gd-info b { font-size: 14px; }
 .gd-level { color: #ffd54f; }
+.gd-transport { font-size: 12px; color: #b0bec5; }
+.gd-transport-server { color: #81d4fa; background: rgba(41,182,246,0.16); }
 .gd-wild-gold { color: #ff8a65; font-weight: 700; }
 
 .gd-gong-bar {
