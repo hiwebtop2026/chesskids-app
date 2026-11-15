@@ -507,6 +507,17 @@
   padding: 9px 18px !important;
 }
 
+/* ================= 独立游戏窗口 ================= */
+/* ?popup=gd-ai / gd-online：整页只有牌桌，不留站点外壳留白 */
+.gd-popup-root {
+  padding: 0 !important;
+  margin: 0 !important;
+  max-width: none !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  background: #04100b !important;
+}
+
 /* ================= 手牌坞 ================= */
 .gd3-stage .gd-hand {
   display: flex !important;

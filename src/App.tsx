@@ -11,6 +11,7 @@ import {
 import { useProgressStore } from './store';
 import { isWeChatBrowser } from './utils/wechat';
 import { isImmersive, enterImmersive } from './utils/fullscreen';
+import { readPopupKind } from './utils/gameWindow';
 
 // 首页轻量化：棋类模块按需懒加载（大幅缩短首屏加载时间，避免"卡在首页加载"）
 // lazyWithRetry：部署切换/缓存导致 chunk 404 时自动整页刷新一次拉取最新资源，防止"一直转圈"
@@ -316,6 +317,28 @@ const App: React.FC = () => {
       document.removeEventListener('webkitfullscreenchange', handler);
     };
   }, []);
+
+  // ================================================================
+  // 独立游戏窗口：?popup=gd-ai / gd-online 时只渲染牌桌本体，
+  // 不加载站点导航与首页，窗口内即为纯游戏界面。
+  // ================================================================
+  const popupKind = readPopupKind();
+  if (popupKind) {
+    const exitPopup = () => {
+      // 脚本打开的窗口可直接关闭；被浏览器拒绝时回退到主站首页
+      window.close();
+      const url = new URL(window.location.href);
+      url.searchParams.delete('popup');
+      window.setTimeout(() => window.location.replace(url.toString()), 150);
+    };
+    return (
+      <div className={`app skin-${skin} gd-popup-root`}>
+        {popupKind === 'gd-ai'
+          ? <GuandanGame onExit={exitPopup} />
+          : <GuandanOnlineGame onExit={exitPopup} />}
+      </div>
+    );
+  }
 
   const renderContent = () => {
     switch (activeTab) {

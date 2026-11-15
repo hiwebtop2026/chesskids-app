@@ -6,6 +6,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { enterFullscreen, exitFullscreen } from '../utils/fullscreen';
+import { openGameWindow } from '../utils/gameWindow';
 import { playGdBombEffect } from '../utils/gdEffects';
 import { GuandanJoker } from '../components/GuandanJoker';
 import { loadPeerJS, reloadPeerJS } from '../utils/peerjsLoader';
@@ -1446,6 +1447,16 @@ export const GuandanOnlineGame: React.FC<{ autoJoinRoom?: string | null; onExit?
                 setMenuOpen(false);
               }}>
                 {sortMode === 'rank' ? '🃏 一键理牌' : `🔄 方案${sortScheme + 1}/4`}
+              </button>
+              <button
+                className="gd-menu-btn"
+                title="在独立窗口中打开牌桌（新窗口为新的联机大厅）"
+                onClick={() => {
+                  setMenuOpen(false);
+                  if (!openGameWindow('gd-online')) setNotice('浏览器拦截了独立窗口，请允许本站弹出窗口后重试');
+                }}
+              >
+                🪟 独立窗口
               </button>
               <button className="gd-menu-btn" onClick={() => { copyRoomCode(); setMenuOpen(false); }}>
                 📋 复制房间号

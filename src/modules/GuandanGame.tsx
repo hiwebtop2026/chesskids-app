@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { enterFullscreen, exitFullscreen } from '../utils/fullscreen';
+import { openGameWindow } from '../utils/gameWindow';
 import { playGdBombEffect } from '../utils/gdEffects';
 import { GuandanJoker } from '../components/GuandanJoker';
 import {
@@ -1351,6 +1352,17 @@ export function GuandanGame({ onExit }: { onExit?: () => void }) {
                 }}
               >
                 {sortMode === 'rank' ? '🃏 一键理牌' : `🔄 方案${sortScheme + 1}/4`}
+              </button>
+              <button
+                className="gd-menu-btn"
+                onClick={() => {
+                  setMenuOpen(false);
+                  if (!openGameWindow('gd-ai')) {
+                    window.alert('浏览器拦截了独立窗口，请允许本站弹出窗口后重试');
+                  }
+                }}
+              >
+                🪟 独立窗口
               </button>
               <button className="gd-menu-btn" onClick={() => { applyHint(); setMenuOpen(false); }} disabled={!isMyTurn}>
                 💡 提示
